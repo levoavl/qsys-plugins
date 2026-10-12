@@ -1,0 +1,10 @@
+.DS_Store
+Thumbs.db
+*.qsys.bak
+*.tmp
+.vscode/
+__pycache__/
+
+# Kept locally, not published
+CLAUDE.md
+shared/assets/
