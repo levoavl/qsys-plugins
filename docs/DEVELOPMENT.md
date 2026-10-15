@@ -32,6 +32,7 @@ in the plugin's `src/` folder first, then in `shared/lua/`.
 ## Shared code
 
 - `shared/lua/levo_brand.lua` – colours, company info, header bar, background and About page.
+- `shared/lua/levo_websocket.lua` – WebSocket client (RFC 6455, text frames) on top of TcpSocket.
 - `shared/lua/levo_assets.lua` – levo AVL logos as base64 PNG. Generated from the logo
   originals, which are not part of this repository; do not edit by hand. The logos are
   trademarks of levo AVL and not covered by the MIT License, see `shared/NOTICE.md`.
