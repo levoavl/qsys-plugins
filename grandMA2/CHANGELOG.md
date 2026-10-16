@@ -1,7 +1,7 @@
 # Changelog – grandMA2
 
 All notable changes to this plugin are documented here.
-Format: [Keep a Changelog](https://keepachangelog.com), versioning: `major.minor` (see [DEVELOPMENT.md](../../docs/DEVELOPMENT.md#versions)).
+Format: [Keep a Changelog](https://keepachangelog.com), versioning: `major.minor` (see [source/README.md](../source/README.md#versions)).
 
 ## [Unreleased]
 

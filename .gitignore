@@ -7,5 +7,5 @@ __pycache__/
 
 # Kept locally, not published
 CLAUDE.md
-shared/assets/
+source/shared/assets/
 preview/

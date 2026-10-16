@@ -2,19 +2,21 @@
 """
 Build tool for levo AVL Q-SYS plugins.
 
-Usage:
-    python3 tools/build.py              # build all plugins
-    python3 tools/build.py atem         # build one plugin
-    python3 tools/build.py --check      # build + Lua 5.3 syntax check (needs `pip install lupa`)
+Usage (from the repository root):
+    python3 source/tools/build.py              # build all plugins
+    python3 source/tools/build.py grandma2     # build one plugin
+    python3 source/tools/build.py --check      # build + Lua 5.3 syntax check (needs `pip install lupa`)
 
 What it does:
-    1. Regenerates shared/lua/levo_assets.lua from the PNG files in shared/assets
-       (scaled down and base64-encoded, ready for Q-SYS layout graphics).
-    2. For every plugin in plugins/<name>/src/plugin.lua, resolves
-       --[[ #include "file.lua" ]] directives recursively and writes
-       plugins/<name>/dist/levo-<name>.qplug
+    1. Regenerates source/shared/lua/levo_assets.lua from the logo originals in
+       source/shared/assets (not published; skipped when they are missing).
+    2. For every plugin in source/plugins/<name>/src/plugin.lua, resolves
+       --[[ #include "file.lua" ]] directives recursively and writes levo-<name>.qplug:
+       - into the plugin's public folder in the repository root (e.g. grandMA2/),
+         matched case-insensitively against <name>, once the plugin is released;
+       - otherwise next to its sources in source/plugins/<name>/.
 
-Include lookup order: the plugin's own src/ folder first, then shared/lua/.
+Include lookup order: the plugin's own src/ folder first, then source/shared/lua/.
 The include syntax is the same one the QSC plugin compiler uses, so the sources
 stay compatible with that workflow as well.
 """
@@ -26,10 +28,11 @@ import re
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-PLUGINS = ROOT / "plugins"
-SHARED_LUA = ROOT / "shared" / "lua"
-ASSETS = ROOT / "shared" / "assets"
+SOURCE = Path(__file__).resolve().parent.parent
+ROOT = SOURCE.parent
+PLUGINS = SOURCE / "plugins"
+SHARED_LUA = SOURCE / "shared" / "lua"
+ASSETS = SOURCE / "shared" / "assets"
 
 INCLUDE_RE = re.compile(r'--\[\[\s*#include\s+"([^"]+)"\s*\]\]')
 
@@ -46,7 +49,7 @@ def generate_assets() -> None:
     # The logo originals are not published (see shared/NOTICE.md). Without them
     # the committed levo_assets.lua is used as is.
     if not any(ASSETS.glob("*.png")):
-        print("  assets  (no originals in shared/assets - using committed levo_assets.lua)")
+        print("  assets  (no logo originals - using committed levo_assets.lua)")
         return
     try:
         from PIL import Image
@@ -76,7 +79,7 @@ def generate_assets() -> None:
     lines.append("}")
     SHARED_LUA.mkdir(parents=True, exist_ok=True)
     (SHARED_LUA / "levo_assets.lua").write_text("\n".join(lines) + "\n", encoding="utf-8")
-    print("  assets  -> shared/lua/levo_assets.lua")
+    print("  assets  -> source/shared/lua/levo_assets.lua")
 
 
 def resolve(path: Path, search: list, stack: list) -> str:
@@ -109,16 +112,23 @@ def lua_check(source: str, name: str) -> None:
         raise SystemExit(f"Lua syntax error: {err}")
 
 
+def output_path(name: str) -> Path:
+    """Where the built .qplug of plugin <name> goes (see module docstring)."""
+    for folder in ROOT.iterdir():
+        if folder.is_dir() and folder.name.lower() == name.lower() and folder != SOURCE:
+            return folder / f"levo-{name}.qplug"
+    return PLUGINS / name / f"levo-{name}.qplug"
+
+
 def build(plugin_dir: Path, check: bool) -> None:
     entry = plugin_dir / "src" / "plugin.lua"
     if not entry.is_file():
         print(f"  skip    {plugin_dir.name} (no src/plugin.lua yet)")
         return
     source = resolve(entry, [plugin_dir / "src", SHARED_LUA], [])
-    out = plugin_dir / "dist" / f"levo-{plugin_dir.name}.qplug"
+    out = output_path(plugin_dir.name)
     if check:
         lua_check(source, out.name)
-    out.parent.mkdir(exist_ok=True)
     out.write_text(source, encoding="utf-8", newline="\r\n")
     print(f"  built   {out.relative_to(ROOT)} ({len(source) // 1024} KB)")
 

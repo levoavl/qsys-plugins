@@ -4,22 +4,21 @@ AI-assisted Q-SYS plugins by levo AVL – developed with Claude, tested on real 
 
 ## Plugins
 
-| Plugin | Description | Status | Tested on |
-|---|---|---|---|
-| [Blackmagic ATEM](plugins/atem) | Control of ATEM switchers incl. multi-M/E models | 🚧 In development | ATEM Mini Extreme |
-| [grandMA2](plugins/grandma2) | Executors (faders, buttons), macros and commands via the MA2 web remote, with feedback | ✅ v1.0 | grandMA2 onPC 3.9.60.91 |
-| [Sound2Beat](plugins/sound2beat) | Beat / BPM detection inside Q-SYS for lighting sync | 🚧 In development | – |
+| Plugin | Description | Version | Tested on | Download |
+|---|---|---|---|---|
+| [grandMA2](grandMA2) | Executors (faders, buttons), macros and commands via the MA2 web remote, with feedback | 1.0 | grandMA2 onPC 3.9.60.91 | [levo-grandma2.qplug](https://github.com/levoavl/qsys-plugins/releases/download/grandma2-v1.0/levo-grandma2.qplug) |
 
-Planned: Resolume Arena, Pharos.
+**Coming soon:** Blackmagic ATEM (all models incl. multi-M/E), Sound2Beat (beat / BPM
+detection for lighting sync), Resolume Arena, Pharos.
 
 ## Installation
 
-1. Download the `.qplug` file of the plugin you need from the [Releases](../../releases) page.
+1. Download the `.qplug` file from the table above (older versions: [Releases](../../releases)).
 2. Copy it to your Q-SYS plugin folder:
    `Documents\QSC\Q-SYS Designer\Plugins`
 3. Restart Q-SYS Designer. The plugin appears in the Schematic Library under **Plugins → levo AVL**.
 
-Each plugin has its own README with properties, controls and pin descriptions.
+Click a plugin name for its manual: setup, properties, controls and pins.
 
 ## How these plugins are made
 
@@ -30,15 +29,9 @@ open an issue and let us know – positive reports are just as welcome as bugs.
 
 Target environment: Q-SYS Designer 10.1 and later.
 
-## Repository structure
+## Source code
 
-```
-shared/      Shared assets and Lua helpers (branding, about page, connection handling)
-tools/       Build tooling (src → .qplug), see docs/DEVELOPMENT.md
-plugins/     One folder per plugin, each with src/, dist/, README.md and CHANGELOG.md
-```
-
-Releases are tagged per plugin, e.g. `grandma2-v1.0`.
+Everything needed to build and modify the plugins is in [source/](source).
 
 ## Contributing
 
@@ -53,7 +46,7 @@ trademarks are the property of their respective owners.
 The plugins are provided "as is", without warranty of any kind. See [LICENSE](LICENSE).
 
 The levo AVL name and logo are trademarks of levo AVL and are not covered by the MIT
-License – see [shared/NOTICE.md](shared/NOTICE.md).
+License – see [NOTICE.md](NOTICE.md).
 
 ## About
 

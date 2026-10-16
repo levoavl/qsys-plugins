@@ -4,7 +4,7 @@ Control grandMA2 executors, macros and commands from Q-SYS – **with feedback**
 Every value is a plain Q-SYS control with its own pin, so it can be dragged onto a UCI and
 styled freely.
 
-Part of [levo AVL Q-SYS Plugins](../../README.md).
+Part of [levo AVL Q-SYS Plugins](../README.md).
 
 ## Tested on
 
@@ -124,11 +124,11 @@ rising = **Fading In**. After a button press the expected result is shown immedi
 ## Development
 
 ```
-python3 tools/build.py grandma2 --check
-python3 plugins/grandma2/test/harness.py [locimation-verbose-log.txt ...]
+python3 source/tools/build.py grandma2 --check
+python3 source/plugins/grandma2/test/harness.py [locimation-verbose-log.txt ...]
 ```
 
-The harness runs the built plugin with a mocked Q-SYS runtime and a fake console and can
+Sources are in [source/plugins/grandma2](../source/plugins/grandma2). The harness runs the built plugin with a mocked Q-SYS runtime and a fake console and can
 replay logs captured with the Locimation plugin (Verbose Debug).
 
 ## Credits

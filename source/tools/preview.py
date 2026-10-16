@@ -4,8 +4,8 @@ Approximate preview of a plugin's control pages as PNG - for layout work without
 Q-SYS Designer. Fonts and control chrome are only approximations of Q-SYS.
 
     pip install lupa pillow
-    python3 tools/build.py grandma2
-    python3 tools/preview.py grandma2 [--set "Fader Count=4"] [--demo demo.json] [--out DIR] [--scale 2]
+    python3 source/tools/build.py grandma2
+    python3 source/tools/preview.py grandma2 [--set "Fader Count=4"] [--demo demo.json] [--out DIR] [--scale 2]
 
 --demo: JSON {"<control name>": {"String": "...", "Legend": "...", "Color": "#RRGGBB",
 "Position": 0.5}} to show sample runtime values.
@@ -22,7 +22,8 @@ from pathlib import Path
 from lupa.lua53 import LuaRuntime
 from PIL import Image, ImageDraw, ImageFont
 
-ROOT = Path(__file__).resolve().parent.parent
+from build import output_path
+
 FONT_DIR = Path("/usr/share/fonts/truetype/dejavu")
 
 
@@ -54,7 +55,7 @@ def to_py(lua, v):
 
 def load_plugin(name, overrides):
     lua = LuaRuntime(encoding=None)
-    src = (ROOT / "plugins" / name / "dist" / f"levo-{name}.qplug").read_bytes()
+    src = output_path(name).read_bytes()
     lua.execute(b"Controls = nil\n" + src)
     g = lua.globals()
     plist = to_py(lua, g.GetProperties())

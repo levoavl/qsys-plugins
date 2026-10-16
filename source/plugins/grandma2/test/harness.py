@@ -9,8 +9,8 @@ Locimation "MA2 Remote" plugin (Verbose Debug) to check the state derivation
 against real console data.
 
     pip install lupa
-    python3 tools/build.py grandma2
-    python3 plugins/grandma2/test/harness.py [log.txt ...]
+    python3 source/tools/build.py grandma2
+    python3 source/plugins/grandma2/test/harness.py [log.txt ...]
 
 (c) levo AVL | Elias Jenny - MIT License
 """
@@ -24,8 +24,10 @@ from pathlib import Path
 
 from lupa.lua53 import LuaRuntime
 
-ROOT = Path(__file__).resolve().parents[3]
-QPLUG = ROOT / "plugins" / "grandma2" / "dist" / "levo-grandma2.qplug"
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tools"))
+from build import output_path  # noqa: E402
+
+QPLUG = output_path("grandma2")
 
 MOCKS = r"""
 local py = ...
