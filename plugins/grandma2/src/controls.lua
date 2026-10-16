@@ -48,8 +48,7 @@ for i = 1, counts.Faders do
   Led(p .. "Fading")
   TextOut(p .. "State")
   Percent(p .. "Progress", "Output")
-  Int(p .. "Page", 9999)
-  Int(p .. "Exec", 999)
+  TextIn(p .. "Exec")  -- "page.exec" as in MA, e.g. "1.101"
 end
 
 -- Button executors
@@ -63,8 +62,7 @@ for i = 1, counts.Buttons do
   Led(p .. "Fading")
   TextOut(p .. "State")
   Percent(p .. "Progress", "Output")
-  Int(p .. "Page", 9999)
-  Int(p .. "Exec", 999)
+  TextIn(p .. "Exec")  -- "page.exec" as in MA, e.g. "1.101"
 end
 
 -- Macros

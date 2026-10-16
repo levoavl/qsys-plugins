@@ -31,10 +31,15 @@ end
 -- end (prepended to `graphics`) once W and H are known.
 local W, H = 640, 400
 local y = LevoBrand.HeaderHeight + 3 + 12
+if CurrentPage == "Faders" or CurrentPage == "Buttons" then
+  Label("Executor per slot: enter page.exec as in MA (e.g. 1.5 or 1.101) in the field top right.",
+    M, y - 4, 600, 16, { size = 10, color = C.Mid })
+  y = y + 16
+end
 
 if CurrentPage == "Faders" then
   local cols, cw, gap = 8, 96, 8
-  local cellH = 18 + 16 + 18 + 16 + 3 * 26 + 8 + 150 + 24
+  local cellH = 24 + 18 + 16 + 18 + 16 + 3 * 26 + 8 + 150 + 24
   for i = 1, counts.Faders do
     local col, row = (i - 1) % cols, (i - 1) // cols
     local x, cy = M + col * (cw + gap), y + row * (cellH + gap)
@@ -43,8 +48,9 @@ if CurrentPage == "Faders" then
       Type = "GroupBox", Fill = { 255, 255, 255 }, StrokeColor = { 210, 210, 206 }, StrokeWidth = 1,
       CornerRadius = 6, Position = { x, cy }, Size = { cw, cellH },
     })
-    Label("Fader " .. i, x + 4, cy + 2, cw - 8, 14, { size = 9, color = C.Mid })
-    local yy = cy + 16
+    Label("Fader " .. i, x + 4, cy + 4, 40, 18, { size = 9, color = C.Mid })
+    Place(p .. "Exec", g .. "Exec", x + cw - 52, cy + 3, 48, 18, { Style = "Text", FontSize = 10 })
+    local yy = cy + 24
     Place(p .. "Name", g .. "Name", x + 4, yy, cw - 8, 18, { Style = "Text", FontSize = 11, FontStyle = "Bold" }); yy = yy + 18
     Place(p .. "Cue", g .. "Cue", x + 4, yy, cw - 8, 16, { Style = "Text", FontSize = 9 }); yy = yy + 18
     Place(p .. "Active", g .. "Active", x + 4, yy, 16, 16, { Color = C.Amber })
@@ -64,7 +70,7 @@ if CurrentPage == "Faders" then
 
 elseif CurrentPage == "Buttons" then
   local cols, cw, gap = 6, 124, 8
-  local cellH = 16 + 44 + 18 + 18 + 18 + 12 + 18 + 6
+  local cellH = 24 + 44 + 18 + 18 + 18 + 12 + 18 + 6
   for i = 1, counts.Buttons do
     local col, row = (i - 1) % cols, (i - 1) // cols
     local x, cy = M + col * (cw + gap), y + row * (cellH + gap)
@@ -73,8 +79,9 @@ elseif CurrentPage == "Buttons" then
       Type = "GroupBox", Fill = { 255, 255, 255 }, StrokeColor = { 210, 210, 206 }, StrokeWidth = 1,
       CornerRadius = 6, Position = { x, cy }, Size = { cw, cellH },
     })
-    Label("Button " .. i, x + 4, cy + 2, cw - 8, 14, { size = 9, color = C.Mid })
-    local yy = cy + 16
+    Label("Button " .. i, x + 4, cy + 4, 60, 18, { size = 9, color = C.Mid })
+    Place(p .. "Exec", g .. "Exec", x + cw - 56, cy + 3, 52, 18, { Style = "Text", FontSize = 10 })
+    local yy = cy + 24
     Place(p .. "Press", g .. "Press", x + 4, yy, cw - 8, 40, { Style = "Button", Legend = "", FontSize = 11, Color = C.Amber }); yy = yy + 44
     Place(p .. "Name", g .. "Name", x + 4, yy, cw - 8, 16, { Style = "Text", FontSize = 10, FontStyle = "Bold" }); yy = yy + 18
     Place(p .. "Cue", g .. "Cue", x + 4, yy, cw - 8, 16, { Style = "Text", FontSize = 9 }); yy = yy + 18
@@ -142,30 +149,6 @@ elseif CurrentPage == "Setup" then
   Row("Last Error", "Last Error", "Debug~Last Error", 480, { Style = "Text" })
   y = y + 6
 
-  local function Assign(title, kind, n, fieldLabel)
-    if n == 0 then return end
-    y = Section(title, M, y, 608)
-    local cols, cw = 4, 152
-    for i = 1, n do
-      local col, row = (i - 1) % cols, (i - 1) // cols
-      local x, ry = M + col * cw, y + row * 26
-      Label(kind .. " " .. i, x, ry + 1, 60, 20)
-      if fieldLabel then
-        Place(kind .. " " .. i .. " Number", kind .. "s~" .. kind .. " " .. i .. "~Number", x + 62, ry, 50, 22, { Style = "Text" })
-      else
-        Place(kind .. " " .. i .. " Page", kind .. "s~" .. kind .. " " .. i .. "~Page", x + 62, ry, 36, 22, { Style = "Text" })
-        Place(kind .. " " .. i .. " Exec", kind .. "s~" .. kind .. " " .. i .. "~Exec", x + 102, ry, 44, 22, { Style = "Text" })
-      end
-    end
-    y = y + math.ceil(n / cols) * 26 + 10
-  end
-  if counts.Faders + counts.Buttons > 0 then
-    Label("Assignment: Page and Executor number as in MA (e.g. 1 / 101 = executor 1.101).",
-      M, y, 608, 18, { size = 10, color = C.Mid })
-    y = y + 22
-  end
-  Assign("Fader Slots  (Page · Exec)", "Fader", counts.Faders)
-  Assign("Button Slots  (Page · Exec)", "Button", counts.Buttons)
   H = y + M
 
 elseif CurrentPage == "About" then

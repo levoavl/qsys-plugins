@@ -68,14 +68,12 @@ local function DefaultInt(name, value)
 end
 
 DefaultInt("Port", 80)
-for i = 1, Counts.Faders do
-  DefaultInt("Fader " .. i .. " Page", 1)
-  DefaultInt("Fader " .. i .. " Exec", i)
+local function DefaultText(name, value)
+  local c = Controls[name]
+  if c and c.String:match("^%s*$") then c.String = value end
 end
-for i = 1, Counts.Buttons do
-  DefaultInt("Button " .. i .. " Page", 1)
-  DefaultInt("Button " .. i .. " Exec", 100 + i)
-end
+for i = 1, Counts.Faders do DefaultText("Fader " .. i .. " Exec", "1." .. i) end
+for i = 1, Counts.Buttons do DefaultText("Button " .. i .. " Exec", "1." .. (100 + i)) end
 for i = 1, Counts.Macros do
   DefaultInt("Macro " .. i .. " Number", i)
 end
@@ -91,16 +89,28 @@ local PollPlan = {}
 
 local function KeyOf(page, exec) return ("%d.%d"):format(page, exec) end
 
+-- "1.101" -> 1, 101 ; "101" -> 1, 101 (page 1) ; invalid -> 0, 0
+local function ParseExec(text)
+  local s = tostring(text or ""):gsub("%s", ""):gsub(",", ".")
+  local p, e = s:match("^(%d+)%.(%d+)$")
+  if not p then p, e = "1", s:match("^(%d+)$") end
+  p, e = tonumber(p), tonumber(e)
+  if not (p and e) or p < 1 or e < 1 or p > 9999 or e > 999 then return 0, 0 end
+  return math.floor(p), math.floor(e)
+end
+
 local function RebuildSlots()
   Slots, SlotsByKey = {}, {}
   local list = {}
   local function add(kind, i)
     local prefix = kind .. " " .. i .. " "
-    local page = math.floor(Controls[prefix .. "Page"].Value)
-    local exec = math.floor(Controls[prefix .. "Exec"].Value)
+    local page, exec = ParseExec(Controls[prefix .. "Exec"].String)
     local slot = { kind = kind, index = i, prefix = prefix, page = page, exec = exec, key = KeyOf(page, exec), touchedAt = -100 }
     Slots[#Slots + 1] = slot
-    if page >= 1 and exec >= 1 then
+    if page < 1 then
+      local txt = Controls[prefix .. "Exec"].String
+      if not txt:match("^%s*$") then SetError(("%s: invalid executor '%s' (use page.exec, e.g. 1.101)"):format(kind .. " " .. i, txt)) end
+    else
       SlotsByKey[slot.key] = SlotsByKey[slot.key] or {}
       table.insert(SlotsByKey[slot.key], slot)
       list[#list + 1] = { page = page, exec = exec }
@@ -532,6 +542,7 @@ local function WireSlotHandlers()
 
   -- re-assignment of page / exec at runtime
   local function OnAssign()
+    SetError("")
     RebuildSlots()
     Tracker:Reset()
     LastEntry, LastResult = {}, {}
@@ -542,7 +553,6 @@ local function WireSlotHandlers()
   for _, kind in ipairs({ "Fader", "Button" }) do
     local n = kind == "Fader" and Counts.Faders or Counts.Buttons
     for i = 1, n do
-      Controls[kind .. " " .. i .. " Page"].EventHandler = OnAssign
       Controls[kind .. " " .. i .. " Exec"].EventHandler = OnAssign
     end
   end
@@ -569,7 +579,7 @@ Controls.Reconnect.EventHandler = function() Reconnect(true) end
 ---------------------------------------------------------------------------
 SetString("Reconnects", "0")
 SetError("")
-RebuildSlots()
+RebuildSlots()  -- may report invalid assignments via Last Error
 for _, slot in ipairs(Slots) do ShowSlot(slot, nil, OFFLINE) end
 WireSlotHandlers()
 Log(1, ("Started, build %s - %d fader(s), %d button(s), %d macro(s), %d command(s)"):format(

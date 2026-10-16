@@ -5,7 +5,7 @@ Format: [Keep a Changelog](https://keepachangelog.com), versioning: [SemVer](htt
 
 ## [Unreleased]
 
-## [0.1.0] – 2026-10-15
+## [0.1.0] – 2026-10-16
 
 ### Added
 - Connection to the grandMA2 web remote (WebSocket, TCP 80) with login, session keepalive,
@@ -16,7 +16,8 @@ Format: [Keep a Changelog](https://keepachangelog.com), versioning: [SemVer](htt
   Progress.
 - State detection Off / Fading In / On / Fading Out from the fade progress; Active turns off
   immediately when an executor starts fading out. Optimistic update on button press.
-- Free Page / Exec assignment per slot (also at runtime via pins).
+- Executor assignment per slot as text field `page.exec` (e.g. `1.101`) directly in the slot,
+  also changeable at runtime via pin.
 - Macro slots ("Go Macro n") and free command slots, plus `Command TX` string input.
 - Slot counts as properties (0–64 faders, 0–128 buttons, 0–64 macros, 0–32 commands),
   poll interval property, Debug Print (None / Basic / Verbose, Verbose logs state changes).

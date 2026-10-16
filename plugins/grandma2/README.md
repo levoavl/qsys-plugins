@@ -34,10 +34,11 @@ use what you need.
 
 ## Slots
 
-Each fader and button slot is assigned to an MA executor on the **Setup** page
-(`Page` + `Exec`, as in MA: page 1 / exec 101 = executor 1.101). The assignment is a
-normal control, so it can also be changed at runtime via pin or UCI.
-Defaults: Fader *n* → 1.*n*, Button *n* → 1.(100+*n*), Macro *n* → macro *n*.
+Each fader and button slot has an **Exec** text field right in the slot (top right).
+Enter the executor as in MA: `page.exec`, e.g. `1.5` or `1.101` (`101` alone = page 1,
+a comma works too). The field is a normal control, so the assignment can also be changed
+at runtime via pin or UCI. Invalid entries are reported in `Last Error`.
+Defaults: Fader *n* → `1.n`, Button *n* → `1.(100+n)`, Macro *n* → macro *n*.
 
 ### Fader slot `Fader n …`
 
@@ -53,7 +54,7 @@ Defaults: Fader *n* → 1.*n*, Button *n* → 1.(100+*n*), Macro *n* → macro *
 | Fading | LED | out | A fade (in or out) is running |
 | State | Text | out | `Empty` / `Off` / `Fading In` / `On` / `Fading Out` / `Offline` |
 | Progress | 0–100 % | out | Fade progress |
-| Page, Exec | Integer | in/out | Assignment |
+| Exec | Text | in/out | Assigned executor, `page.exec` (e.g. `1.101`) |
 
 ### Button slot `Button n …`
 

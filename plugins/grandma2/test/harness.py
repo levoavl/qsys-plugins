@@ -369,6 +369,35 @@ def test_basics():
     check(h2.ctl("Status").Value == 4 and len(h2.g.Sockets) == 0, "no IP -> Missing, no socket (emulation safe)")
 
 
+def test_exec_assignment():
+    print("test_exec_assignment")
+    h = Harness()
+    check(h.s("Fader 2 Exec") == "1.2" and h.s("Button 3 Exec") == "1.103", "default executor texts")
+    h.handshake_and_login()
+    h.user("Button 1 Exec", "String", b"2.105")
+    h.user("Fader 1 Exec", "String", b"7")
+    h.tick()
+    polls = [m for m in h.take_msgs() if m.get("requestType") == "playbacks"]
+    check(polls and polls[0]["pageIndex"] == 0, "polling restarts after reassignment")
+    for _ in range(3):
+        h.send_json({"responseType": "playbacks", "iPage": 1, "itemGroups": []})
+        polls += [m for m in h.take_msgs() if m.get("requestType") == "playbacks"]
+    check(any(p["pageIndex"] == 1 and p["startIndex"] == [100] and p["itemsType"] == [3] for p in polls),
+          "2.105 polled on page 2")
+    h.send_json({"responseType": "playbacks", "iPage": 2, "itemGroups": [{"itemsType": 3, "items": [[
+        {"iExec": 104, "isRun": 1, "combinedItems": 1, "tt": {"t": "Page2"}, "oI": {"t": "9"},
+         "cues": {"items": [{"t": "1", "pgs": {"v": 1.0}}]}, "bottomButtons": {"items": [{"n": {"t": "Go"}}]}}]]}]})
+    check(h.s("Button 1 Name") == "Page2" and h.b("Button 1 Active"), "feedback mapped to 2.105")
+    h.user("Button 1 Press", "Boolean", True)
+    h.tick()
+    ins = [m for m in h.take_msgs() if m.get("requestType") == "playbacks_userInput"]
+    check(ins and ins[0]["pageIndex"] == 1 and ins[0]["execIndex"] == 104, "press goes to 2.105")
+    h.user("Fader 2 Exec", "String", b"abc")
+    check("invalid executor" in h.s("Last Error") and h.s("Fader 2 State") == "Offline", "invalid text reported")
+    h.user("Fader 2 Exec", "String", b"1,2")
+    check(h.s("Last Error") == "", "comma accepted (1,2 = 1.2)")
+
+
 def test_large_and_fragmented():
     print("test_large_and_fragmented")
     h = Harness()
@@ -448,6 +477,7 @@ def replay(path):
 if __name__ == "__main__":
     random.seed(1)
     test_basics()
+    test_exec_assignment()
     test_large_and_fragmented()
     for p in sys.argv[1:]:
         replay(p)
