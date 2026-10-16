@@ -1,8 +1,6 @@
-<p align="center">
-  <img src="source/media/banner.png" alt="levo AVL – Q-SYS Plugins" width="100%">
-</p>
+# levo AVL – Q-SYS Plugins
 
-<p align="center">
+<p>
   <img src="https://img.shields.io/badge/Q--SYS_Designer-10.1%2B-00468C?style=flat-square&labelColor=191919" alt="Q-SYS Designer 10.1+">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-00468C?style=flat-square&labelColor=191919" alt="MIT License"></a>
   <img src="https://img.shields.io/badge/Built_with-Claude-00468C?style=flat-square&labelColor=191919" alt="Built with Claude">

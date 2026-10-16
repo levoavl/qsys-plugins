@@ -101,4 +101,4 @@ Plugins use two-part versions `major.minor` (e.g. `1.0`, `1.1`, `2.0`):
    "Tested on" line, and remove the plugin from "Coming soon". Update the Download button
    at the top of the plugin's own README the same way.
 
-`source/media/` holds images used by the READMEs (banner, screenshots).
+`source/media/` holds images used by the READMEs (e.g. screenshots).
