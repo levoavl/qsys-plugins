@@ -425,10 +425,11 @@ def test_main_button_feedback():
     check(h.b("Button 1 Press"), "held button not overwritten by feedback")
     h.user("Button 1 Press", "Boolean", False)
     check(h.b("Button 1 Press"), "after release: shows predicted state (toggle on)")
-    h2 = Harness({"Button Legends": "Off"})
+    check(h._s(h.ctl("Button 1 Press").Legend) == "", "default: main button legend not written (free for UCI)")
+    h2 = Harness({"Button Legends": "All"})
     h2.handshake_and_login()
     h2.send_json(item(1))
-    check(h2._s(h2.ctl("Button 1 Press").Legend) == "", "Button Legends = Off leaves legends alone")
+    check(h2._s(h2.ctl("Button 1 Press").Legend) == "Toggle", "Button Legends = All writes main legends")
 
 
 def test_large_and_fragmented():

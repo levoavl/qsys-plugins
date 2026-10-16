@@ -27,7 +27,7 @@ Part of [levo AVL Q-SYS Plugins](../../README.md).
 | Macro Count | 0–64 | 8 | Macro trigger slots |
 | Command Count | 0–32 | 4 | Free command slots |
 | Poll Interval (ms) | 100–2000 | 250 | How often executor states are requested |
-| Button Legends | From console / Off | From console | Write MA button functions as button legends |
+| Button Legends | Fader Buttons 2+3 / All / Off | Fader Buttons 2+3 | Which buttons get the MA button function as legend |
 | Debug Print | None / Basic / Verbose | None | Verbose logs every executor state change |
 
 Pages without slots are hidden. At maximum counts the plugin has about 2500 controls –
@@ -64,7 +64,7 @@ Same as the fader slot without Level / Button 1–3, plus:
 
 | Control | Type | Pin | |
 |---|---|---|---|
-| Press | Momentary | in/out | Executor button, **on while the executor runs** (legend = button function) |
+| Press | Momentary | in/out | Executor button, **on while the executor runs** |
 | Function | Text | out | Button function ("Toggle", "Go", "Flash" …) |
 
 ### Macros, commands
@@ -95,8 +95,10 @@ working and keeps its look.
 - Pressing a main button that is already on works as expected (Q-SYS only reports the
   release in that case – the plugin sends it as a short press).
 - The output pin of a main button carries the executor state, not the finger on the button.
-- Legends: with **Button Legends = From console** the plugin writes the MA button functions
-  ("Go", "Toggle" …) as legends. Set it to **Off** to use your own texts on the UCI.
+- Legends: anything the plugin writes as legend overrides the text on every UCI copy.
+  **Button Legends** decides what the plugin writes: `Fader Buttons 2+3` (default – the main
+  buttons stay free for your own texts), `All` (also main buttons, e.g. "Go", "Toggle") or
+  `Off`. The console labels are always available as `… Label` / `… Function` pins.
 - `Active`, `Fading`, `State` and `Progress` stay available as pins for logic and UCIs.
 
 Fade progress is a meter directly under the cue, as on the console.

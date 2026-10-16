@@ -27,6 +27,7 @@ Format: [Keep a Changelog](https://keepachangelog.com), versioning: [SemVer](htt
 - Plugin UI: MA-like strip layout (fader: name, cue, progress, buttons 3/2, fader,
   main button; button: name, cue, progress, button; macro: number field, Go button).
 - Executor state shown as on/off state of the main button – no colours or styles are
-  written, so UCI copies keep their own look. `Button Legends` property (From console / Off).
-- Fade progress as meter.
+  written, so UCI copies keep their own look. `Button Legends` property (Fader Buttons 2+3 / All / Off) – main buttons get no legend by
+  default, so UCI texts stay.
+- Fade progress as meter without value box.
 - Offline test harness `test/harness.py` (mocked Q-SYS runtime + fake console).

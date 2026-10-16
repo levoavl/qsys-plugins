@@ -5,10 +5,12 @@ table.insert(props, { Name = "Macro Count",   Type = "integer", Min = 0, Max = 6
 table.insert(props, { Name = "Command Count", Type = "integer", Min = 0, Max = 32,  Value = 4 })
 table.insert(props, { Name = "Poll Interval (ms)", Type = "integer", Min = 100, Max = 2000, Value = 250 })
 table.insert(props, {
-  Name = "Button Legends",  -- "Off" keeps legends free for your own UCI texts
+  -- Legends written by the plugin override any UCI text, so the main buttons
+  -- (state buttons) are left alone unless "All" is chosen.
+  Name = "Button Legends",
   Type = "enum",
-  Choices = { "From console", "Off" },
-  Value = "From console",
+  Choices = { "Fader Buttons 2+3", "All", "Off" },
+  Value = "Fader Buttons 2+3",
 })
 table.insert(props, {
   Name = "Debug Print",

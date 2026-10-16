@@ -59,7 +59,7 @@ local function NameCue(p, g, x, yy, cw)
   Place(p .. "Name", g .. "Name", x + 4, yy, cw - 8, 18, Flat({ FontSize = 12, FontStyle = "Bold", TextColor = C.Onyx }))
   Place(p .. "Cue", g .. "Cue", x + 4, yy + 18, cw - 8, 15, Flat({ FontSize = 10, TextColor = C.Mid }))
   -- fade progress sits directly under the cue, as in MA
-  Place(p .. "Progress", g .. "Progress", x + 6, yy + 36, cw - 12, 10, { Color = C.Amber })
+  Place(p .. "Progress", g .. "Progress", x + 6, yy + 36, cw - 12, 10, { Color = C.Amber, ShowTextbox = false, CornerRadius = 0 })
   return yy + 54
 end
 

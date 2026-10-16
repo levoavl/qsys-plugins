@@ -212,10 +212,12 @@ table.insert(props, { Name = "Macro Count",   Type = "integer", Min = 0, Max = 6
 table.insert(props, { Name = "Command Count", Type = "integer", Min = 0, Max = 32,  Value = 4 })
 table.insert(props, { Name = "Poll Interval (ms)", Type = "integer", Min = 100, Max = 2000, Value = 250 })
 table.insert(props, {
-  Name = "Button Legends",  -- "Off" keeps legends free for your own UCI texts
+  -- Legends written by the plugin override any UCI text, so the main buttons
+  -- (state buttons) are left alone unless "All" is chosen.
+  Name = "Button Legends",
   Type = "enum",
-  Choices = { "From console", "Off" },
-  Value = "From console",
+  Choices = { "Fader Buttons 2+3", "All", "Off" },
+  Value = "Fader Buttons 2+3",
 })
 table.insert(props, {
   Name = "Debug Print",
@@ -395,7 +397,7 @@ local function NameCue(p, g, x, yy, cw)
   Place(p .. "Name", g .. "Name", x + 4, yy, cw - 8, 18, Flat({ FontSize = 12, FontStyle = "Bold", TextColor = C.Onyx }))
   Place(p .. "Cue", g .. "Cue", x + 4, yy + 18, cw - 8, 15, Flat({ FontSize = 10, TextColor = C.Mid }))
   -- fade progress sits directly under the cue, as in MA
-  Place(p .. "Progress", g .. "Progress", x + 6, yy + 36, cw - 12, 10, { Color = C.Amber })
+  Place(p .. "Progress", g .. "Progress", x + 6, yy + 36, cw - 12, 10, { Color = C.Amber, ShowTextbox = false, CornerRadius = 0 })
   return yy + 54
 end
 
@@ -1157,7 +1159,9 @@ local LastResult = {}  -- key -> last derived result
 -- The state is shown through the main button's own on/off state (Boolean), never
 -- through Color or Style - so copies on a UCI keep whatever look they are given.
 -- Legends are only written when the "Button Legends" property says so.
-local WriteLegends = (Properties["Button Legends"].Value ~= "Off")
+local LegendMode = Properties["Button Legends"].Value
+local WriteSideLegends = (LegendMode ~= "Off")   -- fader buttons 2 and 3
+local WriteMainLegends = (LegendMode == "All")   -- fader button 1, button press
 
 -- Main buttons (fader button 1 / button press) currently held by the user: their
 -- Boolean must not be changed until release, or the release event is lost.
@@ -1185,13 +1189,13 @@ local function ShowSlot(slot, e, r)
     for b = 1, 3 do
       local label = e and e.labels[b] or ""
       SetString(p .. "Button " .. b .. " Label", label)
-      if WriteLegends then SetLegend(p .. "Button " .. b, label) end
+      if (b == 1 and WriteMainLegends) or (b > 1 and WriteSideLegends) then SetLegend(p .. "Button " .. b, label) end
     end
     if e and e.level and (Now - slot.touchedAt) > FADER_HOLD then
       SetPosition(p .. "Level", e.level)
     end
   else
-    if WriteLegends then SetLegend(p .. "Press", e and e.func or "") end
+    if WriteMainLegends then SetLegend(p .. "Press", e and e.func or "") end
   end
   ShowMainState(slot, r.active)
 end
