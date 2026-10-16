@@ -30,70 +30,80 @@ end
 -- Page size depends on the slot counts; background and header are added at the
 -- end (prepended to `graphics`) once W and H are known.
 local W, H = 640, 400
-local y = LevoBrand.HeaderHeight + 3 + 12
-if CurrentPage == "Faders" or CurrentPage == "Buttons" then
-  Label("Executor per slot: enter page.exec as in MA (e.g. 1.5 or 1.101) in the field top right.",
-    M, y - 4, 600, 16, { size = 10, color = C.Mid })
-  y = y + 16
+local y = LevoBrand.HeaderHeight + 2 + 10
+
+-- Executor strips: columns separated by hairlines, like the executor bar in MA.
+-- The state lives in one place only - the colour of the main button.
+local function Hairline(x, y1, w, h)
+  table.insert(graphics, {
+    Type = "GroupBox", Fill = C.Line, StrokeWidth = 0, CornerRadius = 0,
+    Position = { x, y1 }, Size = { w, h },
+  })
+end
+
+local function SlotHead(p, g, i, x, cy, cw)
+  Label(tostring(i), x + 6, cy + 6, 24, 18, { size = 10, color = C.Mid })
+  Place(p .. "Exec", g .. "Exec", x + cw - 54, cy + 6, 48, 18, { Style = "Text", FontSize = 10 })
+end
+
+-- read-only text that should look like a label, not like a field
+local FLAT = { Style = "Text", Color = C.Porcelain, StrokeWidth = 0, CornerRadius = 0 }
+local function Flat(extra)
+  local t = {}
+  for k, v in pairs(FLAT) do t[k] = v end
+  for k, v in pairs(extra) do t[k] = v end
+  return t
+end
+
+local function NameCue(p, g, x, yy, cw)
+  Place(p .. "Name", g .. "Name", x + 4, yy, cw - 8, 18, Flat({ FontSize = 12, FontStyle = "Bold", TextColor = C.Onyx }))
+  Place(p .. "Cue", g .. "Cue", x + 4, yy + 18, cw - 8, 15, Flat({ FontSize = 10, TextColor = C.Mid }))
+  -- fade progress sits directly under the cue, as in MA
+  Place(p .. "Progress", g .. "Progress", x + 6, yy + 34, cw - 12, 6, { Style = "Fader", IsReadOnly = true, Color = C.Amber })
+  return yy + 46
 end
 
 if CurrentPage == "Faders" then
-  local cols, cw, gap = 8, 96, 8
-  local cellH = 24 + 18 + 16 + 18 + 16 + 3 * 26 + 8 + 150 + 24
+  local cols, cw = 8, 92
+  local cellH = 344
   for i = 1, counts.Faders do
     local col, row = (i - 1) % cols, (i - 1) // cols
-    local x, cy = M + col * (cw + gap), y + row * (cellH + gap)
+    local x, cy = M + col * cw, y + row * (cellH + 12)
     local p, g = "Fader " .. i .. " ", "Faders~Fader " .. i .. "~"
-    table.insert(graphics, {
-      Type = "GroupBox", Fill = { 255, 255, 255 }, StrokeColor = { 210, 210, 206 }, StrokeWidth = 1,
-      CornerRadius = 6, Position = { x, cy }, Size = { cw, cellH },
-    })
-    Label("Fader " .. i, x + 4, cy + 4, 40, 18, { size = 9, color = C.Mid })
-    Place(p .. "Exec", g .. "Exec", x + cw - 52, cy + 3, 48, 18, { Style = "Text", FontSize = 10 })
-    local yy = cy + 24
-    Place(p .. "Name", g .. "Name", x + 4, yy, cw - 8, 18, { Style = "Text", FontSize = 11, FontStyle = "Bold" }); yy = yy + 18
-    Place(p .. "Cue", g .. "Cue", x + 4, yy, cw - 8, 16, { Style = "Text", FontSize = 9 }); yy = yy + 18
-    Place(p .. "Active", g .. "Active", x + 4, yy, 16, 16, { Color = C.Amber })
-    Place(p .. "Fading", g .. "Fading", x + 22, yy, 16, 16, { Color = C.Atlantic })
-    Place(p .. "State", g .. "State", x + 40, yy, cw - 44, 16, { Style = "Text", FontSize = 9 }); yy = yy + 18
-    Place(p .. "Progress", g .. "Progress", x + 4, yy, cw - 8, 8, { Style = "Fader", IsReadOnly = true, Color = C.Atlantic }); yy = yy + 12
-    for b = 1, 3 do
-      Place(p .. "Button " .. b, g .. "Button " .. b, x + 4, yy, cw - 8, 22,
-        { Style = "Button", Legend = "", FontSize = 10, Color = C.Amber }); yy = yy + 26
+    if col > 0 then Hairline(x, cy + 4, 1, cellH - 8) end
+    SlotHead(p, g, i, x, cy, cw)
+    local yy = NameCue(p, g, x, cy + 30, cw)
+    for _, b in ipairs({ 3, 2 }) do
+      Place(p .. "Button " .. b, g .. "Button " .. b, x + 6, yy, cw - 12, 24,
+        { Style = "Button", Legend = "", FontSize = 10, Color = C.Line }); yy = yy + 28
     end
-    Place(p .. "Level", g .. "Level", x + (cw - 40) // 2, yy + 4, 40, 150, { Style = "Fader", Color = C.Atlantic }); yy = yy + 158
-    Place(p .. "Function", g .. "Function", x + 4, yy, cw - 8, 16, { Style = "Text", FontSize = 9 })
+    Place(p .. "Level", g .. "Level", x + (cw - 32) // 2, yy + 2, 32, 150, { Style = "Fader", Color = C.Atlantic }); yy = yy + 158
+    -- main button below the fader, coloured by the executor state at runtime
+    Place(p .. "Button 1", g .. "Button 1", x + 6, yy, cw - 12, 34,
+      { Style = "Button", Legend = "", FontSize = 11, FontStyle = "Bold", Color = C.Amber }); yy = yy + 38
+    Place(p .. "Function", g .. "Function", x + 4, yy, cw - 8, 14, Flat({ FontSize = 9, TextColor = C.Mid }))
   end
   local rows = math.max(1, math.ceil(counts.Faders / cols))
-  W = math.max(W, M * 2 + math.min(counts.Faders, cols) * (cw + gap) - gap)
-  H = y + rows * (cellH + gap) + M
+  W = math.max(W, M * 2 + math.min(counts.Faders, cols) * cw)
+  H = y + rows * (cellH + 12) + M
 
 elseif CurrentPage == "Buttons" then
-  local cols, cw, gap = 6, 124, 8
-  local cellH = 24 + 44 + 18 + 18 + 18 + 12 + 18 + 6
+  local cols, cw = 6, 112
+  local cellH = 136
   for i = 1, counts.Buttons do
     local col, row = (i - 1) % cols, (i - 1) // cols
-    local x, cy = M + col * (cw + gap), y + row * (cellH + gap)
+    local x, cy = M + col * cw, y + row * cellH
     local p, g = "Button " .. i .. " ", "Buttons~Button " .. i .. "~"
-    table.insert(graphics, {
-      Type = "GroupBox", Fill = { 255, 255, 255 }, StrokeColor = { 210, 210, 206 }, StrokeWidth = 1,
-      CornerRadius = 6, Position = { x, cy }, Size = { cw, cellH },
-    })
-    Label("Button " .. i, x + 4, cy + 4, 60, 18, { size = 9, color = C.Mid })
-    Place(p .. "Exec", g .. "Exec", x + cw - 56, cy + 3, 52, 18, { Style = "Text", FontSize = 10 })
-    local yy = cy + 24
-    Place(p .. "Press", g .. "Press", x + 4, yy, cw - 8, 40, { Style = "Button", Legend = "", FontSize = 11, Color = C.Amber }); yy = yy + 44
-    Place(p .. "Name", g .. "Name", x + 4, yy, cw - 8, 16, { Style = "Text", FontSize = 10, FontStyle = "Bold" }); yy = yy + 18
-    Place(p .. "Cue", g .. "Cue", x + 4, yy, cw - 8, 16, { Style = "Text", FontSize = 9 }); yy = yy + 18
-    Place(p .. "Active", g .. "Active", x + 4, yy, 16, 16, { Color = C.Amber })
-    Place(p .. "Fading", g .. "Fading", x + 22, yy, 16, 16, { Color = C.Atlantic })
-    Place(p .. "State", g .. "State", x + 40, yy, cw - 44, 16, { Style = "Text", FontSize = 9 }); yy = yy + 18
-    Place(p .. "Progress", g .. "Progress", x + 4, yy, cw - 8, 8, { Style = "Fader", IsReadOnly = true, Color = C.Atlantic }); yy = yy + 12
-    Place(p .. "Function", g .. "Function", x + 4, yy, cw - 8, 16, { Style = "Text", FontSize = 9 })
+    if col > 0 then Hairline(x, cy + 4, 1, cellH - 8) end
+    if row > 0 then Hairline(x + 4, cy, cw - 8, 1) end
+    SlotHead(p, g, i, x, cy, cw)
+    Place(p .. "Press", g .. "Press", x + 6, cy + 30, cw - 12, 48,
+      { Style = "Button", Legend = "", FontSize = 11, Color = C.Amber })
+    NameCue(p, g, x, cy + 82, cw)
   end
   local rows = math.max(1, math.ceil(counts.Buttons / cols))
-  W = math.max(W, M * 2 + math.min(counts.Buttons, cols) * (cw + gap) - gap)
-  H = y + rows * (cellH + gap) + M
+  W = math.max(W, M * 2 + math.min(counts.Buttons, cols) * cw)
+  H = y + rows * cellH + M
 
 elseif CurrentPage == "Macros" then
   local cols, cw, gap = 4, 150, 12
@@ -139,6 +149,9 @@ elseif CurrentPage == "Setup" then
   Place("Logged In", "Logged In", fx + 106, y + 1, 16, 16, { Color = C.Amber })
   y = y + 26
   Row("Command TX", "Command TX", "Setup~Command TX", 300, { Style = "Text" })
+  Label("Executors are assigned in each slot (field top right): page.exec as in MA, e.g. 1.101.",
+    M, y, 608, 18, { size = 10, color = C.Mid })
+  y = y + 18
   Label("Web remote must be enabled: Setup > Console > Global Settings > Remotes = Login Enabled.",
     M, y, 608, 18, { size = 10, color = C.Mid })
   y = y + 26
@@ -162,5 +175,5 @@ end
 -- Background and header go below everything else: prepend them.
 local front = {}
 LevoBrand.Background(front, W, H)
-LevoBrand.Header(front, W, CurrentPage)
+LevoBrand.Header(front, W, LevoBrand.PluginName(PluginInfo), CurrentPage)
 for i = #front, 1, -1 do table.insert(graphics, 1, front[i]) end

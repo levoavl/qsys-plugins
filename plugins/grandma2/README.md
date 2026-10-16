@@ -82,6 +82,15 @@ put the macro on an executor button and use a button slot.
 `Status` (OK / Compromised / Fault / Missing / Initializing), `Connected`, `Logged In`,
 and on the Setup page `Session`, `Reconnects`, `Last Error`.
 
+## Plugin UI
+
+The executor state is shown on the **main button** only – as on the console:
+Amber = on, light amber = fading, grey = off, blank = empty executor.
+On fader slots the main button (button 1, usually Go) sits below the fader, buttons 2 and 3
+above it. Name and cue are shown below the button on button slots, the fade progress
+directly under the cue. `Active`, `Fading` and `State` are not placed in the plugin UI
+but stay available as pins for logic and UCIs.
+
 ## How the state is detected
 
 The plugin polls the executors (only the ones assigned to slots) like the MA web remote.

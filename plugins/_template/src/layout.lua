@@ -2,7 +2,7 @@
 local W, H = 420, 340
 local C = LevoBrand.Colors
 LevoBrand.Background(graphics, W, H)
-local y = LevoBrand.Header(graphics, W, CurrentPage) + 16
+local y = LevoBrand.Header(graphics, W, LevoBrand.PluginName(PluginInfo), CurrentPage) + 16
 
 local function Label(text, x, ly, w)
   table.insert(graphics, {

@@ -12,6 +12,16 @@ python3 tools/build.py --check    # build + Lua 5.3 syntax check
 
 The result lands in `plugins/<name>/dist/levo-<name>.qplug`.
 
+### Layout preview
+
+```
+python3 tools/preview.py grandma2 --demo plugins/grandma2/test/preview_demo.json --out preview/
+```
+
+Renders every control page as PNG (needs `pip install lupa pillow`). Fonts and control
+chrome are approximations - good for checking alignment and hierarchy, the final look
+is always checked in Q-SYS Designer.
+
 ## Plugin source layout
 
 Every plugin follows the same structure (see `plugins/_template`):
@@ -32,6 +42,8 @@ in the plugin's `src/` folder first, then in `shared/lua/`.
 ## Shared code
 
 - `shared/lua/levo_brand.lua` – colours, company info, header bar, background and About page.
+  Header: `LevoBrand.Header(graphics, width, LevoBrand.PluginName(PluginInfo), CurrentPage)`
+  shows the levo wordmark, the plugin name and the current page.
 - `shared/lua/levo_websocket.lua` – WebSocket client (RFC 6455, text frames) on top of TcpSocket.
 - `shared/lua/levo_assets.lua` – levo AVL logos as base64 PNG. Generated from the logo
   originals, which are not part of this repository; do not edit by hand. The logos are

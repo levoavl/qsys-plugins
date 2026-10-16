@@ -8,3 +8,4 @@ __pycache__/
 # Kept locally, not published
 CLAUDE.md
 shared/assets/
+preview/

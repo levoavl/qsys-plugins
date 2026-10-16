@@ -132,6 +132,23 @@ local Tracker = MA2State.NewTracker()
 local LastEntry = {}   -- key -> last parsed entry (for predictions)
 local LastResult = {}  -- key -> last derived result
 
+-- Main button colour = executor state (the only state display in the plugin UI)
+local function Hex(rgb) return ("#%02X%02X%02X"):format(rgb[1], rgb[2], rgb[3]) end
+local BC = LevoBrand.Colors
+local StateColor = {
+  [MA2State.States.On]        = Hex(BC.Amber),
+  [MA2State.States.FadingIn]  = Hex(BC.AmberSoft),
+  [MA2State.States.FadingOut] = Hex(BC.AmberSoft),
+  [MA2State.States.Off]       = Hex(BC.Line),
+  [MA2State.States.Empty]     = Hex(BC.Porcelain),
+  [MA2State.States.Offline]   = Hex(BC.Porcelain),
+}
+
+local function SetColor(name, color)
+  local c = Controls[name]
+  if c and color then pcall(function() if c.Color ~= color then c.Color = color end end) end
+end
+
 local function ShowSlot(slot, e, r)
   local p = slot.prefix
   SetString(p .. "Name", e and e.name or "")
@@ -147,11 +164,13 @@ local function ShowSlot(slot, e, r)
       SetString(p .. "Button " .. b .. " Label", label)
       SetLegend(p .. "Button " .. b, label)
     end
+    SetColor(p .. "Button 1", StateColor[r.state])
     if e and e.level and (Now - slot.touchedAt) > FADER_HOLD then
       SetPosition(p .. "Level", e.level)
     end
   else
-    SetLegend(p .. "Press", e and e.name or "")
+    SetLegend(p .. "Press", e and e.func or "")
+    SetColor(p .. "Press", StateColor[r.state])
   end
 end
 
@@ -165,6 +184,7 @@ local function ShowAllOffline()
     SetBool(slot.prefix .. "Active", false)
     SetBool(slot.prefix .. "Fading", false)
     SetPosition(slot.prefix .. "Progress", 0)
+    SetColor(slot.prefix .. (slot.kind == "Fader" and "Button 1" or "Press"), StateColor[OFFLINE.state])
   end
 end
 

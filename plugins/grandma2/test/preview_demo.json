@@ -1,0 +1,414 @@
+{
+ "Fader 1 Exec": {
+  "String": "1.1"
+ },
+ "Fader 1 Name": {
+  "String": "DJ"
+ },
+ "Fader 1 Cue": {
+  "String": "1 Cue"
+ },
+ "Fader 1 Function": {
+  "String": "LTP"
+ },
+ "Fader 1 Level": {
+  "Position": 0.85
+ },
+ "Fader 1 Progress": {
+  "Position": 1.0
+ },
+ "Fader 1 Button 1": {
+  "Legend": "Go",
+  "Color": "#FFB830"
+ },
+ "Fader 1 Button 2": {
+  "Legend": "On"
+ },
+ "Fader 1 Button 3": {
+  "Legend": "Off"
+ },
+ "Fader 2 Exec": {
+  "String": "1.2"
+ },
+ "Fader 2 Name": {
+  "String": "Front"
+ },
+ "Fader 2 Cue": {
+  "String": "2 Warm"
+ },
+ "Fader 2 Function": {
+  "String": "Master"
+ },
+ "Fader 2 Level": {
+  "Position": 0.6
+ },
+ "Fader 2 Progress": {
+  "Position": 0.4
+ },
+ "Fader 2 Button 1": {
+  "Legend": "Go",
+  "Color": "#FFDB96"
+ },
+ "Fader 2 Button 2": {
+  "Legend": "On"
+ },
+ "Fader 2 Button 3": {
+  "Legend": "Off"
+ },
+ "Fader 3 Exec": {
+  "String": "1.3"
+ },
+ "Fader 3 Name": {
+  "String": "Wash"
+ },
+ "Fader 3 Cue": {
+  "String": "1 Blue"
+ },
+ "Fader 3 Function": {
+  "String": "LTP"
+ },
+ "Fader 3 Level": {
+  "Position": 0.0
+ },
+ "Fader 3 Progress": {
+  "Position": 0
+ },
+ "Fader 3 Button 1": {
+  "Legend": "Go",
+  "Color": "#D6D6D2"
+ },
+ "Fader 3 Button 2": {
+  "Legend": "On"
+ },
+ "Fader 3 Button 3": {
+  "Legend": "Off"
+ },
+ "Fader 4 Exec": {
+  "String": "1.4"
+ },
+ "Fader 4 Name": {
+  "String": "Haze"
+ },
+ "Fader 4 Cue": {
+  "String": ""
+ },
+ "Fader 4 Function": {
+  "String": "Master"
+ },
+ "Fader 4 Level": {
+  "Position": 0.3
+ },
+ "Fader 4 Progress": {
+  "Position": 0
+ },
+ "Fader 4 Button 1": {
+  "Legend": "Go",
+  "Color": "#D6D6D2"
+ },
+ "Fader 4 Button 2": {
+  "Legend": "On"
+ },
+ "Fader 4 Button 3": {
+  "Legend": "Off"
+ },
+ "Fader 5 Exec": {
+  "String": "1.5"
+ },
+ "Fader 5 Button 1": {
+  "Color": "#F5F5F3"
+ },
+ "Fader 5 Level": {
+  "Position": 0
+ },
+ "Fader 5 Progress": {
+  "Position": 0
+ },
+ "Fader 6 Exec": {
+  "String": "1.6"
+ },
+ "Fader 6 Button 1": {
+  "Color": "#F5F5F3"
+ },
+ "Fader 6 Level": {
+  "Position": 0
+ },
+ "Fader 6 Progress": {
+  "Position": 0
+ },
+ "Fader 7 Exec": {
+  "String": "1.7"
+ },
+ "Fader 7 Button 1": {
+  "Color": "#F5F5F3"
+ },
+ "Fader 7 Level": {
+  "Position": 0
+ },
+ "Fader 7 Progress": {
+  "Position": 0
+ },
+ "Fader 8 Exec": {
+  "String": "1.8"
+ },
+ "Fader 8 Button 1": {
+  "Color": "#F5F5F3"
+ },
+ "Fader 8 Level": {
+  "Position": 0
+ },
+ "Fader 8 Progress": {
+  "Position": 0
+ },
+ "Button 1 Exec": {
+  "String": "1.101"
+ },
+ "Button 1 Name": {
+  "String": "Scene 1"
+ },
+ "Button 1 Cue": {
+  "String": "1 Scene 1"
+ },
+ "Button 1 Press": {
+  "Legend": "Toggle",
+  "Color": "#FFB830"
+ },
+ "Button 1 Progress": {
+  "Position": 1
+ },
+ "Button 2 Exec": {
+  "String": "1.102"
+ },
+ "Button 2 Name": {
+  "String": "Scene 2"
+ },
+ "Button 2 Cue": {
+  "String": "2 Scene 2"
+ },
+ "Button 2 Press": {
+  "Legend": "Toggle",
+  "Color": "#FFDB96"
+ },
+ "Button 2 Progress": {
+  "Position": 0.55
+ },
+ "Button 3 Exec": {
+  "String": "1.103"
+ },
+ "Button 3 Name": {
+  "String": "Scene 3"
+ },
+ "Button 3 Cue": {
+  "String": "3 Scene 3"
+ },
+ "Button 3 Press": {
+  "Legend": "Toggle",
+  "Color": "#D6D6D2"
+ },
+ "Button 3 Progress": {
+  "Position": 0
+ },
+ "Button 4 Exec": {
+  "String": "1.104"
+ },
+ "Button 4 Name": {
+  "String": "Cleaning"
+ },
+ "Button 4 Cue": {
+  "String": "1 Cue"
+ },
+ "Button 4 Press": {
+  "Legend": "Toggle",
+  "Color": "#FFB830"
+ },
+ "Button 4 Progress": {
+  "Position": 1
+ },
+ "Button 5 Exec": {
+  "String": "1.105"
+ },
+ "Button 5 Name": {
+  "String": "Manual"
+ },
+ "Button 5 Cue": {
+  "String": "1 Cue"
+ },
+ "Button 5 Press": {
+  "Legend": "Go",
+  "Color": "#D6D6D2"
+ },
+ "Button 5 Progress": {
+  "Position": 0
+ },
+ "Button 6 Exec": {
+  "String": "1.106"
+ },
+ "Button 6 Name": {
+  "String": "Rainbow"
+ },
+ "Button 6 Cue": {
+  "String": "1 Cue"
+ },
+ "Button 6 Press": {
+  "Legend": "Toggle",
+  "Color": "#D6D6D2"
+ },
+ "Button 6 Progress": {
+  "Position": 0
+ },
+ "Button 7 Exec": {
+  "String": "1.107"
+ },
+ "Button 7 Press": {
+  "Color": "#F5F5F3"
+ },
+ "Button 7 Progress": {
+  "Position": 0
+ },
+ "Button 8 Exec": {
+  "String": "1.108"
+ },
+ "Button 8 Press": {
+  "Color": "#F5F5F3"
+ },
+ "Button 8 Progress": {
+  "Position": 0
+ },
+ "Button 9 Exec": {
+  "String": "1.109"
+ },
+ "Button 9 Press": {
+  "Color": "#F5F5F3"
+ },
+ "Button 9 Progress": {
+  "Position": 0
+ },
+ "Button 10 Exec": {
+  "String": "1.110"
+ },
+ "Button 10 Press": {
+  "Color": "#F5F5F3"
+ },
+ "Button 10 Progress": {
+  "Position": 0
+ },
+ "Button 11 Exec": {
+  "String": "1.111"
+ },
+ "Button 11 Press": {
+  "Color": "#F5F5F3"
+ },
+ "Button 11 Progress": {
+  "Position": 0
+ },
+ "Button 12 Exec": {
+  "String": "1.112"
+ },
+ "Button 12 Press": {
+  "Color": "#F5F5F3"
+ },
+ "Button 12 Progress": {
+  "Position": 0
+ },
+ "Button 13 Exec": {
+  "String": "1.113"
+ },
+ "Button 13 Press": {
+  "Color": "#F5F5F3"
+ },
+ "Button 13 Progress": {
+  "Position": 0
+ },
+ "Button 14 Exec": {
+  "String": "1.114"
+ },
+ "Button 14 Press": {
+  "Color": "#F5F5F3"
+ },
+ "Button 14 Progress": {
+  "Position": 0
+ },
+ "Button 15 Exec": {
+  "String": "1.115"
+ },
+ "Button 15 Press": {
+  "Color": "#F5F5F3"
+ },
+ "Button 15 Progress": {
+  "Position": 0
+ },
+ "Button 16 Exec": {
+  "String": "1.116"
+ },
+ "Button 16 Press": {
+  "Color": "#F5F5F3"
+ },
+ "Button 16 Progress": {
+  "Position": 0
+ },
+ "IP Address": {
+  "String": "192.168.1.44"
+ },
+ "Port": {
+  "String": "80"
+ },
+ "Username": {
+  "String": "qsys"
+ },
+ "Password": {
+  "String": "••••"
+ },
+ "Reconnect": {
+  "Legend": "Reconnect"
+ },
+ "Connected": {
+  "Boolean": true
+ },
+ "Logged In": {
+  "Boolean": true
+ },
+ "Session": {
+  "String": "20"
+ },
+ "Reconnects": {
+  "String": "0"
+ },
+ "Macro 1 Number": {
+  "String": "1"
+ },
+ "Macro 2 Number": {
+  "String": "2"
+ },
+ "Macro 3 Number": {
+  "String": "3"
+ },
+ "Macro 4 Number": {
+  "String": "4"
+ },
+ "Macro 5 Number": {
+  "String": "5"
+ },
+ "Macro 6 Number": {
+  "String": "6"
+ },
+ "Macro 7 Number": {
+  "String": "7"
+ },
+ "Macro 8 Number": {
+  "String": "8"
+ },
+ "Command 1 Send": {
+  "Legend": "Send"
+ },
+ "Command 2 Send": {
+  "Legend": "Send"
+ },
+ "Command 3 Send": {
+  "Legend": "Send"
+ },
+ "Command 4 Send": {
+  "Legend": "Send"
+ },
+ "Command 1 Text": {
+  "String": "Go Executor 1.5"
+ }
+}

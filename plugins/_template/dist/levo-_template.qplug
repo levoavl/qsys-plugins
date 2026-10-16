@@ -51,9 +51,12 @@ LevoBrand = {
     Porcelain = { 245, 245, 243 },  -- light background
     Onyx      = { 25, 25, 25 },     -- text, contrast
     Mid       = { 120, 120, 120 },  -- secondary text (derived)
+    AmberSoft = { 255, 219, 150 },  -- amber at reduced intensity, e.g. fading states (derived)
+    Line      = { 214, 214, 210 },  -- hairlines, frames (derived from Porcelain)
+    Haze      = { 172, 196, 222 },  -- secondary text on Atlantic (derived)
   },
 
-  HeaderHeight = 48,
+  HeaderHeight = 40,
 }
 
 local C = LevoBrand.Colors
@@ -81,26 +84,35 @@ function LevoBrand.Background(graphics, width, height)
   })
 end
 
--- Atlantic header bar with the porcelain wordmark on the left and the plugin
--- title on the right. Returns the y coordinate where page content can start.
-function LevoBrand.Header(graphics, width, title)
+-- Atlantic header bar: small porcelain wordmark on the left, plugin name (bold)
+-- and the current page on the right. Returns the y coordinate where page content
+-- can start. `title` = plugin name, `subtitle` = page name (both optional).
+function LevoBrand.Header(graphics, width, title, subtitle)
   local h = LevoBrand.HeaderHeight
   table.insert(graphics, {
     Type = "GroupBox", Fill = C.Atlantic, StrokeWidth = 0, CornerRadius = 0,
     Position = { 0, 0 }, Size = { width, h },
   })
-  local logo, logoH = Image(LevoAssets.wordmark_porcelain, 12, 0, 96)
+  local logo, logoH = Image(LevoAssets.wordmark_porcelain, 12, 0, 68)
   logo.Position[2] = math.floor((h - logoH) / 2)
   table.insert(graphics, logo)
-  if title then
-    table.insert(graphics, Text(title, 120, 0, width - 132, h, 14, C.Porcelain, "Bold", "Right"))
+  if title and subtitle then
+    table.insert(graphics, Text(title, 96, 4, width - 108, 18, 14, C.Porcelain, "Bold", "Right"))
+    table.insert(graphics, Text(subtitle, 96, 21, width - 108, 14, 10, C.Haze, "Regular", "Right"))
+  elseif title then
+    table.insert(graphics, Text(title, 96, 0, width - 108, h, 14, C.Porcelain, "Bold", "Right"))
   end
   -- thin amber accent line under the header
   table.insert(graphics, {
     Type = "GroupBox", Fill = C.Amber, StrokeWidth = 0, CornerRadius = 0,
-    Position = { 0, h }, Size = { width, 3 },
+    Position = { 0, h }, Size = { width, 2 },
   })
-  return h + 3
+  return h + 2
+end
+
+-- Plugin name without the "levo AVL~" library folder
+function LevoBrand.PluginName(info)
+  return (info.Name:gsub("^.-~", ""))
 end
 
 -- Content of the "About" page. `info` is the plugin's PluginInfo table.
@@ -223,7 +235,7 @@ function GetControlLayout(props)
 local W, H = 420, 340
 local C = LevoBrand.Colors
 LevoBrand.Background(graphics, W, H)
-local y = LevoBrand.Header(graphics, W, CurrentPage) + 16
+local y = LevoBrand.Header(graphics, W, LevoBrand.PluginName(PluginInfo), CurrentPage) + 16
 
 local function Label(text, x, ly, w)
   table.insert(graphics, {
