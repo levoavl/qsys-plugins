@@ -7,7 +7,7 @@ AI-assisted Q-SYS plugins by levo AVL – developed with Claude, tested on real 
 | Plugin | Description | Status | Tested on |
 |---|---|---|---|
 | [Blackmagic ATEM](plugins/atem) | Control of ATEM switchers incl. multi-M/E models | 🚧 In development | ATEM Mini Extreme |
-| [grandMA2](plugins/grandma2) | Executors (faders, buttons), macros and commands via the MA2 web remote, with feedback | 🚧 v0.1.0 in test | grandMA2 onPC 3.9.60.91 (emulation) |
+| [grandMA2](plugins/grandma2) | Executors (faders, buttons), macros and commands via the MA2 web remote, with feedback | ✅ v1.0 | grandMA2 onPC 3.9.60.91 |
 | [Sound2Beat](plugins/sound2beat) | Beat / BPM detection inside Q-SYS for lighting sync | 🚧 In development | – |
 
 Planned: Resolume Arena, Pharos.
@@ -38,7 +38,7 @@ tools/       Build tooling (src → .qplug), see docs/DEVELOPMENT.md
 plugins/     One folder per plugin, each with src/, dist/, README.md and CHANGELOG.md
 ```
 
-Releases are tagged per plugin, e.g. `atem-v1.0.0`.
+Releases are tagged per plugin, e.g. `grandma2-v1.0`.
 
 ## Contributing
 

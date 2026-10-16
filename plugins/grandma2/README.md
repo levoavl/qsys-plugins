@@ -10,12 +10,13 @@ Part of [levo AVL Q-SYS Plugins](../../README.md).
 
 | Console | Firmware | Q-SYS | Result |
 |---|---|---|---|
-| grandMA2 onPC | 3.9.60.91 | Designer 10.1, Emulation | 🚧 in test |
+| grandMA2 onPC | 3.9.60.91 | Designer 10.1 | ✅ faders, buttons, feedback, UCI |
 
 ## Console setup
 
 1. **Setup → Console → Global Settings → Remotes = "Login Enabled"**.
-2. Create a user for Q-SYS (or use an existing one). The plugin logs in like the MA web remote.
+2. Create a dedicated user for Q-SYS (e.g. `qsys`) and enter it on the Setup page. The plugin
+   logs in like the MA web remote.
 3. The Q-SYS Core (or the PC running Emulation) must reach the console on **TCP 80**.
 
 ## Properties

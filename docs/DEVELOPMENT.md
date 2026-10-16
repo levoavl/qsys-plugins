@@ -57,5 +57,15 @@ in the plugin's `src/` folder first, then in `shared/lua/`.
 
 ## Releases
 
-Tag per plugin: `<name>-v<major>.<minor>.<patch>`, e.g. `atem-v1.0.0`, and attach the
+### Versions
+
+Plugins use two-part versions `major.minor` (e.g. `1.0`, `1.1`, `2.0`):
+
+- **minor** (`1.0` → `1.1`): fixes and additions that keep existing designs working.
+- **major** (`1.x` → `2.0`): changes that break existing designs – renamed or removed
+  controls/pins, changed property meaning.
+
+`PluginInfo.Version` and `PluginInfo.BuildVersion` carry the same value.
+
+Tag per plugin: `<name>-v<major>.<minor>`, e.g. `atem-v1.0`, and attach the
 `.qplug` from `dist/` to the GitHub release. Update the plugin's `CHANGELOG.md` first.
