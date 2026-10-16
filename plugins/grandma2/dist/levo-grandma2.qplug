@@ -1402,6 +1402,9 @@ end
 -- Main timer
 ---------------------------------------------------------------------------
 local MainTimer = Timer.New()
+-- Keep long-lived objects reachable from a global. A timer that is only held by
+-- a local variable gets garbage collected on the Core and silently stops.
+GrandMA2Runtime = { Timer = MainTimer, Conn = Conn }
 MainTimer.EventHandler = function()
   Now = Now + TICK
 

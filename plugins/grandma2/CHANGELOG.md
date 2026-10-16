@@ -22,4 +22,6 @@ Format: [Keep a Changelog](https://keepachangelog.com), versioning: [SemVer](htt
 - Slot counts as properties (0–64 faders, 0–128 buttons, 0–64 macros, 0–32 commands),
   poll interval property, Debug Print (None / Basic / Verbose, Verbose logs state changes).
 - Shared WebSocket client `shared/lua/levo_websocket.lua`.
+- Main timer and connection are anchored in a global so the Core cannot garbage-collect
+  them (symptom: connected and logged in, but no feedback and no commands).
 - Offline test harness `test/harness.py` (mocked Q-SYS runtime + fake console).

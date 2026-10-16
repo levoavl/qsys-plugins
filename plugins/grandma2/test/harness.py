@@ -79,9 +79,11 @@ function UserSet(name, field, value)
 end
 
 -- ---------------------------------------------------------------- timer
-Timers = {}
+-- weak like the real Core: a timer nobody references gets garbage collected
+Timers = setmetatable({}, { __mode = "v" })
 Timer = { New = function()
   local t = { running = false }
+  -- no strong reference here, like on the Core
   function t:Start(iv) self.interval = iv; self.running = true end
   function t:Stop() self.running = false end
   Timers[#Timers + 1] = t
@@ -89,7 +91,7 @@ Timer = { New = function()
 end, CallAfter = function(fn, d) error("CallAfter not mocked") end }
 
 function TickAll()
-  for _, t in ipairs(Timers) do
+  for _, t in pairs(Timers) do
     if t.running and t.EventHandler then t.EventHandler(t) end
   end
 end
@@ -171,6 +173,7 @@ class Harness:
             for name in layout.keys():
                 assert g.Controls[name] is not None, f"layout references unknown control {name}"
         L.execute(src)  # now with Controls set -> runtime runs
+        L.execute(b"collectgarbage() collectgarbage()")  # catch objects only held by locals
         self.g = g
 
     # ---------------------------------------------------------------- utils
