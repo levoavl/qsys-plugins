@@ -24,6 +24,9 @@ Format: [Keep a Changelog](https://keepachangelog.com), versioning: [SemVer](htt
 - Shared WebSocket client `shared/lua/levo_websocket.lua`.
 - Main timer and connection are anchored in a global so the Core cannot garbage-collect
   them (symptom: connected and logged in, but no feedback and no commands).
-- Plugin UI: state shown as colour of the main button, MA-like strip layout
-  (fader: buttons 3/2, fader, main button; button: button, name, cue + progress).
+- Plugin UI: MA-like strip layout (fader: name, cue, progress, buttons 3/2, fader,
+  main button; button: name, cue, progress, button; macro: number field, Go button).
+- Executor state shown as on/off state of the main button – no colours or styles are
+  written, so UCI copies keep their own look. `Button Legends` property (From console / Off).
+- Fade progress as meter.
 - Offline test harness `test/harness.py` (mocked Q-SYS runtime + fake console).

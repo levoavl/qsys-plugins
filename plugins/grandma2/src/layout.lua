@@ -59,13 +59,13 @@ local function NameCue(p, g, x, yy, cw)
   Place(p .. "Name", g .. "Name", x + 4, yy, cw - 8, 18, Flat({ FontSize = 12, FontStyle = "Bold", TextColor = C.Onyx }))
   Place(p .. "Cue", g .. "Cue", x + 4, yy + 18, cw - 8, 15, Flat({ FontSize = 10, TextColor = C.Mid }))
   -- fade progress sits directly under the cue, as in MA
-  Place(p .. "Progress", g .. "Progress", x + 6, yy + 34, cw - 12, 6, { Style = "Fader", IsReadOnly = true, Color = C.Amber })
-  return yy + 46
+  Place(p .. "Progress", g .. "Progress", x + 6, yy + 36, cw - 12, 10, { Color = C.Amber })
+  return yy + 54
 end
 
 if CurrentPage == "Faders" then
   local cols, cw = 8, 92
-  local cellH = 344
+  local cellH = 352
   for i = 1, counts.Faders do
     local col, row = (i - 1) % cols, (i - 1) // cols
     local x, cy = M + col * cw, y + row * (cellH + 12)
@@ -89,7 +89,7 @@ if CurrentPage == "Faders" then
 
 elseif CurrentPage == "Buttons" then
   local cols, cw = 6, 112
-  local cellH = 136
+  local cellH = 146
   for i = 1, counts.Buttons do
     local col, row = (i - 1) % cols, (i - 1) // cols
     local x, cy = M + col * cw, y + row * cellH
@@ -97,26 +97,32 @@ elseif CurrentPage == "Buttons" then
     if col > 0 then Hairline(x, cy + 4, 1, cellH - 8) end
     if row > 0 then Hairline(x + 4, cy, cw - 8, 1) end
     SlotHead(p, g, i, x, cy, cw)
-    Place(p .. "Press", g .. "Press", x + 6, cy + 30, cw - 12, 48,
-      { Style = "Button", Legend = "", FontSize = 11, Color = C.Amber })
-    NameCue(p, g, x, cy + 82, cw)
+    local yy = NameCue(p, g, x, cy + 30, cw)
+    Place(p .. "Press", g .. "Press", x + 6, yy, cw - 12, 48,
+      { Style = "Button", Legend = "", FontSize = 11, FontStyle = "Bold", Color = C.Amber })
   end
   local rows = math.max(1, math.ceil(counts.Buttons / cols))
   W = math.max(W, M * 2 + math.min(counts.Buttons, cols) * cw)
   H = y + rows * cellH + M
 
 elseif CurrentPage == "Macros" then
-  local cols, cw, gap = 4, 150, 12
+  local cols, cw, cellH = 6, 112, 92
   for i = 1, counts.Macros do
     local col, row = (i - 1) % cols, (i - 1) // cols
-    local x, ry = M + col * (cw + gap), y + row * 28
-    Label("Macro " .. i, x, ry + 2, 50, 18)
-    Place("Macro " .. i .. " Trigger", "Macros~Macro " .. i .. "~Trigger", x + 50, ry, 50, 22, { Style = "Button", Legend = "Go", Color = C.Amber })
-    Place("Macro " .. i .. " Number", "Macros~Macro " .. i .. "~Number", x + 104, ry + 1, 44, 20, { Style = "Text" })
+    local x, cy = M + col * cw, y + row * cellH
+    local g = "Macros~Macro " .. i .. "~"
+    if col > 0 then Hairline(x, cy + 4, 1, cellH - 8) end
+    if row > 0 then Hairline(x + 4, cy, cw - 8, 1) end
+    Label(tostring(i), x + 6, cy + 6, 24, 18, { size = 10, color = C.Mid })
+    Place("Macro " .. i .. " Number", g .. "Number", x + cw - 54, cy + 6, 48, 18, { Style = "Text", FontSize = 10 })
+    Place("Macro " .. i .. " Trigger", g .. "Trigger", x + 6, cy + 32, cw - 12, 48,
+      { Style = "Button", Legend = "Go", FontSize = 11, FontStyle = "Bold", Color = C.Amber })
   end
-  Label("Number = MA macro pool number. Sends \"Go Macro <n>\" - no running feedback from the console.",
-    M, y + math.ceil(counts.Macros / cols) * 28 + 4, 600, 18, { size = 10, color = C.Mid })
-  H = y + math.ceil(counts.Macros / cols) * 28 + 40
+  local rows = math.max(1, math.ceil(counts.Macros / cols))
+  W = math.max(W, M * 2 + math.min(counts.Macros, cols) * cw)
+  Label("Field = macro pool number. Sends \"Go Macro <n>\" - the console reports no running state for macros.",
+    M, y + rows * cellH + 2, 640, 16, { size = 10, color = C.Mid })
+  H = y + rows * cellH + 26
 
 elseif CurrentPage == "Commands" then
   for i = 1, counts.Commands do

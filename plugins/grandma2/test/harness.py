@@ -35,7 +35,7 @@ local function NewControl(def)
   local mt = {}
   local raw = { Value = 0, Position = 0, String = "", Boolean = false }
   local min, max = def.Min or 0, def.Max or 1
-  if def.ControlType == "Knob" then
+  if def.ControlType == "Knob" or def.IndicatorType == "Meter" then
     if max == min then max = min + 1 end
   else
     min, max = 0, 1
@@ -401,6 +401,36 @@ def test_exec_assignment():
     check(h.s("Last Error") == "", "comma accepted (1,2 = 1.2)")
 
 
+def test_main_button_feedback():
+    print("test_main_button_feedback")
+    h = Harness()
+    h.handshake_and_login()
+    item = lambda run: {"responseType": "playbacks", "iPage": 1, "itemGroups": [{"itemsType": 3, "items": [[
+        {"iExec": 100, "isRun": run, "combinedItems": 1, "tt": {"t": "A"}, "oI": {"t": "5"},
+         "cues": {"items": [{"t": "1", "pgs": {"v": 1.0}}]}, "bottomButtons": {"items": [{"n": {"t": "Toggle"}}]}}]]}]}
+    h.send_json(item(1))
+    check(h.b("Button 1 Press"), "main button is on while executor runs")
+    check(h.ctl("Button 1 Press").Color is None, "plugin never writes Color (UCI styling stays)")
+    h.take_msgs()
+    # already on -> Q-SYS reports only the release: must be sent as press + release
+    h.user("Button 1 Press", "Boolean", False)
+    h.tick()
+    ins = [(m["pressed"], m["released"]) for m in h.take_msgs() if m.get("requestType") == "playbacks_userInput"]
+    check(ins == [(True, False), (False, True)], "release without press is sent as a tap")
+    check(not h.b("Button 1 Press"), "optimistic: button off right after toggling off")
+    # held button keeps its pressed look while polls report 'off'
+    h.send_json(item(0))
+    h.user("Button 1 Press", "Boolean", True)
+    h.send_json(item(0))
+    check(h.b("Button 1 Press"), "held button not overwritten by feedback")
+    h.user("Button 1 Press", "Boolean", False)
+    check(h.b("Button 1 Press"), "after release: shows predicted state (toggle on)")
+    h2 = Harness({"Button Legends": "Off"})
+    h2.handshake_and_login()
+    h2.send_json(item(1))
+    check(h2._s(h2.ctl("Button 1 Press").Legend) == "", "Button Legends = Off leaves legends alone")
+
+
 def test_large_and_fragmented():
     print("test_large_and_fragmented")
     h = Harness()
@@ -481,6 +511,7 @@ if __name__ == "__main__":
     random.seed(1)
     test_basics()
     test_exec_assignment()
+    test_main_button_feedback()
     test_large_and_fragmented()
     for p in sys.argv[1:]:
         replay(p)

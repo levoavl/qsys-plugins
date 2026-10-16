@@ -11,6 +11,9 @@ local function Led(name)     Add({ Name = name, ControlType = "Indicator", Indic
 local function Percent(name, pinStyle)
   Add({ Name = name, ControlType = "Knob", ControlUnit = "Percent", Min = 0, Max = 100, PinStyle = pinStyle })
 end
+local function Meter(name)
+  Add({ Name = name, ControlType = "Indicator", IndicatorType = "Meter", Min = 0, Max = 100, PinStyle = "Output" })
+end
 local function Int(name, max)
   -- 0 = not set yet, the runtime fills in a default on start
   Add({ Name = name, ControlType = "Knob", ControlUnit = "Integer", Min = 0, Max = max, PinStyle = "Both" })
@@ -47,7 +50,7 @@ for i = 1, counts.Faders do
   Led(p .. "Active")
   Led(p .. "Fading")
   TextOut(p .. "State")
-  Percent(p .. "Progress", "Output")
+  Meter(p .. "Progress")
   TextIn(p .. "Exec")  -- "page.exec" as in MA, e.g. "1.101"
 end
 
@@ -61,7 +64,7 @@ for i = 1, counts.Buttons do
   Led(p .. "Active")
   Led(p .. "Fading")
   TextOut(p .. "State")
-  Percent(p .. "Progress", "Output")
+  Meter(p .. "Progress")
   TextIn(p .. "Exec")  -- "page.exec" as in MA, e.g. "1.101"
 end
 

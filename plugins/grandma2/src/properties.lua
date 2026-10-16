@@ -5,6 +5,12 @@ table.insert(props, { Name = "Macro Count",   Type = "integer", Min = 0, Max = 6
 table.insert(props, { Name = "Command Count", Type = "integer", Min = 0, Max = 32,  Value = 4 })
 table.insert(props, { Name = "Poll Interval (ms)", Type = "integer", Min = 100, Max = 2000, Value = 250 })
 table.insert(props, {
+  Name = "Button Legends",  -- "Off" keeps legends free for your own UCI texts
+  Type = "enum",
+  Choices = { "From console", "Off" },
+  Value = "From console",
+})
+table.insert(props, {
   Name = "Debug Print",
   Type = "enum",
   Choices = { "None", "Basic", "Verbose" },

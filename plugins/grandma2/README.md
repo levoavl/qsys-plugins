@@ -27,6 +27,7 @@ Part of [levo AVL Q-SYS Plugins](../../README.md).
 | Macro Count | 0–64 | 8 | Macro trigger slots |
 | Command Count | 0–32 | 4 | Free command slots |
 | Poll Interval (ms) | 100–2000 | 250 | How often executor states are requested |
+| Button Legends | From console / Off | From console | Write MA button functions as button legends |
 | Debug Print | None / Basic / Verbose | None | Verbose logs every executor state change |
 
 Pages without slots are hidden. At maximum counts the plugin has about 2500 controls –
@@ -45,7 +46,8 @@ Defaults: Fader *n* → `1.n`, Button *n* → `1.(100+n)`, Macro *n* → macro *
 | Control | Type | Pin | |
 |---|---|---|---|
 | Level | Fader 0–100 % | in/out | Fader position, feedback from the console. Feedback is ignored for 0.6 s after a move so the fader does not jump. |
-| Button 1–3 | Momentary | in/out | Executor buttons (press and release are sent, so Flash/Temp work) |
+| Button 1 | Momentary | in/out | Main executor button (usually Go), **on while the executor runs** |
+| Button 2–3 | Momentary | in/out | Further executor buttons (press and release are sent, so Flash/Temp work) |
 | Button 1–3 Label | Text | out | Button function from the console ("Go", "On", "Off" …) – also shown as button legend |
 | Name | Text | out | Executor / sequence name |
 | Cue | Text | out | Current cue |
@@ -53,7 +55,7 @@ Defaults: Fader *n* → `1.n`, Button *n* → `1.(100+n)`, Macro *n* → macro *
 | Active | LED | out | Executor is on. **Turns off immediately when a fade-out starts.** |
 | Fading | LED | out | A fade (in or out) is running |
 | State | Text | out | `Empty` / `Off` / `Fading In` / `On` / `Fading Out` / `Offline` |
-| Progress | 0–100 % | out | Fade progress |
+| Progress | Meter 0–100 % | out | Fade progress |
 | Exec | Text | in/out | Assigned executor, `page.exec` (e.g. `1.101`) |
 
 ### Button slot `Button n …`
@@ -62,14 +64,14 @@ Same as the fader slot without Level / Button 1–3, plus:
 
 | Control | Type | Pin | |
 |---|---|---|---|
-| Press | Momentary | in/out | Executor button (legend = executor name) |
+| Press | Momentary | in/out | Executor button, **on while the executor runs** (legend = button function) |
 | Function | Text | out | Button function ("Toggle", "Go", "Flash" …) |
 
 ### Macros, commands
 
 | Control | Type | |
 |---|---|---|
-| Macro n Trigger | Trigger | Sends `Go Macro <Number>` |
+| Macro n Trigger | Trigger | Sends `Go Macro <Number>` (button "Go" under the number field) |
 | Macro n Number | Integer | Macro pool number |
 | Command n Text / Send | Text / Trigger | Free MA command line text |
 | Command TX | Text input | Any string written to this pin is sent as command |
@@ -82,14 +84,22 @@ put the macro on an executor button and use a button slot.
 `Status` (OK / Compromised / Fault / Missing / Initializing), `Connected`, `Logged In`,
 and on the Setup page `Session`, `Reconnects`, `Last Error`.
 
-## Plugin UI
+## Plugin UI and UCIs
 
-The executor state is shown on the **main button** only – as on the console:
-Amber = on, light amber = fading, grey = off, blank = empty executor.
-On fader slots the main button (button 1, usually Go) sits below the fader, buttons 2 and 3
-above it. Name and cue are shown below the button on button slots, the fade progress
-directly under the cue. `Active`, `Fading` and `State` are not placed in the plugin UI
-but stay available as pins for logic and UCIs.
+The executor state is shown by the **main button itself**: it is *on* while the executor
+runs and *off* otherwise (fader slots: button 1 below the fader, button slots: the button).
+The plugin only switches the button on and off – it never writes colours or styles. Copy the
+button onto a UCI and give it any shape, colour and on/off colours you like; it keeps
+working and keeps its look.
+
+- Pressing a main button that is already on works as expected (Q-SYS only reports the
+  release in that case – the plugin sends it as a short press).
+- The output pin of a main button carries the executor state, not the finger on the button.
+- Legends: with **Button Legends = From console** the plugin writes the MA button functions
+  ("Go", "Toggle" …) as legends. Set it to **Off** to use your own texts on the UCI.
+- `Active`, `Fading`, `State` and `Progress` stay available as pins for logic and UCIs.
+
+Fade progress is a meter directly under the cue, as on the console.
 
 ## How the state is detected
 

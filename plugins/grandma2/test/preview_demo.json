@@ -19,7 +19,7 @@
  },
  "Fader 1 Button 1": {
   "Legend": "Go",
-  "Color": "#FFB830"
+  "Boolean": true
  },
  "Fader 1 Button 2": {
   "Legend": "On"
@@ -47,7 +47,7 @@
  },
  "Fader 2 Button 1": {
   "Legend": "Go",
-  "Color": "#FFDB96"
+  "Boolean": true
  },
  "Fader 2 Button 2": {
   "Legend": "On"
@@ -74,8 +74,7 @@
   "Position": 0
  },
  "Fader 3 Button 1": {
-  "Legend": "Go",
-  "Color": "#D6D6D2"
+  "Legend": "Go"
  },
  "Fader 3 Button 2": {
   "Legend": "On"
@@ -102,8 +101,7 @@
   "Position": 0
  },
  "Fader 4 Button 1": {
-  "Legend": "Go",
-  "Color": "#D6D6D2"
+  "Legend": "Go"
  },
  "Fader 4 Button 2": {
   "Legend": "On"
@@ -114,9 +112,7 @@
  "Fader 5 Exec": {
   "String": "1.5"
  },
- "Fader 5 Button 1": {
-  "Color": "#F5F5F3"
- },
+ "Fader 5 Button 1": {},
  "Fader 5 Level": {
   "Position": 0
  },
@@ -126,9 +122,7 @@
  "Fader 6 Exec": {
   "String": "1.6"
  },
- "Fader 6 Button 1": {
-  "Color": "#F5F5F3"
- },
+ "Fader 6 Button 1": {},
  "Fader 6 Level": {
   "Position": 0
  },
@@ -138,9 +132,7 @@
  "Fader 7 Exec": {
   "String": "1.7"
  },
- "Fader 7 Button 1": {
-  "Color": "#F5F5F3"
- },
+ "Fader 7 Button 1": {},
  "Fader 7 Level": {
   "Position": 0
  },
@@ -150,9 +142,7 @@
  "Fader 8 Exec": {
   "String": "1.8"
  },
- "Fader 8 Button 1": {
-  "Color": "#F5F5F3"
- },
+ "Fader 8 Button 1": {},
  "Fader 8 Level": {
   "Position": 0
  },
@@ -170,7 +160,7 @@
  },
  "Button 1 Press": {
   "Legend": "Toggle",
-  "Color": "#FFB830"
+  "Boolean": true
  },
  "Button 1 Progress": {
   "Position": 1
@@ -186,7 +176,7 @@
  },
  "Button 2 Press": {
   "Legend": "Toggle",
-  "Color": "#FFDB96"
+  "Boolean": true
  },
  "Button 2 Progress": {
   "Position": 0.55
@@ -201,8 +191,7 @@
   "String": "3 Scene 3"
  },
  "Button 3 Press": {
-  "Legend": "Toggle",
-  "Color": "#D6D6D2"
+  "Legend": "Toggle"
  },
  "Button 3 Progress": {
   "Position": 0
@@ -218,7 +207,7 @@
  },
  "Button 4 Press": {
   "Legend": "Toggle",
-  "Color": "#FFB830"
+  "Boolean": true
  },
  "Button 4 Progress": {
   "Position": 1
@@ -233,8 +222,7 @@
   "String": "1 Cue"
  },
  "Button 5 Press": {
-  "Legend": "Go",
-  "Color": "#D6D6D2"
+  "Legend": "Go"
  },
  "Button 5 Progress": {
   "Position": 0
@@ -249,8 +237,7 @@
   "String": "1 Cue"
  },
  "Button 6 Press": {
-  "Legend": "Toggle",
-  "Color": "#D6D6D2"
+  "Legend": "Toggle"
  },
  "Button 6 Progress": {
   "Position": 0
@@ -258,90 +245,70 @@
  "Button 7 Exec": {
   "String": "1.107"
  },
- "Button 7 Press": {
-  "Color": "#F5F5F3"
- },
+ "Button 7 Press": {},
  "Button 7 Progress": {
   "Position": 0
  },
  "Button 8 Exec": {
   "String": "1.108"
  },
- "Button 8 Press": {
-  "Color": "#F5F5F3"
- },
+ "Button 8 Press": {},
  "Button 8 Progress": {
   "Position": 0
  },
  "Button 9 Exec": {
   "String": "1.109"
  },
- "Button 9 Press": {
-  "Color": "#F5F5F3"
- },
+ "Button 9 Press": {},
  "Button 9 Progress": {
   "Position": 0
  },
  "Button 10 Exec": {
   "String": "1.110"
  },
- "Button 10 Press": {
-  "Color": "#F5F5F3"
- },
+ "Button 10 Press": {},
  "Button 10 Progress": {
   "Position": 0
  },
  "Button 11 Exec": {
   "String": "1.111"
  },
- "Button 11 Press": {
-  "Color": "#F5F5F3"
- },
+ "Button 11 Press": {},
  "Button 11 Progress": {
   "Position": 0
  },
  "Button 12 Exec": {
   "String": "1.112"
  },
- "Button 12 Press": {
-  "Color": "#F5F5F3"
- },
+ "Button 12 Press": {},
  "Button 12 Progress": {
   "Position": 0
  },
  "Button 13 Exec": {
   "String": "1.113"
  },
- "Button 13 Press": {
-  "Color": "#F5F5F3"
- },
+ "Button 13 Press": {},
  "Button 13 Progress": {
   "Position": 0
  },
  "Button 14 Exec": {
   "String": "1.114"
  },
- "Button 14 Press": {
-  "Color": "#F5F5F3"
- },
+ "Button 14 Press": {},
  "Button 14 Progress": {
   "Position": 0
  },
  "Button 15 Exec": {
   "String": "1.115"
  },
- "Button 15 Press": {
-  "Color": "#F5F5F3"
- },
+ "Button 15 Press": {},
  "Button 15 Progress": {
   "Position": 0
  },
  "Button 16 Exec": {
   "String": "1.116"
  },
- "Button 16 Press": {
-  "Color": "#F5F5F3"
- },
+ "Button 16 Press": {},
  "Button 16 Progress": {
   "Position": 0
  },
@@ -410,5 +377,13 @@
  },
  "Command 1 Text": {
   "String": "Go Executor 1.5"
- }
+ },
+ "Macro 1 Trigger": {},
+ "Macro 2 Trigger": {},
+ "Macro 3 Trigger": {},
+ "Macro 4 Trigger": {},
+ "Macro 5 Trigger": {},
+ "Macro 6 Trigger": {},
+ "Macro 7 Trigger": {},
+ "Macro 8 Trigger": {}
 }

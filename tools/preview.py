@@ -135,7 +135,8 @@ def render(page, layout, graphics, controls, demo, scale):
         elif style == "Button":
             col = rgb(dv.get("Color") or c.get("Color"), (128, 128, 128))
             pressed = dv.get("Boolean", False)
-            fill = col if pressed or dv.get("Color") else tuple(int(v * 0.55 + 255 * 0.15) for v in col)
+            # Q-SYS draws a button in its off state light grey, in its on state in Color
+            fill = col if pressed or dv.get("Color") else (222, 222, 220)
             d.rounded_rectangle(S(x, y, x + w - 1, y + h - 1), radius=3 * scale, fill=fill, outline=(70, 70, 70))
             lum = 0.3 * fill[0] + 0.59 * fill[1] + 0.11 * fill[2]
             text(dv.get("Legend", c.get("Legend", "")), x, y, w, h, c.get("FontSize", 11),
@@ -153,6 +154,12 @@ def render(page, layout, graphics, controls, demo, scale):
             else:
                 if pos > 0:
                     d.rectangle(S(x + 1, y + 1, x + 1 + pos * (w - 2), y + h - 2), fill=col)
+        elif ind == "Meter" and not c.get("Style"):
+            pos = dv.get("Position", 0.5)
+            col = rgb(c.get("Color"), (0, 160, 0))
+            d.rectangle(S(x, y, x + w - 1, y + h - 1), fill=(60, 60, 60))
+            if pos > 0:
+                d.rectangle(S(x + 1, y + 1, x + 1 + pos * (w - 3), y + h - 2), fill=col)
         elif cdef.get("IndicatorType") == "Status":
             d.rectangle(S(x, y, x + w - 1, y + h - 1), fill=(0, 140, 0), outline=(60, 60, 60))
             text(dv.get("String", "OK"), x, y, w, h, 11, (255, 255, 255), False, "Center")

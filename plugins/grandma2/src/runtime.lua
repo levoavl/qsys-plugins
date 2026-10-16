@@ -132,21 +132,22 @@ local Tracker = MA2State.NewTracker()
 local LastEntry = {}   -- key -> last parsed entry (for predictions)
 local LastResult = {}  -- key -> last derived result
 
--- Main button colour = executor state (the only state display in the plugin UI)
-local function Hex(rgb) return ("#%02X%02X%02X"):format(rgb[1], rgb[2], rgb[3]) end
-local BC = LevoBrand.Colors
-local StateColor = {
-  [MA2State.States.On]        = Hex(BC.Amber),
-  [MA2State.States.FadingIn]  = Hex(BC.AmberSoft),
-  [MA2State.States.FadingOut] = Hex(BC.AmberSoft),
-  [MA2State.States.Off]       = Hex(BC.Line),
-  [MA2State.States.Empty]     = Hex(BC.Porcelain),
-  [MA2State.States.Offline]   = Hex(BC.Porcelain),
-}
+-- The state is shown through the main button's own on/off state (Boolean), never
+-- through Color or Style - so copies on a UCI keep whatever look they are given.
+-- Legends are only written when the "Button Legends" property says so.
+local WriteLegends = (Properties["Button Legends"].Value ~= "Off")
 
-local function SetColor(name, color)
-  local c = Controls[name]
-  if c and color then pcall(function() if c.Color ~= color then c.Color = color end end) end
+-- Main buttons (fader button 1 / button press) currently held by the user: their
+-- Boolean must not be changed until release, or the release event is lost.
+local Held = {}
+
+local function MainButton(slot)
+  return slot.prefix .. (slot.kind == "Fader" and "Button 1" or "Press")
+end
+
+local function ShowMainState(slot, active)
+  local name = MainButton(slot)
+  if not Held[name] then SetBool(name, active) end
 end
 
 local function ShowSlot(slot, e, r)
@@ -162,16 +163,15 @@ local function ShowSlot(slot, e, r)
     for b = 1, 3 do
       local label = e and e.labels[b] or ""
       SetString(p .. "Button " .. b .. " Label", label)
-      SetLegend(p .. "Button " .. b, label)
+      if WriteLegends then SetLegend(p .. "Button " .. b, label) end
     end
-    SetColor(p .. "Button 1", StateColor[r.state])
     if e and e.level and (Now - slot.touchedAt) > FADER_HOLD then
       SetPosition(p .. "Level", e.level)
     end
   else
-    SetLegend(p .. "Press", e and e.func or "")
-    SetColor(p .. "Press", StateColor[r.state])
+    if WriteLegends then SetLegend(p .. "Press", e and e.func or "") end
   end
+  ShowMainState(slot, r.active)
 end
 
 local OFFLINE = { state = MA2State.States.Offline, active = false, fading = false, progress = 0 }
@@ -184,7 +184,7 @@ local function ShowAllOffline()
     SetBool(slot.prefix .. "Active", false)
     SetBool(slot.prefix .. "Fading", false)
     SetPosition(slot.prefix .. "Progress", 0)
-    SetColor(slot.prefix .. (slot.kind == "Fader" and "Button 1" or "Press"), StateColor[OFFLINE.state])
+    ShowMainState(slot, false)
   end
 end
 
@@ -518,6 +518,27 @@ local function Press(slot, buttonId, func, pressed)
   end
 end
 
+-- Main buttons are momentary but also show the executor state, so they can already
+-- be "on" when pressed. Q-SYS then reports no press, only the release: treat a
+-- release without a press as a tap. After release the button shows the state again.
+local function MainButtonEvent(slot, c, name, buttonId, func)
+  if c.Boolean then
+    Held[name] = true
+    Press(slot, buttonId, func, true)
+  else
+    if not Held[name] then Press(slot, buttonId, func, true) end
+    Held[name] = nil
+    Press(slot, buttonId, func, false)
+    local r = LastResult[slot.key]
+    if r then
+      local active = r.active
+      local opt = Tracker.optimistic[slot.key]
+      if opt then active = opt.active end
+      SetBool(name, active)
+    end
+  end
+end
+
 local function SendCommand(cmd)
   cmd = (cmd or ""):gsub("^%s+", ""):gsub("%s+$", "")
   if cmd == "" then return end
@@ -537,18 +558,19 @@ local function WireSlotHandlers()
       slot.touchedAt = Now
       UserInput(slot, 1, { faderValue = c.Position }, "fader:" .. slot.key)
     end
-    for b = 1, 3 do
+    Controls[p .. "Button 1"].EventHandler = function(c)
+      MainButtonEvent(FaderSlot(i), c, p .. "Button 1", 0, Controls[p .. "Button 1 Label"].String)
+    end
+    for b = 2, 3 do
       Controls[p .. "Button " .. b].EventHandler = function(c)
-        local slot = FaderSlot(i)
-        Press(slot, b - 1, Controls[p .. "Button " .. b .. " Label"].String, c.Boolean)
+        Press(FaderSlot(i), b - 1, Controls[p .. "Button " .. b .. " Label"].String, c.Boolean)
       end
     end
   end
   for i = 1, Counts.Buttons do
     local p = "Button " .. i .. " "
     Controls[p .. "Press"].EventHandler = function(c)
-      local slot = ButtonSlot(i)
-      Press(slot, 0, Controls[p .. "Function"].String, c.Boolean)
+      MainButtonEvent(ButtonSlot(i), c, p .. "Press", 0, Controls[p .. "Function"].String)
     end
   end
   for i = 1, Counts.Macros do
