@@ -95,5 +95,10 @@ Plugins use two-part versions `major.minor` (e.g. `1.0`, `1.1`, `2.0`):
    in the public folder.
 3. Tag `<name>-v<major>.<minor>` (e.g. `atem-v1.0`) and create a GitHub release with the
    `.qplug` attached.
-4. Update the plugin's row in the main README – version, "Tested on" and the download link
-   `https://github.com/levoavl/qsys-plugins/releases/download/<tag>/levo-<name>.qplug`.
+4. Update the plugin's section in the main README (copy the grandMA2 section for a new
+   plugin): version and link of the yellow Download button
+   `https://github.com/levoavl/qsys-plugins/releases/download/<tag>/levo-<name>.qplug`,
+   "Tested on" line, and remove the plugin from "Coming soon". Update the Download button
+   at the top of the plugin's own README the same way.
+
+`source/media/` holds images used by the READMEs (banner, screenshots).

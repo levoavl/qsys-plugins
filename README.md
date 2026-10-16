@@ -1,24 +1,41 @@
-# levo AVL – Q-SYS Plugins
+<p align="center">
+  <img src="source/media/banner.png" alt="levo AVL – Q-SYS Plugins" width="100%">
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Q--SYS_Designer-10.1%2B-00468C?style=flat-square&labelColor=191919" alt="Q-SYS Designer 10.1+">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-00468C?style=flat-square&labelColor=191919" alt="MIT License"></a>
+  <img src="https://img.shields.io/badge/Built_with-Claude-00468C?style=flat-square&labelColor=191919" alt="Built with Claude">
+  <a href="https://www.levo.de"><img src="https://img.shields.io/badge/levo_AVL-www.levo.de-FFB830?style=flat-square&labelColor=191919" alt="levo AVL"></a>
+</p>
 
 AI-assisted Q-SYS plugins by levo AVL – developed with Claude, tested on real Q-SYS hardware. Free and open source.
 
 ## Plugins
 
-| Plugin | Description | Version | Tested on | Download |
-|---|---|---|---|---|
-| [grandMA2](grandMA2) | Executors (faders, buttons), macros and commands via the MA2 web remote, with feedback | 1.0 | grandMA2 onPC 3.9.60.91 | [levo-grandma2.qplug](https://github.com/levoavl/qsys-plugins/releases/download/grandma2-v1.0/levo-grandma2.qplug) |
+### 🎛️ grandMA2
 
-**Coming soon:** Blackmagic ATEM (all models incl. multi-M/E), Sound2Beat (beat / BPM
-detection for lighting sync), Resolume Arena, Pharos.
+Executors (faders, buttons), macros and commands via the MA2 web remote – **with feedback**.
+Every value is a plain Q-SYS control with its own pin, ready for UCIs.
+
+<a href="https://github.com/levoavl/qsys-plugins/releases/download/grandma2-v1.0/levo-grandma2.qplug"><img src="https://img.shields.io/badge/-%E2%AC%87_Download_v1.0-FFB830?style=for-the-badge" alt="Download grandMA2 plugin v1.0"></a>
+<a href="grandMA2"><img src="https://img.shields.io/badge/-Manual-00468C?style=for-the-badge" alt="grandMA2 manual"></a>
+
+Tested on grandMA2 onPC 3.9.60.91 · Q-SYS Designer 10.1
+
+> [!NOTE]
+> **Coming soon:** Blackmagic ATEM (all models incl. multi-M/E) · Sound2Beat (beat / BPM
+> detection for lighting sync) · Resolume Arena · Pharos
 
 ## Installation
 
-1. Download the `.qplug` file from the table above (older versions: [Releases](../../releases)).
+1. Download the `.qplug` file with the yellow button above (older versions: [Releases](../../releases)).
 2. Copy it to your Q-SYS plugin folder:
    `Documents\QSC\Q-SYS Designer\Plugins`
 3. Restart Q-SYS Designer. The plugin appears in the Schematic Library under **Plugins → levo AVL**.
 
-Click a plugin name for its manual: setup, properties, controls and pins.
+> [!TIP]
+> Each plugin's **Manual** covers the device setup, properties, controls and pins.
 
 ## How these plugins are made
 
