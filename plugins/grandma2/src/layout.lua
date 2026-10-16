@@ -65,7 +65,7 @@ end
 
 if CurrentPage == "Faders" then
   local cols, cw = 8, 92
-  local cellH = 352
+  local cellH = 364
   for i = 1, counts.Faders do
     local col, row = (i - 1) % cols, (i - 1) // cols
     local x, cy = M + col * cw, y + row * (cellH + 12)
@@ -81,7 +81,9 @@ if CurrentPage == "Faders" then
     -- main button below the fader, coloured by the executor state at runtime
     Place(p .. "Button 1", g .. "Button 1", x + 6, yy, cw - 12, 34,
       { Style = "Button", Legend = "", FontSize = 11, FontStyle = "Bold", Color = C.Amber }); yy = yy + 38
-    Place(p .. "Function", g .. "Function", x + 4, yy, cw - 8, 14, Flat({ FontSize = 9, TextColor = C.Mid }))
+    -- under the main button: its MA function, as on the button page; fader function below
+    Place(p .. "Button 1 Label", g .. "Button 1 Label", x + 4, yy - 1, cw - 8, 14, Flat({ FontSize = 10, TextColor = C.Mid }))
+    Place(p .. "Function", g .. "Function", x + 4, yy + 14, cw - 8, 13, Flat({ FontSize = 9, TextColor = C.Mid }))
   end
   local rows = math.max(1, math.ceil(counts.Faders / cols))
   W = math.max(W, M * 2 + math.min(counts.Faders, cols) * cw)
@@ -89,7 +91,7 @@ if CurrentPage == "Faders" then
 
 elseif CurrentPage == "Buttons" then
   local cols, cw = 6, 112
-  local cellH = 146
+  local cellH = 164
   for i = 1, counts.Buttons do
     local col, row = (i - 1) % cols, (i - 1) // cols
     local x, cy = M + col * cw, y + row * cellH
@@ -100,6 +102,8 @@ elseif CurrentPage == "Buttons" then
     local yy = NameCue(p, g, x, cy + 30, cw)
     Place(p .. "Press", g .. "Press", x + 6, yy, cw - 12, 48,
       { Style = "Button", Legend = "", FontSize = 11, FontStyle = "Bold", Color = C.Amber })
+    -- MA button function ("Toggle", "Go" ...) under the button, not as legend
+    Place(p .. "Function", g .. "Function", x + 4, yy + 51, cw - 8, 14, Flat({ FontSize = 10, TextColor = C.Mid }))
   end
   local rows = math.max(1, math.ceil(counts.Buttons / cols))
   W = math.max(W, M * 2 + math.min(counts.Buttons, cols) * cw)

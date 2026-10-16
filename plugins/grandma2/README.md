@@ -98,7 +98,8 @@ working and keeps its look.
 - Legends: anything the plugin writes as legend overrides the text on every UCI copy.
   **Button Legends** decides what the plugin writes: `Fader Buttons 2+3` (default – the main
   buttons stay free for your own texts), `All` (also main buttons, e.g. "Go", "Toggle") or
-  `Off`. The console labels are always available as `… Label` / `… Function` pins.
+  `Off`. The MA function of the main button is shown as text right under it
+  (`Button 1 Label` / `Function`) and is available as pin.
 - `Active`, `Fading`, `State` and `Progress` stay available as pins for logic and UCIs.
 
 Fade progress is a meter directly under the cue, as on the console.
