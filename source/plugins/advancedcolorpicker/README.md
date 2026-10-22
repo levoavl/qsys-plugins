@@ -121,16 +121,18 @@ presets and the colour wheel – are colour displays with an invisible touch but
 UCI.
 
 If your style gives every button a background, the touch buttons become visible and cover
-the colours. They come with the CSS class `levo-touch` – add this to your style sheet:
+the colours (the user presets then show no colour on the UCI). Select the touch buttons on
+the UCI (`Preset n`, `User n`, and the wheel cells if needed) and give them a CSS class,
+e.g. `levo-touch`, with this rule in your style sheet:
 
 ```css
 .levo-touch { background-color: transparent; border-width: 0; }
 ```
 
-The classes (`levo-touch`, `levo-swatch` for `Preview` and the user swatches) are only
-defaults from the plugin layout. The plugin never writes CSS classes, colours or legends of
-buttons at runtime, so anything you set on a UCI copy stays when the design runs. The only
-runtime colours are `Preview` and `User n Swatch` – showing the colour is their job.
+The plugin never writes CSS classes, colours or legends of buttons at runtime, so anything
+you set on a UCI copy stays when the design runs. The only runtime colours are `Preview`
+and `User n Swatch` – showing the colour is their job; keep background rules of your style
+away from them.
 
 ## Persistence
 

@@ -36,19 +36,19 @@ local CLEAR = { 255, 255, 255, 0 }
 local function Image(data, x, y, w, h)
   table.insert(content, { Type = "Image", Image = data, Position = { x, y }, Size = { w, h } })
 end
--- CSS classes are set here only, as the default for UCI copies - never at runtime,
--- that would replace the classes given on the UCI. ZOrder keeps touch buttons on
--- top of the colour swatches.
+-- No CSS classes here or at runtime: Designer does not take layout classes over to
+-- UCI copies, and runtime classes would replace the ones given on the UCI. ZOrder
+-- keeps touch buttons on top of the colour swatches.
 local function TouchButton(name, pretty, x, y, w, h)
   Place(name, pretty, x, y, w, h, {
     Style = "Button", Legend = "", Color = CLEAR, OffColor = CLEAR, UnlinkOffColor = true,
-    StrokeWidth = 0, CornerRadius = 0, Margin = 0, CssClass = "levo-touch", ZOrder = 2,
+    StrokeWidth = 0, CornerRadius = 0, Margin = 0, ZOrder = 2,
   })
 end
 
 -- Current colour bar, shown on every colour page
 local function ColorBar(y)
-  Place("Preview", "Color~Preview", M, y, 76, 76, { Style = "Text", Color = C.Line, CornerRadius = 2, CssClass = "levo-swatch" })
+  Place("Preview", "Color~Preview", M, y, 76, 76, { Style = "Text", Color = C.Line, CornerRadius = 2 })
   local x = M + 84
   Label("Hex", x - 8, y + 2, 52, 18, { align = "Right" })
   Place("Hex", "Color~Hex", x + 50, y, 84, 22, { Style = "Text", FontSize = 12 })
@@ -90,7 +90,7 @@ if CurrentPage == "Presets" then
       local x, cy = M + col * cw, y + row * 52
       -- same as the fixed presets: tap the colour itself (swatch + invisible button on top)
       Place("User " .. i .. " Swatch", "User Presets~User " .. i .. "~Swatch", x, cy, cw - 6, 30,
-        { Style = "Text", Color = C.Line, CornerRadius = 0, StrokeWidth = 0, CssClass = "levo-swatch", ZOrder = 1 })
+        { Style = "Text", Color = C.Line, CornerRadius = 0, StrokeWidth = 0, ZOrder = 1 })
       TouchButton("User " .. i, "User Presets~User " .. i .. "~Recall", x, cy, cw - 6, 30)
       Label(tostring(i), x, cy + 31, cw - 6, 14, { size = 9, color = C.Mid, align = "Center" })
     end
