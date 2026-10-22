@@ -26,12 +26,12 @@ function PickerConfig(props)
   end
   local cfg = {
     UserPresets = num("User Presets", 8, 0, 32),
-    GridColumns = num("Picker Columns", 12, 6, 24),
-    GridRows = num("Picker Rows", 7, 3, 9),
+    FieldSize = num("Picker Resolution", 16, 8, 24),
     SeparateDimmer = str("Dimmer", "Scale Outputs") == "Separate Output",
     Subtract = str("White/Amber Mixing", "Subtract (accurate)") == "Subtract (accurate)",
     LinkLayout = str("Console Link", "RGB"),
   }
+  cfg.StripSize = cfg.FieldSize * 2  -- hue strip cells
   -- channels of the console link, in order (D = dimmer when it is a separate output)
   cfg.LinkChannels = {}
   if cfg.LinkLayout ~= "Off" then

@@ -1,7 +1,7 @@
 -- (c) levo AVL | Elias Jenny - MIT License
 table.insert(props, { Name = "User Presets",   Type = "integer", Min = 0, Max = 32, Value = 8 })
-table.insert(props, { Name = "Picker Columns", Type = "integer", Min = 6, Max = 24, Value = 12 })
-table.insert(props, { Name = "Picker Rows",    Type = "integer", Min = 3, Max = 9,  Value = 7 })
+-- picker field cells per side (saturation x brightness), the hue strip gets twice as many
+table.insert(props, { Name = "Picker Resolution", Type = "integer", Min = 8, Max = 24, Value = 16 })
 table.insert(props, {
   -- Scale Outputs: the dimmer is multiplied into every colour channel.
   -- Separate Output: colour channels stay at full level, the dimmer gets its own output.

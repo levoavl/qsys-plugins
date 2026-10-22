@@ -7,10 +7,23 @@ local Cfg = PickerConfig(Properties)
 local TICK = 0.05          -- timer resolution (s), also the fade step
 local FEEDBACK_HOLD = 1.0  -- after writing the console link, link input is only checked after this time
 local FEEDBACK_TOL = 0.6   -- link input within this many % of what was sent counts as our own echo
+local PAINT_INTERVAL = 0.15 -- picker field repaint rate limit (s), e.g. while the hue fader moves
 local DEFAULT_WHITE, DEFAULT_AMBER = "#FFFFFF", "#FFBF00"
 local EMPTY_SWATCH = string.format("#%02X%02X%02X", table.unpack(LevoBrand.Colors.Line))
 
 local Now = 0              -- monotonic time in seconds, advanced by the main timer
+
+-- The main timer only runs while something is pending (fade, link hold time,
+-- field repaint). WakeTimer is used by the control handlers and so keeps the
+-- timer referenced - on the Core a timer nothing references is garbage collected.
+local MainTimer = Timer.New()
+local TimerRunning = false
+local function WakeTimer()
+  if not TimerRunning then
+    TimerRunning = true
+    MainTimer:Start(TICK)
+  end
+end
 
 local function Log(level, msg)
   if level <= DebugLevel then print(("[Color Picker] %s"):format(msg)) end
@@ -90,7 +103,31 @@ local function WriteOutputs(writeLink)
       SetValue("Link " .. ChannelNames[ch], v)
     end
     LinkWrittenAt = Now
+    WakeTimer()  -- advances Now through the hold time
   end
+end
+
+-- Picker field: recoloured for the current hue, rate limited by the timer
+local FieldN = Cfg.FieldSize
+local FieldColors = {}     -- cell name -> colour written last
+local PaintedHue = nil
+local FieldDirty = false
+local LastPaint = -math.huge
+
+local function PaintField()
+  local hue = State.hue
+  for row = 1, FieldN do
+    for col = 1, FieldN do
+      local name = ("Field %d.%d"):format(row, col)
+      local hex = ColorMath.ToHex(FieldColor(row, col, FieldN, hue))
+      if FieldColors[name] ~= hex then
+        FieldColors[name] = hex
+        Controls[name].Color = hex
+      end
+    end
+  end
+  PaintedHue, FieldDirty, LastPaint = hue, false, Now
+  Log(2, ("Field painted for hue %d"):format(math.floor(hue + 0.5)))
 end
 
 -- skip: "rgb" / "hsv" = the user is moving these controls, don't write them back
@@ -115,6 +152,10 @@ local function ShowColor(skip)
   end
   SetValue("Dimmer", Round2(State.dim * 100))
   SetSwatch("Preview", hex)
+  if PaintedHue == nil or math.abs(State.hue - PaintedHue) >= 0.5 then
+    FieldDirty = true
+    WakeTimer()
+  end
 end
 
 local function ClearWarning()
@@ -130,6 +171,7 @@ local function ApplyColor(r, g, b, opts)
   local dur = opts.fade and Controls["Fade Time"].Value or 0
   if dur >= TICK then
     Fade = { from = { State.r, State.g, State.b }, to = { r, g, b }, t0 = Now, dur = dur }
+    WakeTimer()
     Log(2, ("Fade to %s in %.1f s"):format(ColorMath.ToHex(r, g, b), dur))
     return
   end
@@ -202,6 +244,7 @@ local function OnLinkInput(ctl)
   if LinkInSync() then return end  -- echo of our own write
   if Fade or (Now - LinkWrittenAt) < FEEDBACK_HOLD then
     LinkPending = true             -- console may still report old values, check later
+    WakeTimer()
     Log(2, "Link input held during fade/hold time")
     return
   end
@@ -279,12 +322,28 @@ for i, p in ipairs(ColorPresets) do
   end
 end
 
-for row = 1, Cfg.GridRows do
-  for col = 1, Cfg.GridColumns + 1 do
-    local r, g, b = GridColor(row, col, Cfg.GridRows, Cfg.GridColumns)
-    Controls[("Grid %d.%d"):format(row, col)].EventHandler = function()
+for row = 1, FieldN do
+  for col = 1, FieldN do
+    local sat, val = (col - 1) / (FieldN - 1), 1 - (row - 1) / (FieldN - 1)
+    Controls[("Field %d.%d"):format(row, col)].EventHandler = function(c)
+      c.Boolean = true  -- keep the cell "on" so it shows its runtime colour
+      State.sat = sat
+      local r, g, b = ColorMath.HsvToRgb(State.hue, sat, val)
       ApplyColor(r, g, b, { fade = true })
     end
+  end
+end
+
+for i = 1, Cfg.StripSize do
+  local hue = StripHue(i, Cfg.StripSize)
+  Controls["Hue Strip " .. i].EventHandler = function()
+    -- keep saturation and brightness; from white/black a hue choice gives the full colour
+    local _, s, v = ColorMath.RgbToHsv(State.r, State.g, State.b)
+    if s < 0.05 then s = 1 end
+    if v < 0.05 then v = 1 end
+    State.hue, State.sat = hue, s
+    local r, g, b = ColorMath.HsvToRgb(hue, s, v)
+    ApplyColor(r, g, b, { fade = true })
   end
 end
 
@@ -332,13 +391,18 @@ end
 ---------------------------------------------------------------------------
 -- Timer: fades and delayed link checks
 ---------------------------------------------------------------------------
-local MainTimer = Timer.New()
 MainTimer.EventHandler = function()
   Now = Now + TICK
   if Fade then FadeStep() end
   if LinkPending and not Fade and (Now - LinkWrittenAt) >= FEEDBACK_HOLD then
     LinkPending = false
     if not LinkInSync() then AdoptLink() end
+  end
+  if FieldDirty and (Now - LastPaint) >= PAINT_INTERVAL then PaintField() end
+  -- nothing pending: stop until the next WakeTimer
+  if not Fade and not LinkPending and not FieldDirty and (Now - LinkWrittenAt) >= FEEDBACK_HOLD then
+    MainTimer:Stop()
+    TimerRunning = false
   end
 end
 
@@ -364,10 +428,13 @@ else
   Log(1, "Fresh instance, starting with white")
 end
 for i = 1, Cfg.UserPresets do ShowUser(i) end
+for row = 1, FieldN do
+  for col = 1, FieldN do Controls[("Field %d.%d"):format(row, col)].Boolean = true end
+end
+PaintField()
 ShowColor()
 WriteOutputs(false)  -- the console keeps its state on start; its feedback is adopted when it arrives
 
-MainTimer:Start(TICK)
 SetStatus(STATUS.OK, "OK")
 Log(1, ("Started, build %s - link %s, %d user preset(s)"):format(
   PluginInfo.BuildVersion, Cfg.LinkLayout, Cfg.UserPresets))

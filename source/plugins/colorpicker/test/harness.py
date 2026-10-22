@@ -76,7 +76,8 @@ function UserSet(name, field, value)
   if c.EventHandler then c.EventHandler(c) end
 end
 
-Timers = {}
+-- weak like the real Core: a timer nobody references gets garbage collected
+Timers = setmetatable({}, { __mode = "v" })
 Timer = { New = function()
   local t = { running = false }
   function t:Start(iv) self.interval = iv; self.running = true end
@@ -85,7 +86,7 @@ Timer = { New = function()
   return t
 end }
 function TickAll()
-  for _, t in ipairs(Timers) do
+  for _, t in pairs(Timers) do
     if t.running and t.EventHandler then t.EventHandler(t) end
   end
 end
@@ -124,6 +125,7 @@ class Harness:
                 pos = layout[name].Position
                 assert float(pos[1]).is_integer() and float(pos[2]).is_integer(), f"non-integer position {name}"
         L.execute(src)  # with Controls set -> runtime runs
+        L.execute("collectgarbage() collectgarbage()")  # catch objects only held by locals
         self.g = g
 
     def c(self, name):
@@ -344,10 +346,40 @@ def test_link_rgbwa_separate():
     con.move("Dimmer", 80)
     check(h.v("Dimmer") == 80, "separate dimmer feedback")
 
-    h2 = Harness({"Console Link": "Off", "User Presets": 0, "Picker Columns": 24, "Picker Rows": 9})
+    h2 = Harness({"Console Link": "Off", "User Presets": 0})
     check(h2.g.Controls["Link Red"] is None and h2.g.Controls["User 1"] is None, "no link / user controls when off")
-    h2.press("Grid 5.25")
-    check(h2.s("Hex") == "#808080", f"grey column ({h2.s('Hex')})")
+
+
+def test_picker_field():
+    print("picker field / hue strip")
+    for n in (8, 16, 24):
+        h = Harness({"Picker Resolution": n})
+        check(h.g.Controls[f"Field {n}.{n}"] is not None and h.g.Controls[f"Hue Strip {2 * n}"] is not None,
+              f"resolution {n}: {n}x{n} field, {2 * n} strip cells")
+    h = Harness()
+    check(h.c("Field 1.16").Color == "#FF0000" and h.c("Field 1.1").Color == "#FFFFFF", "field painted on start")
+    check(h.c("Field 5.5").Boolean, "field cells kept on")
+    h.user("Field 1.16", "Boolean", False)  # a touch toggles the cell off
+    check(h.s("Hex") == "#FF0000" and h.c("Field 1.16").Boolean, "field cell picks colour and stays on")
+    h.press("Field 16.16")
+    check(h.s("Hex") == "#000000", "bottom row = black")
+    h.press("Hue Strip 22")  # 360 * 10.5 / 32 = 118
+    check(h.v("Hue") == 118 and h.v("Brightness") == 100 and h.v("Saturation") == 100,
+          f"hue strip from black gives the full colour (hue {h.v('Hue')})")
+    check(h.c("Field 1.16").Color == "#FF0000", "repaint is rate limited, not immediate")
+    h.tick(4)
+    r, g, b = (int(h.c("Field 1.16").Color[i:i + 2], 16) for i in (1, 3, 5))
+    check(g == 255 and r < 40 and b < 40, f"field repainted for the new hue ({h.c('Field 1.16').Color})")
+    h.user("Hue", "Value", 240)
+    h.tick(4)
+    check(h.c("Field 1.16").Color == "#0000FF" and h.s("Hex") == "#0000FF", "hue fader moves colour and field")
+    h.tick(40)
+    check(not h.g.Timers[1].running, "timer stops when nothing is pending")
+    h.user("Fade Time", "Value", 0.5)
+    h.press("Preset 1")
+    check(h.g.Timers[1].running, "timer wakes up for a fade")
+    h.tick(10)
+    check(h.s("Hex") == "#FF0000", "fade runs after the timer slept")
 
 
 def test_calibration():
@@ -362,7 +394,7 @@ def test_calibration():
 
 def main():
     for t in (test_start_and_presets, test_inputs, test_dimmer_and_fade, test_user_presets,
-              test_console_link, test_link_rgbwa_separate, test_calibration):
+              test_console_link, test_link_rgbwa_separate, test_picker_field, test_calibration):
         t()
     print()
     if FAILED:
