@@ -52,8 +52,8 @@ it goes to full brightness), the vertical fader next to the wheel sets it. Taps 
 dragging across the wheel does not work. For dragging, use the Q-SYS Color Picker (below)
 or the Hue / Saturation faders.
 
-**User presets:** switch **Store** on and press a slot to save the current colour – Store
-switches off again. Press a slot to recall it. Slots can also be typed or set by pin on the
+**User presets:** tap a colour to recall it, like the fixed presets. To save, switch
+**Store** on and tap a slot – Store switches off again. Slots can also be typed or set by pin on the
 Setup page (`User n Hex`). Empty slots do nothing.
 
 ## Q-SYS Color Picker (two-way)
@@ -114,21 +114,23 @@ What happens:
 
 ## UCIs and UCI styles (CSS)
 
-UCI styles override the colours of buttons. That is why the preset colours and the colour
-wheel are **images** with invisible touch buttons on top (`Preset n`, `Wheel r.c`) – images
-are not affected by styles. Copy image and buttons together onto the UCI.
+UCI styles override the colours of buttons. That is why all colour choices – presets, user
+presets and the colour wheel – are colour displays with an invisible touch button on top
+(`Preset n`, `User n`, `Wheel r.c`): images for the fixed colours and the wheel, the
+`User n Swatch` indicators for the user presets. Copy display and button together onto the
+UCI.
 
 If your style gives every button a background, the touch buttons become visible and cover
-the images. They carry the CSS class `levo-touch` – add this to your style sheet:
+the colours. They come with the CSS class `levo-touch` – add this to your style sheet:
 
 ```css
 .levo-touch { background-color: transparent; border-width: 0; }
 ```
 
-`Preview` and the `User n Swatch` indicators are the only controls coloured at runtime and
-carry the class `levo-swatch`; keep background rules away from that class. All other
-buttons (Store, user preset recall) are never restyled, so UCI copies can be styled freely.
-The wheel cells have no pins.
+The classes (`levo-touch`, `levo-swatch` for `Preview` and the user swatches) are only
+defaults from the plugin layout. The plugin never writes CSS classes, colours or legends of
+buttons at runtime, so anything you set on a UCI copy stays when the design runs. The only
+runtime colours are `Preview` and `User n Swatch` – showing the colour is their job.
 
 ## Persistence
 
