@@ -6,6 +6,7 @@ Usage (from the repository root):
     python3 source/tools/build.py              # build all plugins
     python3 source/tools/build.py grandma2     # build one plugin
     python3 source/tools/build.py --check      # build + Lua 5.3 syntax check (needs `pip install lupa`)
+    python3 source/tools/build.py sound2beat --dev   # test build with dev stamp, see below
 
 What it does:
     1. Regenerates source/shared/lua/levo_assets.lua from the logo originals in
@@ -15,6 +16,12 @@ What it does:
        - into the plugin's public folder in the repository root (e.g. grandMA2/),
          matched case-insensitively against <name>, once the plugin is released;
        - otherwise next to its sources in source/plugins/<name>/.
+
+--dev builds a test copy into source/.dev-build/ (not committed) instead of the normal
+output. The test copy is stamped with branch, commit and build time, shown in the schematic
+block under the plugin name and on the About page, e.g. "dev sound2beat a1b2c3d+ 22.10. 12:41"
+("+" = uncommitted changes). File name and plugin Id stay the same, so the test copy simply
+replaces the previous one in the Q-SYS plugin folder. Released files never carry a stamp.
 
 Include lookup order: the plugin's own src/ folder first, then source/shared/lua/.
 The include syntax is the same one the QSC plugin compiler uses, so the sources
@@ -112,6 +119,52 @@ def lua_check(source: str, name: str) -> None:
         raise SystemExit(f"Lua syntax error: {err}")
 
 
+DEV_DIR = SOURCE / ".dev-build"
+
+
+def dev_stamp() -> str:
+    import subprocess
+    from datetime import datetime
+    try:
+        from zoneinfo import ZoneInfo
+        now = datetime.now(ZoneInfo("Europe/Berlin"))
+    except Exception:
+        now = datetime.now()
+
+    def git(*args):
+        r = subprocess.run(["git", "-C", str(ROOT), *args], capture_output=True, text=True)
+        return r.stdout.strip() if r.returncode == 0 else ""
+
+    branch = git("rev-parse", "--abbrev-ref", "HEAD") or "?"
+    commit = git("rev-parse", "--short=7", "HEAD") or "?"
+    dirty = "+" if git("status", "--porcelain", "--", "source") else ""
+    return f"dev {branch} {commit}{dirty} {now:%d.%m. %H:%M}"
+
+
+def stamp_source(source: str, stamp: str) -> str:
+    """Append Lua that shows the dev stamp without touching the plugin's own code."""
+    return source.rstrip() + f"""
+
+-- >>> dev build stamp (added by build.py --dev, never in released files)
+PluginInfo.DevBuild = "{stamp}"
+do
+  local prettyName = GetPrettyName
+  GetPrettyName = function(props) return prettyName(props) .. "\\n" .. PluginInfo.DevBuild end
+  if LevoBrand and LevoBrand.About then
+    local about = LevoBrand.About
+    LevoBrand.About = function(graphics, x, y, width, info)
+      local bottom = about(graphics, x, y, width, info)
+      table.insert(graphics, {{ Type = "Text", Text = "Test build: " .. PluginInfo.DevBuild,
+        Position = {{ x, bottom + 4 }}, Size = {{ width, 18 }}, FontSize = 11, FontStyle = "Bold",
+        HTextAlign = "Left", Color = LevoBrand.Colors.Atlantic }})
+      return bottom + 22
+    end
+  end
+end
+-- <<< dev build stamp
+"""
+
+
 def output_path(name: str) -> Path:
     """Where the built .qplug of plugin <name> goes (see module docstring)."""
     for folder in ROOT.iterdir():
@@ -120,13 +173,18 @@ def output_path(name: str) -> Path:
     return PLUGINS / name / f"levo-{name}.qplug"
 
 
-def build(plugin_dir: Path, check: bool) -> None:
+def build(plugin_dir: Path, check: bool, dev: bool = False) -> None:
     entry = plugin_dir / "src" / "plugin.lua"
     if not entry.is_file():
         print(f"  skip    {plugin_dir.name} (no src/plugin.lua yet)")
         return
     source = resolve(entry, [plugin_dir / "src", SHARED_LUA], [])
     out = output_path(plugin_dir.name)
+    if dev:
+        stamp = dev_stamp()
+        source = stamp_source(source, stamp)
+        DEV_DIR.mkdir(exist_ok=True)
+        out = DEV_DIR / out.name
     if check:
         lua_check(source, out.name)
     out.write_text(source, encoding="utf-8", newline="\r\n")
@@ -137,6 +195,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("plugins", nargs="*", help="plugin folder names (default: all)")
     parser.add_argument("--check", action="store_true", help="Lua 5.3 syntax check of the result")
+    parser.add_argument("--dev", action="store_true",
+                        help="stamped test build into source/.dev-build/ (not committed)")
     args = parser.parse_args()
 
     generate_assets()
@@ -145,7 +205,7 @@ def main() -> None:
         folder = PLUGINS / name
         if not folder.is_dir():
             sys.exit(f"Unknown plugin: {name}")
-        build(folder, args.check)
+        build(folder, args.check or args.dev, args.dev)
 
 
 if __name__ == "__main__":

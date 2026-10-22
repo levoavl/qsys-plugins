@@ -9,3 +9,4 @@ __pycache__/
 CLAUDE.md
 source/shared/assets/
 preview/
+source/.dev-build/

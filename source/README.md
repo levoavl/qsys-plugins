@@ -30,6 +30,19 @@ The result `levo-<name>.qplug` lands in the plugin's public folder in the reposi
 (e.g. `grandMA2/levo-grandma2.qplug`). Plugins that are not released yet have no public
 folder; their `.qplug` is written next to the sources in `source/plugins/<name>/`.
 
+### Test builds
+
+```
+python3 source/tools/build.py sound2beat --dev
+```
+
+Writes a test copy to `source/.dev-build/` (not committed) that carries a stamp like
+`dev sound2beat a1b2c3d+ 22.10. 12:41` – branch, commit (`+` = uncommitted changes) and
+build time. Q-SYS Designer shows it in the schematic block under the plugin name and on the
+About page. File name and plugin Id stay the same, so a new test build simply replaces the
+previous one in the plugin folder and you always see which state you are testing.
+Released files never carry a stamp.
+
 ### Layout preview
 
 ```
