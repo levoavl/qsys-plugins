@@ -1,6 +1,6 @@
 # Color Picker – Q-SYS Plugin
 
-Colour picker for Q-SYS: fixed presets, a picker field with hue strip, HSV, Kelvin and hex entry, user
+Colour picker for Q-SYS: fixed presets, a colour wheel, HSV, Kelvin and hex entry, user
 presets and fades. Outputs the colour as hex and as 0-255 levels for RGB, RGBW, RGBA and
 RGBWA fixtures, plus a two-way **Console Link** for lighting console faders (e.g. the
 levo AVL grandMA2 plugin).
@@ -18,7 +18,7 @@ No device, no network – runs the same on a Core and in Emulation mode.
 | Property | Values | Meaning |
 |---|---|---|
 | User Presets | 0-32 (8) | Number of user preset slots |
-| Picker Resolution | 8-24 (16) | Cells per side of the picker field; the hue strip gets twice as many |
+| Picker Resolution | 11-31 (17) | Diameter of the colour wheel in cells (odd, even values are rounded up) |
 | Dimmer | Scale Outputs / Separate Output | *Scale*: the dimmer is multiplied into every channel. *Separate*: channels stay at full level, the dimmer gets its own output (`Dimmer Level`, `Link Dimmer`) |
 | White/Amber Mixing | Subtract (accurate) / Add (brighter) | *Subtract*: the white/amber part is taken out of R, G and B, the colour stays correct. *Add*: R, G, B unchanged, W/A added on top – brighter, colour shifts towards white |
 | Console Link | Off / RGB / RGBW / RGBA / RGBWA | Channel layout of the Link controls |
@@ -27,8 +27,7 @@ No device, no network – runs the same on a Core and in Emulation mode.
 ## Pages
 
 - **Presets** – 16 fixed colours, user presets with **Store**
-- **Picker** – saturation × brightness field, hue strip and hue fader (like the Q-SYS
-  colour dialog), Saturation / Brightness faders, Kelvin
+- **Picker** – colour wheel with brightness fader, Hue / Saturation faders, Kelvin
 - **Outputs** – all level outputs and the Console Link values
 - **Setup** – LED calibration, user preset hex values, status
 - **About**
@@ -40,17 +39,17 @@ and dimmer.
 
 | Input | Fades | Notes |
 |---|---|---|
-| Preset, picker field, hue strip, user preset, hex | yes | Uses `Fade Time` (0-10 s) |
+| Preset, colour wheel, user preset, hex | yes | Uses `Fade Time` (0-10 s) |
 | Red / Green / Blue, Hue / Saturation / Brightness, Kelvin, Dimmer | no | Continuous controls follow immediately |
 
 Hex accepts `#RRGGBB`, `RRGGBB`, `#RGB` and `0xRRGGBB`. Invalid input sets the status to
 *Compromised* and restores the field.
 
-**Picker field:** saturation runs left → right, brightness top → bottom, for the current
-hue. Pick the hue on the strip (or drag the hue fader), then tap the field. The field is
-recoloured whenever the hue changes (at most every 0.15 s). Choosing a hue while the
-colour is white or black gives the fully saturated, full brightness colour. Q-SYS buttons
-react to taps only – dragging across the field does not work, use the faders for that.
+**Colour wheel:** all colours in one plane – hue is the angle (red on top, clockwise),
+saturation the distance from the white centre. The wheel itself is at full brightness;
+tapping a cell keeps the current brightness (from black it goes to full brightness), the
+vertical fader next to the wheel sets it. Q-SYS buttons react to taps only – dragging
+across the wheel does not work, use the Hue / Saturation faders for fine steps.
 
 **User presets:** switch **Store** on and press a slot to save the current colour – Store
 switches off again. Press a slot to recall it. Slots can also be typed or set by pin on the
@@ -98,11 +97,11 @@ What happens:
 
 ## UCIs
 
-The plugin colours controls at runtime only where showing the colour is their job:
-`Preview`, the `User n Swatch` indicators and the picker field cells (`Field r.c`, plugin UI
-only, no pins). The field cells are toggles that the plugin keeps switched on, so they
-always show their runtime colour. Preset, hue strip, user and Store buttons are never
-restyled; their colours come from the plugin layout, so UCI copies can be styled freely.
+The plugin colours exactly two kinds of controls at runtime: `Preview` and the
+`User n Swatch` indicators – showing the colour is their only job. Preset, wheel, user and
+Store buttons are never restyled; their colours come from the plugin layout, so UCI copies
+can be styled freely. The wheel cells (`Wheel r.c`) have no pins – copy them onto a UCI
+directly if needed.
 
 ## Persistence
 

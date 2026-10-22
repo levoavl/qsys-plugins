@@ -350,36 +350,40 @@ def test_link_rgbwa_separate():
     check(h2.g.Controls["Link Red"] is None and h2.g.Controls["User 1"] is None, "no link / user controls when off")
 
 
-def test_picker_field():
-    print("picker field / hue strip")
-    for n in (8, 16, 24):
+def test_picker_wheel():
+    print("colour wheel")
+    for n, expect in ((11, 11), (17, 17), (18, 19), (31, 31)):
         h = Harness({"Picker Resolution": n})
-        check(h.g.Controls[f"Field {n}.{n}"] is not None and h.g.Controls[f"Hue Strip {2 * n}"] is not None,
-              f"resolution {n}: {n}x{n} field, {2 * n} strip cells")
-    h = Harness()
-    check(h.c("Field 1.16").Color == "#FF0000" and h.c("Field 1.1").Color == "#FFFFFF", "field painted on start")
-    check(h.c("Field 5.5").Boolean, "field cells kept on")
-    h.user("Field 1.16", "Boolean", False)  # a touch toggles the cell off
-    check(h.s("Hex") == "#FF0000" and h.c("Field 1.16").Boolean, "field cell picks colour and stays on")
-    h.press("Field 16.16")
-    check(h.s("Hex") == "#000000", "bottom row = black")
-    h.press("Hue Strip 22")  # 360 * 10.5 / 32 = 118
-    check(h.v("Hue") == 118 and h.v("Brightness") == 100 and h.v("Saturation") == 100,
-          f"hue strip from black gives the full colour (hue {h.v('Hue')})")
-    check(h.c("Field 1.16").Color == "#FF0000", "repaint is rate limited, not immediate")
-    h.tick(4)
-    r, g, b = (int(h.c("Field 1.16").Color[i:i + 2], 16) for i in (1, 3, 5))
-    check(g == 255 and r < 40 and b < 40, f"field repainted for the new hue ({h.c('Field 1.16').Color})")
-    h.user("Hue", "Value", 240)
-    h.tick(4)
-    check(h.c("Field 1.16").Color == "#0000FF" and h.s("Hex") == "#0000FF", "hue fader moves colour and field")
+        c = (expect + 1) // 2
+        cells = sum(1 for k in h.g.Controls.keys() if str(k).startswith("Wheel "))
+        check(h.g.Controls[f"Wheel {c}.{c}"] is not None and h.g.Controls[f"Wheel 1.1"] is None
+              and h.g.Controls[f"Wheel 1.{c}"] is not None and h.g.Controls[f"Wheel {expect}.{c}"] is not None,
+              f"resolution {n}: {expect} cells wide, round ({cells} cells)")
+    h = Harness()  # 17: centre 9.9, radius 8
+    h.press("Wheel 1.9")
+    check(h.s("Hex") == "#FF0000", f"top = red ({h.s('Hex')})")
+    h.press("Wheel 9.17")
+    check(h.v("Hue") == 90, f"right = 90 deg ({h.v('Hue')})")
+    h.press("Wheel 17.9")
+    check(h.s("Hex") == "#00FFFF", f"bottom = cyan ({h.s('Hex')})")
+    h.press("Wheel 9.5")
+    check(h.v("Hue") == 270 and h.v("Saturation") == 50, f"left half way = 270 deg, 50 % ({h.v('Hue')}, {h.v('Saturation')})")
+    h.press("Wheel 9.9")
+    check(h.s("Hex") == "#FFFFFF" and h.v("Hue") == 270, "centre = white, hue kept")
+    h.user("Brightness", "Value", 50)
+    h.press("Wheel 1.9")
+    check(h.s("Hex") == "#800000", "wheel keeps the brightness")
+    h.user("Brightness", "Value", 0)
+    h.press("Wheel 1.9")
+    check(h.s("Hex") == "#FF0000", "from black a wheel choice gives full brightness")
+    check(not h.c("Wheel 1.9").Color, "wheel cells are never recoloured at runtime")
     h.tick(40)
     check(not h.g.Timers[1].running, "timer stops when nothing is pending")
     h.user("Fade Time", "Value", 0.5)
-    h.press("Preset 1")
+    h.press("Wheel 17.9")
     check(h.g.Timers[1].running, "timer wakes up for a fade")
     h.tick(10)
-    check(h.s("Hex") == "#FF0000", "fade runs after the timer slept")
+    check(h.s("Hex") == "#00FFFF", "fade runs after the timer slept")
 
 
 def test_calibration():
@@ -394,7 +398,7 @@ def test_calibration():
 
 def main():
     for t in (test_start_and_presets, test_inputs, test_dimmer_and_fade, test_user_presets,
-              test_console_link, test_link_rgbwa_separate, test_picker_field, test_calibration):
+              test_console_link, test_link_rgbwa_separate, test_picker_wheel, test_calibration):
         t()
     print()
     if FAILED:

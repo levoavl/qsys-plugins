@@ -33,16 +33,13 @@ Add({ Name = "Status", ControlType = "Indicator", IndicatorType = "Status", PinS
 -- Fixed presets
 for i = 1, #ColorPresets do Trigger("Preset " .. i) end
 
--- Picker field and hue strip: plugin UI only, no pins (hundreds of cells).
--- Field cells are toggles that the runtime keeps switched on and recolours with
--- the hue - an "on" button always shows its runtime colour.
-for row = 1, cfg.FieldSize do
-  for col = 1, cfg.FieldSize do
-    Add({ Name = ("Field %d.%d"):format(row, col), ControlType = "Button", ButtonType = "Toggle", UserPin = false })
+-- Colour wheel cells: plugin UI only, no pins (a few hundred cells)
+for row = 1, cfg.WheelSize do
+  for col = 1, cfg.WheelSize do
+    if WheelCell(row, col, cfg.WheelSize) then
+      Add({ Name = ("Wheel %d.%d"):format(row, col), ControlType = "Button", ButtonType = "Trigger", UserPin = false })
+    end
   end
-end
-for i = 1, cfg.StripSize do
-  Add({ Name = "Hue Strip " .. i, ControlType = "Button", ButtonType = "Trigger", UserPin = false })
 end
 
 -- User presets: press = recall, press while Store is on = save current colour

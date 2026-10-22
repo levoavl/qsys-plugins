@@ -1,5 +1,5 @@
 -- (c) levo AVL | Elias Jenny - MIT License
--- Fixed preset colours, picker field and hue strip, shared by layout and runtime.
+-- Fixed preset colours and the colour wheel, shared by layout and runtime.
 
 ColorPresets = {
   { Name = "Red",     Hex = "#FF0000" },
@@ -20,16 +20,16 @@ ColorPresets = {
   { Name = "White",   Hex = "#FFFFFF" },
 }
 
--- Picker field: n x n cells, saturation left -> right (0..1), brightness
--- top -> bottom (1..0), for the current hue.
-function FieldColor(row, col, n, hue)
-  local s = (col - 1) / (n - 1)
-  local v = 1 - (row - 1) / (n - 1)
-  return ColorMath.HsvToRgb(hue, s, v)
-end
-
--- Hue strip: k cells from top (360) to bottom (0), like the vertical hue fader.
--- Returns the hue in the middle of cell i.
-function StripHue(i, k)
-  return 360 * (k - i + 0.5) / k
+-- Colour wheel on a d x d grid of cells (d odd, centre cell = white):
+-- hue = angle (red on top, clockwise), saturation = distance from the centre,
+-- always at full brightness. Returns hue, saturation of a cell, or nil when the
+-- cell lies outside the circle.
+function WheelCell(row, col, d)
+  local c = (d + 1) / 2
+  local radius = (d - 1) / 2
+  local dx, dy = col - c, row - c
+  local dist = math.sqrt(dx * dx + dy * dy)
+  if dist > radius + 0.5 then return nil end
+  local hue = math.deg(math.atan(dx, -dy)) % 360  -- Lua 5.3: two-argument atan
+  return hue, math.min(1, dist / radius)
 end
