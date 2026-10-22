@@ -285,7 +285,7 @@ end
 -- <<< color_math.lua
 -- >>> presets.lua
 -- (c) levo AVL | Elias Jenny - MIT License
--- Fixed preset colours, picker field and hue strip, shared by layout and runtime.
+-- Fixed preset colours and the colour wheel, shared by layout and runtime.
 
 ColorPresets = {
   { Name = "Red",     Hex = "#FF0000" },
@@ -306,18 +306,18 @@ ColorPresets = {
   { Name = "White",   Hex = "#FFFFFF" },
 }
 
--- Picker field: n x n cells, saturation left -> right (0..1), brightness
--- top -> bottom (1..0), for the current hue.
-function FieldColor(row, col, n, hue)
-  local s = (col - 1) / (n - 1)
-  local v = 1 - (row - 1) / (n - 1)
-  return ColorMath.HsvToRgb(hue, s, v)
-end
-
--- Hue strip: k cells from top (360) to bottom (0), like the vertical hue fader.
--- Returns the hue in the middle of cell i.
-function StripHue(i, k)
-  return 360 * (k - i + 0.5) / k
+-- Colour wheel on a d x d grid of cells (d odd, centre cell = white):
+-- hue = angle (red on top, clockwise), saturation = distance from the centre,
+-- always at full brightness. Returns hue, saturation of a cell, or nil when the
+-- cell lies outside the circle.
+function WheelCell(row, col, d)
+  local c = (d + 1) / 2
+  local radius = (d - 1) / 2
+  local dx, dy = col - c, row - c
+  local dist = math.sqrt(dx * dx + dy * dy)
+  if dist > radius + 0.5 then return nil end
+  local hue = math.deg(math.atan(dx, -dy)) % 360  -- Lua 5.3: two-argument atan
+  return hue, math.min(1, dist / radius)
 end
 -- <<< presets.lua
 
@@ -340,12 +340,12 @@ function PickerConfig(props)
   end
   local cfg = {
     UserPresets = num("User Presets", 8, 0, 32),
-    FieldSize = num("Picker Resolution", 16, 8, 24),
+    WheelSize = num("Picker Resolution", 17, 11, 31),
     SeparateDimmer = str("Dimmer", "Scale Outputs") == "Separate Output",
     Subtract = str("White/Amber Mixing", "Subtract (accurate)") == "Subtract (accurate)",
     LinkLayout = str("Console Link", "RGB"),
   }
-  cfg.StripSize = cfg.FieldSize * 2  -- hue strip cells
+  if cfg.WheelSize % 2 == 0 then cfg.WheelSize = cfg.WheelSize + 1 end  -- odd: one centre cell
   -- channels of the console link, in order (D = dimmer when it is a separate output)
   cfg.LinkChannels = {}
   if cfg.LinkLayout ~= "Off" then
@@ -376,8 +376,8 @@ function GetProperties()
   -- >>> properties.lua
 -- (c) levo AVL | Elias Jenny - MIT License
 table.insert(props, { Name = "User Presets",   Type = "integer", Min = 0, Max = 32, Value = 8 })
--- picker field cells per side (saturation x brightness), the hue strip gets twice as many
-table.insert(props, { Name = "Picker Resolution", Type = "integer", Min = 8, Max = 24, Value = 16 })
+-- colour wheel diameter in cells (odd; even values are rounded up)
+table.insert(props, { Name = "Picker Resolution", Type = "integer", Min = 11, Max = 31, Value = 17 })
 table.insert(props, {
   -- Scale Outputs: the dimmer is multiplied into every colour channel.
   -- Separate Output: colour channels stay at full level, the dimmer gets its own output.
@@ -463,16 +463,13 @@ Add({ Name = "Status", ControlType = "Indicator", IndicatorType = "Status", PinS
 -- Fixed presets
 for i = 1, #ColorPresets do Trigger("Preset " .. i) end
 
--- Picker field and hue strip: plugin UI only, no pins (hundreds of cells).
--- Field cells are toggles that the runtime keeps switched on and recolours with
--- the hue - an "on" button always shows its runtime colour.
-for row = 1, cfg.FieldSize do
-  for col = 1, cfg.FieldSize do
-    Add({ Name = ("Field %d.%d"):format(row, col), ControlType = "Button", ButtonType = "Toggle", UserPin = false })
+-- Colour wheel cells: plugin UI only, no pins (a few hundred cells)
+for row = 1, cfg.WheelSize do
+  for col = 1, cfg.WheelSize do
+    if WheelCell(row, col, cfg.WheelSize) then
+      Add({ Name = ("Wheel %d.%d"):format(row, col), ControlType = "Button", ButtonType = "Trigger", UserPin = false })
+    end
   end
-end
-for i = 1, cfg.StripSize do
-  Add({ Name = "Hue Strip " .. i, ControlType = "Button", ButtonType = "Trigger", UserPin = false })
 end
 
 -- User presets: press = recall, press while Store is on = save current colour
@@ -535,7 +532,7 @@ local function Place(name, pretty, x, y, w, h, extra)
   layout[name] = def
 end
 
--- Colour button with a static layout colour (presets, hue strip, initial field colours).
+-- Colour button with a static layout colour (presets, wheel). Never recoloured at runtime.
 local function ColorButton(name, pretty, x, y, w, h, r, g, b, flat)
   local col = ColorMath.LayoutColor(r, g, b)
   local def = { Style = "Button", Legend = "", Color = col, OffColor = col, CornerRadius = 2 }
@@ -596,29 +593,25 @@ if CurrentPage == "Presets" then
 elseif CurrentPage == "Picker" then
   y = ColorBar(y)
   y = Section("Picker", y)
-  -- saturation x brightness field (recoloured with the hue at runtime), hue strip
-  -- and vertical hue fader to its right
-  local n, k = cfg.FieldSize, cfg.StripSize
-  local cell = (320 // n) // 2 * 2  -- even, so the strip cells (cell / 2) stay whole pixels
-  local side = cell * n
-  for row = 1, n do
-    for col = 1, n do
-      local r, g, b = FieldColor(row, col, n, 0)  -- multiple returns only expand as the last argument
-      ColorButton(("Field %d.%d"):format(row, col), ("Picker~Field~Row %d~Column %d"):format(row, col),
-        M + (col - 1) * cell, y + (row - 1) * cell, cell, cell, r, g, b, true)
+  -- colour wheel (hue x saturation at full brightness), brightness fader to its right
+  local d = cfg.WheelSize
+  local cell = 320 // d
+  local side = cell * d
+  local x0 = M + (W - 2 * M - side - 40) // 2
+  for row = 1, d do
+    for col = 1, d do
+      local hue, sat = WheelCell(row, col, d)
+      if hue then
+        local r, g, b = ColorMath.HsvToRgb(hue, sat, 1)  -- multiple returns only expand as the last argument
+        ColorButton(("Wheel %d.%d"):format(row, col), ("Picker~Wheel~Row %d~Column %d"):format(row, col),
+          x0 + (col - 1) * cell, y + (row - 1) * cell, cell, cell, r, g, b, true)
+      end
     end
   end
-  local sx = M + side + 12
-  for i = 1, k do
-    local r, g, b = ColorMath.HsvToRgb(StripHue(i, k), 1, 1)
-    ColorButton("Hue Strip " .. i, ("Picker~Hue Strip~%d"):format(i), sx, y + (i - 1) * (cell // 2), 28, cell // 2,
-      r, g, b, true)
-  end
-  Place("Hue", "Adjust~Hue", sx + 34, y, 22, side, { Style = "Fader", Color = C.Atlantic })
-  Label("Saturation >", M, y + side + 2, side, 14, { size = 9, color = C.Mid, align = "Right" })
-  y = y + side + 22
+  Place("Brightness", "Adjust~Brightness", x0 + side + 18, y, 22, side, { Style = "Fader", Color = C.Atlantic })
+  y = y + side + 12
   y = Section("Adjust", y)
-  for _, f in ipairs({ "Saturation", "Brightness" }) do
+  for _, f in ipairs({ "Hue", "Saturation" }) do
     Label(f, M, y, 76, 18, { align = "Right" })
     Place(f, "Adjust~" .. f, M + 84, y, W - 2 * M - 84, 18, { Style = "Fader", Color = C.Atlantic })
     y = y + 26
@@ -715,14 +708,12 @@ local Cfg = PickerConfig(Properties)
 local TICK = 0.05          -- timer resolution (s), also the fade step
 local FEEDBACK_HOLD = 1.0  -- after writing the console link, link input is only checked after this time
 local FEEDBACK_TOL = 0.6   -- link input within this many % of what was sent counts as our own echo
-local PAINT_INTERVAL = 0.15 -- picker field repaint rate limit (s), e.g. while the hue fader moves
 local DEFAULT_WHITE, DEFAULT_AMBER = "#FFFFFF", "#FFBF00"
 local EMPTY_SWATCH = string.format("#%02X%02X%02X", table.unpack(LevoBrand.Colors.Line))
 
 local Now = 0              -- monotonic time in seconds, advanced by the main timer
 
--- The main timer only runs while something is pending (fade, link hold time,
--- field repaint). WakeTimer is used by the control handlers and so keeps the
+-- The main timer only runs while something is pending (fade, link hold time). WakeTimer is used by the control handlers and so keeps the
 -- timer referenced - on the Core a timer nothing references is garbage collected.
 local MainTimer = Timer.New()
 local TimerRunning = false
@@ -815,29 +806,6 @@ local function WriteOutputs(writeLink)
   end
 end
 
--- Picker field: recoloured for the current hue, rate limited by the timer
-local FieldN = Cfg.FieldSize
-local FieldColors = {}     -- cell name -> colour written last
-local PaintedHue = nil
-local FieldDirty = false
-local LastPaint = -math.huge
-
-local function PaintField()
-  local hue = State.hue
-  for row = 1, FieldN do
-    for col = 1, FieldN do
-      local name = ("Field %d.%d"):format(row, col)
-      local hex = ColorMath.ToHex(FieldColor(row, col, FieldN, hue))
-      if FieldColors[name] ~= hex then
-        FieldColors[name] = hex
-        Controls[name].Color = hex
-      end
-    end
-  end
-  PaintedHue, FieldDirty, LastPaint = hue, false, Now
-  Log(2, ("Field painted for hue %d"):format(math.floor(hue + 0.5)))
-end
-
 -- skip: "rgb" / "hsv" = the user is moving these controls, don't write them back
 local function ShowColor(skip)
   local r, g, b = State.r, State.g, State.b
@@ -860,10 +828,6 @@ local function ShowColor(skip)
   end
   SetValue("Dimmer", Round2(State.dim * 100))
   SetSwatch("Preview", hex)
-  if PaintedHue == nil or math.abs(State.hue - PaintedHue) >= 0.5 then
-    FieldDirty = true
-    WakeTimer()
-  end
 end
 
 local function ClearWarning()
@@ -1030,28 +994,21 @@ for i, p in ipairs(ColorPresets) do
   end
 end
 
-for row = 1, FieldN do
-  for col = 1, FieldN do
-    local sat, val = (col - 1) / (FieldN - 1), 1 - (row - 1) / (FieldN - 1)
-    Controls[("Field %d.%d"):format(row, col)].EventHandler = function(c)
-      c.Boolean = true  -- keep the cell "on" so it shows its runtime colour
-      State.sat = sat
-      local r, g, b = ColorMath.HsvToRgb(State.hue, sat, val)
-      ApplyColor(r, g, b, { fade = true })
+local WheelN = Cfg.WheelSize
+for row = 1, WheelN do
+  for col = 1, WheelN do
+    local hue, sat = WheelCell(row, col, WheelN)
+    if hue then
+      Controls[("Wheel %d.%d"):format(row, col)].EventHandler = function()
+        -- keep the brightness; from black a wheel choice gives full brightness
+        local _, _, v = ColorMath.RgbToHsv(State.r, State.g, State.b)
+        if v < 0.05 then v = 1 end
+        if sat > 0 then State.hue = hue end  -- the white centre keeps the hue
+        State.sat = sat
+        local r, g, b = ColorMath.HsvToRgb(hue, sat, v)
+        ApplyColor(r, g, b, { fade = true })
+      end
     end
-  end
-end
-
-for i = 1, Cfg.StripSize do
-  local hue = StripHue(i, Cfg.StripSize)
-  Controls["Hue Strip " .. i].EventHandler = function()
-    -- keep saturation and brightness; from white/black a hue choice gives the full colour
-    local _, s, v = ColorMath.RgbToHsv(State.r, State.g, State.b)
-    if s < 0.05 then s = 1 end
-    if v < 0.05 then v = 1 end
-    State.hue, State.sat = hue, s
-    local r, g, b = ColorMath.HsvToRgb(hue, s, v)
-    ApplyColor(r, g, b, { fade = true })
   end
 end
 
@@ -1106,9 +1063,8 @@ MainTimer.EventHandler = function()
     LinkPending = false
     if not LinkInSync() then AdoptLink() end
   end
-  if FieldDirty and (Now - LastPaint) >= PAINT_INTERVAL then PaintField() end
   -- nothing pending: stop until the next WakeTimer
-  if not Fade and not LinkPending and not FieldDirty and (Now - LinkWrittenAt) >= FEEDBACK_HOLD then
+  if not Fade and not LinkPending and (Now - LinkWrittenAt) >= FEEDBACK_HOLD then
     MainTimer:Stop()
     TimerRunning = false
   end
@@ -1136,10 +1092,6 @@ else
   Log(1, "Fresh instance, starting with white")
 end
 for i = 1, Cfg.UserPresets do ShowUser(i) end
-for row = 1, FieldN do
-  for col = 1, FieldN do Controls[("Field %d.%d"):format(row, col)].Boolean = true end
-end
-PaintField()
 ShowColor()
 WriteOutputs(false)  -- the console keeps its state on start; its feedback is adopted when it arrives
 

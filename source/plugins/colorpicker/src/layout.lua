@@ -30,7 +30,7 @@ local function Place(name, pretty, x, y, w, h, extra)
   layout[name] = def
 end
 
--- Colour button with a static layout colour (presets, hue strip, initial field colours).
+-- Colour button with a static layout colour (presets, wheel). Never recoloured at runtime.
 local function ColorButton(name, pretty, x, y, w, h, r, g, b, flat)
   local col = ColorMath.LayoutColor(r, g, b)
   local def = { Style = "Button", Legend = "", Color = col, OffColor = col, CornerRadius = 2 }
@@ -91,29 +91,25 @@ if CurrentPage == "Presets" then
 elseif CurrentPage == "Picker" then
   y = ColorBar(y)
   y = Section("Picker", y)
-  -- saturation x brightness field (recoloured with the hue at runtime), hue strip
-  -- and vertical hue fader to its right
-  local n, k = cfg.FieldSize, cfg.StripSize
-  local cell = (320 // n) // 2 * 2  -- even, so the strip cells (cell / 2) stay whole pixels
-  local side = cell * n
-  for row = 1, n do
-    for col = 1, n do
-      local r, g, b = FieldColor(row, col, n, 0)  -- multiple returns only expand as the last argument
-      ColorButton(("Field %d.%d"):format(row, col), ("Picker~Field~Row %d~Column %d"):format(row, col),
-        M + (col - 1) * cell, y + (row - 1) * cell, cell, cell, r, g, b, true)
+  -- colour wheel (hue x saturation at full brightness), brightness fader to its right
+  local d = cfg.WheelSize
+  local cell = 320 // d
+  local side = cell * d
+  local x0 = M + (W - 2 * M - side - 40) // 2
+  for row = 1, d do
+    for col = 1, d do
+      local hue, sat = WheelCell(row, col, d)
+      if hue then
+        local r, g, b = ColorMath.HsvToRgb(hue, sat, 1)  -- multiple returns only expand as the last argument
+        ColorButton(("Wheel %d.%d"):format(row, col), ("Picker~Wheel~Row %d~Column %d"):format(row, col),
+          x0 + (col - 1) * cell, y + (row - 1) * cell, cell, cell, r, g, b, true)
+      end
     end
   end
-  local sx = M + side + 12
-  for i = 1, k do
-    local r, g, b = ColorMath.HsvToRgb(StripHue(i, k), 1, 1)
-    ColorButton("Hue Strip " .. i, ("Picker~Hue Strip~%d"):format(i), sx, y + (i - 1) * (cell // 2), 28, cell // 2,
-      r, g, b, true)
-  end
-  Place("Hue", "Adjust~Hue", sx + 34, y, 22, side, { Style = "Fader", Color = C.Atlantic })
-  Label("Saturation >", M, y + side + 2, side, 14, { size = 9, color = C.Mid, align = "Right" })
-  y = y + side + 22
+  Place("Brightness", "Adjust~Brightness", x0 + side + 18, y, 22, side, { Style = "Fader", Color = C.Atlantic })
+  y = y + side + 12
   y = Section("Adjust", y)
-  for _, f in ipairs({ "Saturation", "Brightness" }) do
+  for _, f in ipairs({ "Hue", "Saturation" }) do
     Label(f, M, y, 76, 18, { align = "Right" })
     Place(f, "Adjust~" .. f, M + 84, y, W - 2 * M - 84, 18, { Style = "Fader", Color = C.Atlantic })
     y = y + 26
