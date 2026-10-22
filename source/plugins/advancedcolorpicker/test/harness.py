@@ -120,6 +120,9 @@ class Harness:
                 lp[k] = v
             lp["page_index"] = L.table_from({"Value": i})
             layout, graphics = g.GetControlLayout(lp)
+            for n in ("Preset 1", "Wheel 11.11", "User 1"):
+                if layout[n] is not None:
+                    assert layout[n].CssClass == "levo-touch" and layout[n].ZOrder == 2, f"{n}: touch button layout"
             for name in layout.keys():
                 assert g.Controls[name] is not None, f"layout references unknown control {name}"
                 pos = layout[name].Position
@@ -380,8 +383,8 @@ def test_picker_wheel():
     h.user("Brightness", "Value", 0)
     h.press("Wheel 1.11")
     check(h.s("Hex") == "#FF0000", "from black a wheel choice gives full brightness")
-    check(h.c("Wheel 1.11").CssClass == "levo-touch" and h.c("Preset 1").CssClass == "levo-touch"
-          and h.c("Preview").CssClass == "levo-swatch", "CSS classes set")
+    check(all(not h.c(n).CssClass for n in ("Wheel 1.11", "Preset 1", "User 1", "Preview", "User 1 Swatch")),
+          "CSS classes are never written at runtime (UCI classes stay)")
     check(not h.c("Wheel 1.11").Color and not h.c("Preset 1").Color, "touch buttons are never coloured at runtime")
     h.tick(40)
     check(not h.g.Timers[1].running, "timer stops when nothing is pending")

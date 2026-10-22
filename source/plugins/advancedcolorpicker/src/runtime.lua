@@ -413,19 +413,6 @@ end
 ---------------------------------------------------------------------------
 SetStatus(STATUS.Initializing, "Starting")
 
--- CSS classes, so a UCI style can keep the touch buttons invisible and leave the
--- colour displays alone (see README). pcall: .CssClass needs Q-SYS 9.x or later.
-local function SetCss(name, class)
-  pcall(function() Controls[name].CssClass = class end)
-end
-for i = 1, #ColorPresets do SetCss("Preset " .. i, "levo-touch") end
-for row = 1, Cfg.WheelSize do
-  for col = 1, Cfg.WheelSize do
-    if WheelCell(row, col, Cfg.WheelSize) then SetCss(("Wheel %d.%d"):format(row, col), "levo-touch") end
-  end
-end
-SetCss("Preview", "levo-swatch")
-for i = 1, Cfg.UserPresets do SetCss("User " .. i .. " Swatch", "levo-swatch") end
 LoadEmitter("White LED Color", "white", DEFAULT_WHITE, false)
 LoadEmitter("Amber LED Color", "amber", DEFAULT_AMBER, false)
 

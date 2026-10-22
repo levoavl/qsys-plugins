@@ -36,16 +36,19 @@ local CLEAR = { 255, 255, 255, 0 }
 local function Image(data, x, y, w, h)
   table.insert(content, { Type = "Image", Image = data, Position = { x, y }, Size = { w, h } })
 end
+-- CSS classes are set here only, as the default for UCI copies - never at runtime,
+-- that would replace the classes given on the UCI. ZOrder keeps touch buttons on
+-- top of the colour swatches.
 local function TouchButton(name, pretty, x, y, w, h)
   Place(name, pretty, x, y, w, h, {
     Style = "Button", Legend = "", Color = CLEAR, OffColor = CLEAR, UnlinkOffColor = true,
-    StrokeWidth = 0, CornerRadius = 0, Margin = 0,
+    StrokeWidth = 0, CornerRadius = 0, Margin = 0, CssClass = "levo-touch", ZOrder = 2,
   })
 end
 
 -- Current colour bar, shown on every colour page
 local function ColorBar(y)
-  Place("Preview", "Color~Preview", M, y, 76, 76, { Style = "Text", Color = C.Line, CornerRadius = 2 })
+  Place("Preview", "Color~Preview", M, y, 76, 76, { Style = "Text", Color = C.Line, CornerRadius = 2, CssClass = "levo-swatch" })
   local x = M + 84
   Label("Hex", x - 8, y + 2, 52, 18, { align = "Right" })
   Place("Hex", "Color~Hex", x + 50, y, 84, 22, { Style = "Text", FontSize = 12 })
@@ -84,13 +87,14 @@ if CurrentPage == "Presets" then
       { Style = "Button", Legend = "Store", FontSize = 10, Color = C.Amber })
     for i = 1, cfg.UserPresets do
       local col, row = (i - 1) % cols, (i - 1) // cols
-      local x, cy = M + col * cw, y + row * 54
-      Place("User " .. i .. " Swatch", "User Presets~User " .. i .. "~Swatch", x, cy, cw - 6, 26,
-        { Style = "Text", Color = C.Line, CornerRadius = 2 })
-      Place("User " .. i, "User Presets~User " .. i .. "~Recall", x, cy + 28, cw - 6, 18,
-        { Style = "Button", Legend = tostring(i), FontSize = 10, Color = C.Amber })
+      local x, cy = M + col * cw, y + row * 52
+      -- same as the fixed presets: tap the colour itself (swatch + invisible button on top)
+      Place("User " .. i .. " Swatch", "User Presets~User " .. i .. "~Swatch", x, cy, cw - 6, 30,
+        { Style = "Text", Color = C.Line, CornerRadius = 0, StrokeWidth = 0, CssClass = "levo-swatch", ZOrder = 1 })
+      TouchButton("User " .. i, "User Presets~User " .. i .. "~Recall", x, cy, cw - 6, 30)
+      Label(tostring(i), x, cy + 31, cw - 6, 14, { size = 9, color = C.Mid, align = "Center" })
     end
-    y = y + math.ceil(cfg.UserPresets / cols) * 54
+    y = y + math.ceil(cfg.UserPresets / cols) * 52
   end
   H = y + M
 
