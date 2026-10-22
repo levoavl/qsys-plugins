@@ -137,7 +137,8 @@ def render(page, layout, graphics, controls, demo, scale):
             col = rgb(dv.get("Color") or c.get("Color"), (128, 128, 128))
             pressed = dv.get("Boolean", False)
             # Q-SYS draws a button in its off state light grey, in its on state in Color
-            fill = col if pressed or dv.get("Color") else (222, 222, 220)
+            off = rgb(c["OffColor"]) if c.get("OffColor") else (222, 222, 220)
+            fill = col if pressed or dv.get("Color") else off
             d.rounded_rectangle(S(x, y, x + w - 1, y + h - 1), radius=3 * scale, fill=fill, outline=(70, 70, 70))
             lum = 0.3 * fill[0] + 0.59 * fill[1] + 0.11 * fill[2]
             text(dv.get("Legend", c.get("Legend", "")), x, y, w, h, c.get("FontSize", 11),
@@ -166,7 +167,7 @@ def render(page, layout, graphics, controls, demo, scale):
             text(dv.get("String", "OK"), x, y, w, h, 11, (255, 255, 255), False, "Center")
         else:  # text field / indicator
             editable = cdef.get("ControlType") in ("Text", "Knob")
-            bg = rgb(c["Color"]) if c.get("Color") else ((255, 255, 255) if editable else (238, 238, 236))
+            bg = rgb(dv.get("Color") or c["Color"]) if (dv.get("Color") or c.get("Color")) else ((255, 255, 255) if editable else (238, 238, 236))
             line = None if c.get("StrokeWidth") == 0 else ((150, 150, 150) if editable else (225, 225, 222))
             d.rectangle(S(x, y, x + w - 1, y + h - 1), fill=bg, outline=line)
             sample = dv.get("String", "")

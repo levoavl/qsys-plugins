@@ -1,0 +1,77 @@
+{
+ "Preview": {
+  "Color": "#FF7F00"
+ },
+ "Hex": {
+  "String": "#FF7F00"
+ },
+ "Red": {
+  "String": "255"
+ },
+ "Green": {
+  "String": "127"
+ },
+ "Blue": {
+  "String": "0"
+ },
+ "Fade Time": {
+  "String": "1.5s"
+ },
+ "Dimmer": {
+  "Position": 0.8
+ },
+ "User 1 Swatch": {
+  "Color": "#00FF7F"
+ },
+ "User 2 Swatch": {
+  "Color": "#FFB46B"
+ },
+ "User 3 Swatch": {
+  "String": "empty"
+ },
+ "Hue": {
+  "Position": 0.083
+ },
+ "Saturation": {
+  "Position": 1
+ },
+ "Brightness": {
+  "Position": 1
+ },
+ "Kelvin": {
+  "String": "5600"
+ },
+ "RGB R": {
+  "String": "204"
+ },
+ "RGB G": {
+  "String": "102"
+ },
+ "RGB B": {
+  "String": "0"
+ },
+ "Link Red": {
+  "String": "80.00"
+ },
+ "Link Green": {
+  "String": "39.84"
+ },
+ "Link Blue": {
+  "String": "0.00"
+ },
+ "Status": {
+  "String": "OK"
+ },
+ "White LED Color": {
+  "String": "#FFFFFF"
+ },
+ "Amber LED Color": {
+  "String": "#FFBF00"
+ },
+ "User 1 Hex": {
+  "String": "#00FF7F"
+ },
+ "User 2 Hex": {
+  "String": "#FFB46B"
+ }
+}
