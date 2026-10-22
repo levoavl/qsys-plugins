@@ -1,5 +1,5 @@
 -- (c) levo AVL | Elias Jenny - MIT License
--- Fixed preset colours and the picker grid, shared by layout and runtime.
+-- Fixed preset colours, picker field and hue strip, shared by layout and runtime.
 
 ColorPresets = {
   { Name = "Red",     Hex = "#FF0000" },
@@ -20,21 +20,16 @@ ColorPresets = {
   { Name = "White",   Hex = "#FFFFFF" },
 }
 
--- Grid cell colour. Columns 1..cols run through the hue circle, column cols + 1
--- is a grey ramp. The middle row is fully saturated; rows above get paler,
--- rows below darker.
-function GridColor(row, col, rows, cols)
-  if col > cols then
-    local v = (rows > 1) and (1 - (row - 1) / (rows - 1)) or 1
-    return v, v, v
-  end
-  local hue = (col - 1) * 360 / cols
-  local mid = math.ceil(rows / 2)
-  local s, v = 1, 1
-  if row < mid then
-    s = 0.25 + 0.75 * (row - 1) / math.max(1, mid - 1)
-  elseif row > mid then
-    v = 1 - 0.75 * (row - mid) / math.max(1, rows - mid)
-  end
+-- Picker field: n x n cells, saturation left -> right (0..1), brightness
+-- top -> bottom (1..0), for the current hue.
+function FieldColor(row, col, n, hue)
+  local s = (col - 1) / (n - 1)
+  local v = 1 - (row - 1) / (n - 1)
   return ColorMath.HsvToRgb(hue, s, v)
+end
+
+-- Hue strip: k cells from top (360) to bottom (0), like the vertical hue fader.
+-- Returns the hue in the middle of cell i.
+function StripHue(i, k)
+  return 360 * (k - i + 0.5) / k
 end

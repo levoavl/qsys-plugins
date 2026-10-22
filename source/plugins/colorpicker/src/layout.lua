@@ -3,10 +3,7 @@ local C = LevoBrand.Colors
 local cfg = PickerConfig(props)
 local M = 16  -- page margin
 
--- Grid cell size: as large as fits, at most 36 px
-local gridCols = cfg.GridColumns + 1
-local cell = math.max(18, math.min(36, (480 - 2 * M) // gridCols))
-local W = math.max(480, 2 * M + gridCols * cell)
+local W = 480
 local content = {}  -- page graphics, drawn after background and header
 
 local function Label(text, x, y, w, h, opts)
@@ -33,10 +30,12 @@ local function Place(name, pretty, x, y, w, h, extra)
   layout[name] = def
 end
 
--- Static colour button (presets, grid). Colours are set here only, never at runtime.
-local function ColorButton(name, pretty, x, y, w, h, r, g, b)
+-- Colour button with a static layout colour (presets, hue strip, initial field colours).
+local function ColorButton(name, pretty, x, y, w, h, r, g, b, flat)
   local col = ColorMath.LayoutColor(r, g, b)
-  Place(name, pretty, x, y, w, h, { Style = "Button", Legend = "", Color = col, OffColor = col, CornerRadius = 2 })
+  local def = { Style = "Button", Legend = "", Color = col, OffColor = col, CornerRadius = 2 }
+  if flat then def.CornerRadius, def.StrokeWidth, def.Margin = 0, 0, 0 end
+  Place(name, pretty, x, y, w, h, def)
 end
 
 -- Current colour bar, shown on every colour page
@@ -92,17 +91,29 @@ if CurrentPage == "Presets" then
 elseif CurrentPage == "Picker" then
   y = ColorBar(y)
   y = Section("Picker", y)
-  local cellH = math.max(16, (cell * 3) // 4)
-  for row = 1, cfg.GridRows do
-    for col = 1, gridCols do
-      ColorButton(("Grid %d.%d"):format(row, col), ("Picker~Row %d~Column %d"):format(row, col),
-        M + (col - 1) * cell, y + (row - 1) * cellH, cell - 2, cellH - 2,
-        GridColor(row, col, cfg.GridRows, cfg.GridColumns))
+  -- saturation x brightness field (recoloured with the hue at runtime), hue strip
+  -- and vertical hue fader to its right
+  local n, k = cfg.FieldSize, cfg.StripSize
+  local cell = (320 // n) // 2 * 2  -- even, so the strip cells (cell / 2) stay whole pixels
+  local side = cell * n
+  for row = 1, n do
+    for col = 1, n do
+      local r, g, b = FieldColor(row, col, n, 0)  -- multiple returns only expand as the last argument
+      ColorButton(("Field %d.%d"):format(row, col), ("Picker~Field~Row %d~Column %d"):format(row, col),
+        M + (col - 1) * cell, y + (row - 1) * cell, cell, cell, r, g, b, true)
     end
   end
-  y = y + cfg.GridRows * cellH + 12
+  local sx = M + side + 12
+  for i = 1, k do
+    local r, g, b = ColorMath.HsvToRgb(StripHue(i, k), 1, 1)
+    ColorButton("Hue Strip " .. i, ("Picker~Hue Strip~%d"):format(i), sx, y + (i - 1) * (cell // 2), 28, cell // 2,
+      r, g, b, true)
+  end
+  Place("Hue", "Adjust~Hue", sx + 34, y, 22, side, { Style = "Fader", Color = C.Atlantic })
+  Label("Saturation >", M, y + side + 2, side, 14, { size = 9, color = C.Mid, align = "Right" })
+  y = y + side + 22
   y = Section("Adjust", y)
-  for _, f in ipairs({ "Hue", "Saturation", "Brightness" }) do
+  for _, f in ipairs({ "Saturation", "Brightness" }) do
     Label(f, M, y, 76, 18, { align = "Right" })
     Place(f, "Adjust~" .. f, M + 84, y, W - 2 * M - 84, 18, { Style = "Fader", Color = C.Atlantic })
     y = y + 26
