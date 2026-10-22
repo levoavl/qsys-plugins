@@ -20,16 +20,18 @@ ColorPresets = {
   { Name = "White",   Hex = "#FFFFFF" },
 }
 
--- Colour wheel on a d x d grid of cells (d odd, centre cell = white):
--- hue = angle (red on top, clockwise), saturation = distance from the centre,
--- always at full brightness. Returns hue, saturation of a cell, or nil when the
--- cell lies outside the circle.
+-- Colour wheel: an image (picker_images.lua) with a d x d grid of invisible touch
+-- cells on top (d odd, centre cell = white). Hue = angle (red on top, clockwise),
+-- saturation = distance from the centre, full brightness. Same mapping as the image:
+-- the wheel spans d cells, full saturation is reached at 95 % of the radius.
+-- Returns hue, saturation of a cell, or nil when its centre is outside the wheel.
+WHEEL_SAT = 0.95
 function WheelCell(row, col, d)
   local c = (d + 1) / 2
-  local radius = (d - 1) / 2
+  local radius = d / 2
   local dx, dy = col - c, row - c
   local dist = math.sqrt(dx * dx + dy * dy)
-  if dist > radius + 0.5 then return nil end
+  if dist > radius - 0.25 then return nil end
   local hue = math.deg(math.atan(dx, -dy)) % 360  -- Lua 5.3: two-argument atan
-  return hue, math.min(1, dist / radius)
+  return hue, math.min(1, dist / (radius * WHEEL_SAT))
 end

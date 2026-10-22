@@ -1,7 +1,7 @@
 -- (c) levo AVL | Elias Jenny - MIT License
 table.insert(props, { Name = "User Presets",   Type = "integer", Min = 0, Max = 32, Value = 8 })
--- colour wheel diameter in cells (odd; even values are rounded up)
-table.insert(props, { Name = "Picker Resolution", Type = "integer", Min = 11, Max = 31, Value = 17 })
+-- touch resolution of the colour wheel: diameter in touch cells (odd; even values are rounded up)
+table.insert(props, { Name = "Picker Resolution", Type = "integer", Min = 11, Max = 41, Value = 21 })
 table.insert(props, {
   -- Scale Outputs: the dimmer is multiplied into every colour channel.
   -- Separate Output: colour channels stay at full level, the dimmer gets its own output.

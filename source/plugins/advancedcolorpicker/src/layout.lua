@@ -30,12 +30,17 @@ local function Place(name, pretty, x, y, w, h, extra)
   layout[name] = def
 end
 
--- Colour button with a static layout colour (presets, wheel). Never recoloured at runtime.
-local function ColorButton(name, pretty, x, y, w, h, r, g, b, flat)
-  local col = ColorMath.LayoutColor(r, g, b)
-  local def = { Style = "Button", Legend = "", Color = col, OffColor = col, CornerRadius = 2 }
-  if flat then def.CornerRadius, def.StrokeWidth, def.Margin = 0, 0, 0 end
-  Place(name, pretty, x, y, w, h, def)
+-- Colours are drawn as images: UCI styles (CSS) override button colours, not images.
+-- An invisible button on top takes the touch.
+local CLEAR = { 255, 255, 255, 0 }
+local function Image(data, x, y, w, h)
+  table.insert(content, { Type = "Image", Image = data, Position = { x, y }, Size = { w, h } })
+end
+local function TouchButton(name, pretty, x, y, w, h)
+  Place(name, pretty, x, y, w, h, {
+    Style = "Button", Legend = "", Color = CLEAR, OffColor = CLEAR, UnlinkOffColor = true,
+    StrokeWidth = 0, CornerRadius = 0, Margin = 0,
+  })
 end
 
 -- Current colour bar, shown on every colour page
@@ -67,7 +72,8 @@ if CurrentPage == "Presets" then
   for i, p in ipairs(ColorPresets) do
     local col, row = (i - 1) % cols, (i - 1) // cols
     local x, cy = M + col * cw, y + row * 52
-    ColorButton("Preset " .. i, "Presets~" .. p.Name, x, cy, cw - 6, 30, ColorMath.ParseHex(p.Hex))
+    Image(PickerImages.Swatch[p.Hex], x, cy, cw - 6, 30)
+    TouchButton("Preset " .. i, "Presets~" .. p.Name, x, cy, cw - 6, 30)
     Label(p.Name, x, cy + 31, cw - 6, 14, { size = 9, color = C.Mid, align = "Center" })
   end
   y = y + math.ceil(#ColorPresets / cols) * 52 + 4
@@ -91,18 +97,19 @@ if CurrentPage == "Presets" then
 elseif CurrentPage == "Picker" then
   y = ColorBar(y)
   y = Section("Picker", y)
-  -- colour wheel (hue x saturation at full brightness), brightness fader to its right
+  -- colour wheel image with invisible touch cells on top, brightness fader to its right
   local d = cfg.WheelSize
-  local cell = 320 // d
-  local side = cell * d
+  local side = 320
+  local cell = side / d
   local x0 = M + (W - 2 * M - side - 40) // 2
+  Image(PickerImages.Wheel, x0, y, side, side)
+  local function edge(i) return math.floor((i - 1) * cell + 0.5) end  -- cells tile without gaps
   for row = 1, d do
     for col = 1, d do
-      local hue, sat = WheelCell(row, col, d)
-      if hue then
-        local r, g, b = ColorMath.HsvToRgb(hue, sat, 1)  -- multiple returns only expand as the last argument
-        ColorButton(("Wheel %d.%d"):format(row, col), ("Picker~Wheel~Row %d~Column %d"):format(row, col),
-          x0 + (col - 1) * cell, y + (row - 1) * cell, cell, cell, r, g, b, true)
+      if WheelCell(row, col, d) then
+        local cx, cy = edge(col), edge(row)
+        TouchButton(("Wheel %d.%d"):format(row, col), ("Picker~Wheel~Row %d~Column %d"):format(row, col),
+          x0 + cx, y + cy, edge(col + 1) - cx, edge(row + 1) - cy)
       end
     end
   end

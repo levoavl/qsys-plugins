@@ -8,7 +8,7 @@ source/
 ├── plugins/<name>/   Lua sources (src/) and tests (test/) of each plugin
 │   └── _template/    Starting point for new plugins
 ├── shared/lua/       Code shared by all plugins (branding, WebSocket client, logos)
-└── tools/            build.py (src → .qplug), preview.py (layout preview)
+└── tools/            build.py (src → .qplug), preview.py (layout preview), gen_picker_images.py
 ```
 
 Released plugins have a public folder in the repository root (e.g. `grandMA2/`) with the
@@ -29,6 +29,9 @@ python3 source/tools/build.py --check       # build + Lua 5.3 syntax check
 The result `levo-<name>.qplug` lands in the plugin's public folder in the repository root
 (e.g. `grandMA2/levo-grandma2.qplug`). Plugins that are not released yet have no public
 folder; their `.qplug` is written next to the sources in `source/plugins/<name>/`.
+
+The Advanced Color Picker draws its colours as embedded PNGs. After changing the presets
+or the wheel, regenerate them: `python3 source/tools/gen_picker_images.py`.
 
 ### Layout preview
 
