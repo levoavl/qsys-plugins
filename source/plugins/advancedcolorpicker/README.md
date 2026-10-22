@@ -1,7 +1,7 @@
-# Color Picker – Q-SYS Plugin
+# Advanced Color Picker – Q-SYS Plugin
 
 Colour picker for Q-SYS: fixed presets, a colour wheel, HSV, Kelvin and hex entry, user
-presets and fades. Outputs the colour as hex and as 0-255 levels for RGB, RGBW, RGBA and
+presets and fades – and it works together with the built-in Q-SYS **Color Picker**. Outputs the colour as hex and as 0-255 levels for RGB, RGBW, RGBA and
 RGBWA fixtures, plus a two-way **Console Link** for lighting console faders (e.g. the
 levo AVL grandMA2 plugin).
 
@@ -18,7 +18,7 @@ No device, no network – runs the same on a Core and in Emulation mode.
 | Property | Values | Meaning |
 |---|---|---|
 | User Presets | 0-32 (8) | Number of user preset slots |
-| Picker Resolution | 11-31 (17) | Diameter of the colour wheel in cells (odd, even values are rounded up) |
+| Picker Resolution | 11-41 (21) | Touch resolution of the colour wheel: diameter in touch cells (odd, even values are rounded up). The wheel image itself is always smooth |
 | Dimmer | Scale Outputs / Separate Output | *Scale*: the dimmer is multiplied into every channel. *Separate*: channels stay at full level, the dimmer gets its own output (`Dimmer Level`, `Link Dimmer`) |
 | White/Amber Mixing | Subtract (accurate) / Add (brighter) | *Subtract*: the white/amber part is taken out of R, G and B, the colour stays correct. *Add*: R, G, B unchanged, W/A added on top – brighter, colour shifts towards white |
 | Console Link | Off / RGB / RGBW / RGBA / RGBWA | Channel layout of the Link controls |
@@ -46,14 +46,31 @@ Hex accepts `#RRGGBB`, `RRGGBB`, `#RGB` and `0xRRGGBB`. Invalid input sets the s
 *Compromised* and restores the field.
 
 **Colour wheel:** all colours in one plane – hue is the angle (red on top, clockwise),
-saturation the distance from the white centre. The wheel itself is at full brightness;
-tapping a cell keeps the current brightness (from black it goes to full brightness), the
-vertical fader next to the wheel sets it. Q-SYS buttons react to taps only – dragging
-across the wheel does not work, use the Hue / Saturation faders for fine steps.
+saturation the distance from the white centre. The wheel is an image with invisible touch
+cells on top; it is at full brightness, tapping keeps the current brightness (from black
+it goes to full brightness), the vertical fader next to the wheel sets it. Taps only –
+dragging across the wheel does not work. For dragging, use the Q-SYS Color Picker (below)
+or the Hue / Saturation faders.
 
 **User presets:** switch **Store** on and press a slot to save the current colour – Store
 switches off again. Press a slot to recall it. Slots can also be typed or set by pin on the
 Setup page (`User n Hex`). Empty slots do nothing.
+
+## Q-SYS Color Picker (two-way)
+
+The built-in **Color Picker** component (Schematic Library → Controls) has a real picker
+surface. Use it on the UCI and let this plugin do presets, fades, outputs and the console:
+
+1. Place a **Color Picker** next to the plugin.
+2. Wire both ways, each pair in both directions:
+   `Hue` ↔ `Hue`, `Saturation` ↔ `Saturation`, `Value` ↔ `Brightness`.
+3. Put the picker surface on the UCI.
+
+Dragging on the picker changes the colour here; presets, user presets, fades and console
+moves move the picker. Values coming back that match what the plugin just wrote (hue ±1°,
+saturation / brightness ±0.6 %) are its own echo and are ignored; differing values within
+0.3 s after a write are checked after that time, so intermediate answers cannot make the
+colour jump. During a fade the plugin owns the picker.
 
 ## Outputs
 
@@ -95,13 +112,23 @@ What happens:
 - On start the picker does not write the Link – the console keeps its state and the
   picker takes it over as soon as the console reports it.
 
-## UCIs
+## UCIs and UCI styles (CSS)
 
-The plugin colours exactly two kinds of controls at runtime: `Preview` and the
-`User n Swatch` indicators – showing the colour is their only job. Preset, wheel, user and
-Store buttons are never restyled; their colours come from the plugin layout, so UCI copies
-can be styled freely. The wheel cells (`Wheel r.c`) have no pins – copy them onto a UCI
-directly if needed.
+UCI styles override the colours of buttons. That is why the preset colours and the colour
+wheel are **images** with invisible touch buttons on top (`Preset n`, `Wheel r.c`) – images
+are not affected by styles. Copy image and buttons together onto the UCI.
+
+If your style gives every button a background, the touch buttons become visible and cover
+the images. They carry the CSS class `levo-touch` – add this to your style sheet:
+
+```css
+.levo-touch { background-color: transparent; border-width: 0; }
+```
+
+`Preview` and the `User n Swatch` indicators are the only controls coloured at runtime and
+carry the class `levo-swatch`; keep background rules away from that class. All other
+buttons (Store, user preset recall) are never restyled, so UCI copies can be styled freely.
+The wheel cells have no pins.
 
 ## Persistence
 

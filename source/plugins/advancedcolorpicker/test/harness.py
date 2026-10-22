@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-Offline test harness for the Color Picker plugin (no Q-SYS needed).
+Offline test harness for the Advanced Color Picker plugin (no Q-SYS needed).
 
 Runs the built .qplug in Lua 5.3 (lupa) with mocks for Controls, Properties and
 Timer, builds every layout page and checks colour maths, outputs, fades, user
 presets and the two-way console link.
 
     pip install lupa
-    python3 source/tools/build.py colorpicker
-    python3 source/plugins/colorpicker/test/harness.py
+    python3 source/tools/build.py advancedcolorpicker
+    python3 source/plugins/advancedcolorpicker/test/harness.py
 
 (c) levo AVL | Elias Jenny - MIT License
 """
@@ -21,7 +21,7 @@ from lupa.lua53 import LuaRuntime
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tools"))
 from build import output_path  # noqa: E402
 
-QPLUG = output_path("colorpicker")
+QPLUG = output_path("advancedcolorpicker")
 
 MOCKS = r"""
 -- Controls behave like Q-SYS: knobs clamp to their range, Integer knobs round,
@@ -124,6 +124,7 @@ class Harness:
                 assert g.Controls[name] is not None, f"layout references unknown control {name}"
                 pos = layout[name].Position
                 assert float(pos[1]).is_integer() and float(pos[2]).is_integer(), f"non-integer position {name}"
+        assert "Advanced Color Picker" in g.PluginInfo.Name
         L.execute(src)  # with Controls set -> runtime runs
         L.execute("collectgarbage() collectgarbage()")  # catch objects only held by locals
         self.g = g
@@ -198,7 +199,9 @@ def test_inputs():
     h.user("Red", "Value", 128)
     check(h.s("Hex") == "#8000FF" and h.v("Status") == 0, "RGB knob sets colour, status back to OK")
     h.user("Hue", "Value", 120)
-    check(h.s("Hex") == "#00FF00", f"hue 120 = green ({h.s('Hex')})")
+    check(h.s("Hex") == "#8000FF", "HSV input right after another change is held briefly")
+    h.tick(8)
+    check(h.s("Hex") == "#00FF00", f"... and applied after the hold: hue 120 = green ({h.s('Hex')})")
     h.user("Saturation", "Value", 0)
     check(h.s("Hex") == "#FFFFFF" and h.v("Hue") == 120, "saturation 0 keeps hue")
     h.user("Brightness", "Value", 0)
@@ -352,38 +355,95 @@ def test_link_rgbwa_separate():
 
 def test_picker_wheel():
     print("colour wheel")
-    for n, expect in ((11, 11), (17, 17), (18, 19), (31, 31)):
+    for n, expect in ((11, 11), (21, 21), (22, 23), (41, 41)):
         h = Harness({"Picker Resolution": n})
         c = (expect + 1) // 2
-        cells = sum(1 for k in h.g.Controls.keys() if str(k).startswith("Wheel "))
-        check(h.g.Controls[f"Wheel {c}.{c}"] is not None and h.g.Controls[f"Wheel 1.1"] is None
+        check(h.g.Controls[f"Wheel {c}.{c}"] is not None and h.g.Controls["Wheel 1.1"] is None
               and h.g.Controls[f"Wheel 1.{c}"] is not None and h.g.Controls[f"Wheel {expect}.{c}"] is not None,
-              f"resolution {n}: {expect} cells wide, round ({cells} cells)")
-    h = Harness()  # 17: centre 9.9, radius 8
-    h.press("Wheel 1.9")
+              f"resolution {n}: {expect} cells wide, round")
+    h = Harness()  # 21: centre 11.11
+    h.press("Wheel 1.11")
     check(h.s("Hex") == "#FF0000", f"top = red ({h.s('Hex')})")
-    h.press("Wheel 9.17")
+    h.press("Wheel 11.21")
     check(h.v("Hue") == 90, f"right = 90 deg ({h.v('Hue')})")
-    h.press("Wheel 17.9")
+    h.press("Wheel 21.11")
     check(h.s("Hex") == "#00FFFF", f"bottom = cyan ({h.s('Hex')})")
-    h.press("Wheel 9.5")
-    check(h.v("Hue") == 270 and h.v("Saturation") == 50, f"left half way = 270 deg, 50 % ({h.v('Hue')}, {h.v('Saturation')})")
-    h.press("Wheel 9.9")
+    h.press("Wheel 11.6")
+    check(h.v("Hue") == 270 and 49 < h.v("Saturation") < 53, f"left half way = 270 deg, ~50 % ({h.v('Hue')}, {h.v('Saturation')})")
+    h.press("Wheel 11.11")
     check(h.s("Hex") == "#FFFFFF" and h.v("Hue") == 270, "centre = white, hue kept")
+    h.tick(10)
     h.user("Brightness", "Value", 50)
-    h.press("Wheel 1.9")
-    check(h.s("Hex") == "#800000", "wheel keeps the brightness")
+    h.press("Wheel 1.11")
+    check(h.s("Hex") == "#800000", f"wheel keeps the brightness ({h.s('Hex')})")
+    h.tick(10)
     h.user("Brightness", "Value", 0)
-    h.press("Wheel 1.9")
+    h.press("Wheel 1.11")
     check(h.s("Hex") == "#FF0000", "from black a wheel choice gives full brightness")
-    check(not h.c("Wheel 1.9").Color, "wheel cells are never recoloured at runtime")
+    check(h.c("Wheel 1.11").CssClass == "levo-touch" and h.c("Preset 1").CssClass == "levo-touch"
+          and h.c("Preview").CssClass == "levo-swatch", "CSS classes set")
+    check(not h.c("Wheel 1.11").Color and not h.c("Preset 1").Color, "touch buttons are never coloured at runtime")
     h.tick(40)
     check(not h.g.Timers[1].running, "timer stops when nothing is pending")
     h.user("Fade Time", "Value", 0.5)
-    h.press("Wheel 17.9")
+    h.press("Wheel 21.11")
     check(h.g.Timers[1].running, "timer wakes up for a fade")
     h.tick(10)
     check(h.s("Hex") == "#00FFFF", "fade runs after the timer slept")
+
+
+class QsysPicker:
+    """Fake Q-SYS Color Picker, Hue/Saturation/Value wired both ways to the plugin's
+    Hue/Saturation/Brightness. Like the real one it rounds to whole numbers and
+    answers every input with all three outputs."""
+
+    def __init__(self, h):
+        self.h = h
+        self.hsv = [0, 0, 100]
+
+    def pull(self):
+        """Plugin outputs -> picker inputs, picker echoes all three values."""
+        names = ("Hue", "Saturation", "Brightness")
+        self.hsv = [round(self.h.v(n)) for n in names]
+        for n, v in zip(names, self.hsv):
+            self.h.user(n, "Value", v)
+
+    def drag(self, hue, sat, val):
+        """Operator drags on the picker surface: outputs one after another."""
+        self.hsv = [hue, sat, val]
+        for n, v in zip(("Hue", "Saturation", "Brightness"), self.hsv):
+            self.h.user(n, "Value", v)
+
+
+def test_qsys_color_picker():
+    print("Q-SYS Color Picker wired both ways")
+    h = Harness()
+    qp = QsysPicker(h)
+    h.tick(8)
+    qp.drag(240, 100, 100)
+    check(h.s("Hex") == "#0000FF", f"picker drives the plugin ({h.s('Hex')})")
+    h.press("Preset 1")
+    qp.pull()
+    check(qp.hsv == [0, 100, 100] and h.s("Hex") == "#FF0000", "preset moves the picker, echo ignored")
+
+    h.user("Fade Time", "Value", 1.0)
+    h.press("Preset 10")  # blue
+    for _ in range(20):
+        h.tick()
+        qp.pull()  # picker answers every fade step
+    check(h.s("Hex") == "#0000FF", f"fade not interrupted by the picker echo ({h.s('Hex')})")
+    h.tick(10)
+    qp.drag(120, 100, 100)
+    check(h.s("Hex") == "#00FF00", f"picker drag after the fade adopted ({h.s('Hex')})")
+
+    h.user("Fade Time", "Value", 0)
+    h.press("Preset 14")  # warm white, picker rounds its values
+    qp.pull()
+    check(h.s("Hex") == "#FFB46B", f"rounded echo does not change the colour ({h.s('Hex')})")
+    qp.drag(30, 50, 100)  # within the hold time
+    check(h.s("Hex") == "#FFB46B", "picker input during the hold is postponed")
+    h.tick(8)
+    check(h.s("Hex") == "#FFBF80", f"... and adopted after the hold ({h.s('Hex')})")
 
 
 def test_calibration():
@@ -398,7 +458,7 @@ def test_calibration():
 
 def main():
     for t in (test_start_and_presets, test_inputs, test_dimmer_and_fade, test_user_presets,
-              test_console_link, test_link_rgbwa_separate, test_picker_wheel, test_calibration):
+              test_console_link, test_link_rgbwa_separate, test_picker_wheel, test_qsys_color_picker, test_calibration):
         t()
     print()
     if FAILED:

@@ -8,7 +8,7 @@ source/
 ├── plugins/<name>/   Lua sources (src/) and tests (test/) of each plugin
 │   └── _template/    Starting point for new plugins
 ├── shared/lua/       Code shared by all plugins (branding, WebSocket client, logos)
-└── tools/            build.py (src → .qplug), preview.py (layout preview)
+└── tools/            build.py (src → .qplug), preview.py (layout preview), gen_picker_images.py
 ```
 
 Released plugins have a public folder in the repository root (e.g. `grandMA2/`) with the
@@ -42,6 +42,9 @@ build time. Q-SYS Designer shows it in the schematic block under the plugin name
 About page. File name and plugin Id stay the same, so a new test build simply replaces the
 previous one in the plugin folder and you always see which state you are testing.
 Released files never carry a stamp.
+
+The Advanced Color Picker draws its colours as embedded PNGs. After changing the presets
+or the wheel, regenerate them: `python3 source/tools/gen_picker_images.py`.
 
 ### Layout preview
 

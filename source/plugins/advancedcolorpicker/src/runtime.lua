@@ -7,12 +7,14 @@ local Cfg = PickerConfig(Properties)
 local TICK = 0.05          -- timer resolution (s), also the fade step
 local FEEDBACK_HOLD = 1.0  -- after writing the console link, link input is only checked after this time
 local FEEDBACK_TOL = 0.6   -- link input within this many % of what was sent counts as our own echo
+local HSV_HOLD = 0.3       -- after writing Hue/Saturation/Brightness, differing input is checked after this time
+local HSV_TOL = { 1, 0.6, 0.6 }  -- hue (deg), saturation and brightness (%) tolerance for our own echo
 local DEFAULT_WHITE, DEFAULT_AMBER = "#FFFFFF", "#FFBF00"
 local EMPTY_SWATCH = string.format("#%02X%02X%02X", table.unpack(LevoBrand.Colors.Line))
 
 local Now = 0              -- monotonic time in seconds, advanced by the main timer
 
--- The main timer only runs while something is pending (fade, link hold time). WakeTimer is used by the control handlers and so keeps the
+-- The main timer only runs while something is pending (fade, hold times). WakeTimer is used by the control handlers and so keeps the
 -- timer referenced - on the Core a timer nothing references is garbage collected.
 local MainTimer = Timer.New()
 local TimerRunning = false
@@ -24,7 +26,7 @@ local function WakeTimer()
 end
 
 local function Log(level, msg)
-  if level <= DebugLevel then print(("[Color Picker] %s"):format(msg)) end
+  if level <= DebugLevel then print(("[Advanced Color Picker] %s"):format(msg)) end
 end
 
 ---------------------------------------------------------------------------
@@ -76,6 +78,11 @@ local Fade = nil                 -- { from = {r,g,b}, to = {r,g,b}, t0, dur }
 local LinkSent = {}              -- link channel -> last value written (%)
 local LinkWrittenAt = -math.huge
 local LinkPending = false        -- link input arrived during the hold time
+-- Hue/Saturation/Brightness can be wired both ways to the Q-SYS Color Picker:
+-- what we wrote last, to recognise its echo
+local HsvSent = nil              -- { hue, sat %, bri % }
+local HsvWrittenAt = -math.huge
+local HsvPending = false
 local MixOpts = { subtract = Cfg.Subtract, white = { 1, 1, 1 }, amber = { 1, 0.749, 0 } }
 
 local function Round2(x) return math.floor(x * 100 + 0.5) / 100 end
@@ -121,9 +128,12 @@ local function ShowColor(skip)
       if s > 0.002 then State.hue = h end
       State.sat = s
     end
-    SetValue("Hue", math.floor(State.hue + 0.5))
-    SetValue("Saturation", Round2(State.sat * 100))
-    SetValue("Brightness", Round2(v * 100))
+    HsvSent = { math.floor(State.hue + 0.5), Round2(State.sat * 100), Round2(v * 100) }
+    SetValue("Hue", HsvSent[1])
+    SetValue("Saturation", HsvSent[2])
+    SetValue("Brightness", HsvSent[3])
+    HsvWrittenAt = Now
+    WakeTimer()  -- advances Now through the hold time
   end
   SetValue("Dimmer", Round2(State.dim * 100))
   SetSwatch("Preview", hex)
@@ -266,11 +276,35 @@ Controls.Red.EventHandler = OnRgb
 Controls.Green.EventHandler = OnRgb
 Controls.Blue.EventHandler = OnRgb
 
-local function OnHsv()
+-- true when Hue/Saturation/Brightness still match what we wrote (= echo of a
+-- wired Q-SYS Color Picker)
+local function HsvInSync()
+  if not HsvSent then return false end
+  local now = { Controls.Hue.Value, Controls.Saturation.Value, Controls.Brightness.Value }
+  for i = 1, 3 do
+    local d = math.abs(now[i] - HsvSent[i])
+    if i == 1 then d = math.min(d, 360 - d) end  -- 0 and 360 are the same hue
+    if d > HSV_TOL[i] then return false end
+  end
+  return true
+end
+
+local function AdoptHsv()
+  HsvSent = { Controls.Hue.Value, Controls.Saturation.Value, Controls.Brightness.Value }
   State.hue = Controls.Hue.Value
   State.sat = Controls.Saturation.Value / 100
   local r, g, b = ColorMath.HsvToRgb(State.hue, State.sat, Controls.Brightness.Value / 100)
   ApplyColor(r, g, b, { skip = "hsv" })
+end
+local function OnHsv()
+  if HsvInSync() then return end  -- echo of our own write
+  if Fade or (Now - HsvWrittenAt) < HSV_HOLD then
+    -- a wired Color Picker may still answer with intermediate values, check later
+    HsvPending = true
+    WakeTimer()
+    return
+  end
+  AdoptHsv()
 end
 Controls.Hue.EventHandler = OnHsv
 Controls.Saturation.EventHandler = OnHsv
@@ -362,8 +396,13 @@ MainTimer.EventHandler = function()
     LinkPending = false
     if not LinkInSync() then AdoptLink() end
   end
+  if HsvPending and not Fade and (Now - HsvWrittenAt) >= HSV_HOLD then
+    HsvPending = false
+    if not HsvInSync() then AdoptHsv() end
+  end
   -- nothing pending: stop until the next WakeTimer
-  if not Fade and not LinkPending and (Now - LinkWrittenAt) >= FEEDBACK_HOLD then
+  if not Fade and not LinkPending and not HsvPending
+    and (Now - LinkWrittenAt) >= FEEDBACK_HOLD and (Now - HsvWrittenAt) >= HSV_HOLD then
     MainTimer:Stop()
     TimerRunning = false
   end
@@ -373,6 +412,20 @@ end
 -- Start
 ---------------------------------------------------------------------------
 SetStatus(STATUS.Initializing, "Starting")
+
+-- CSS classes, so a UCI style can keep the touch buttons invisible and leave the
+-- colour displays alone (see README). pcall: .CssClass needs Q-SYS 9.x or later.
+local function SetCss(name, class)
+  pcall(function() Controls[name].CssClass = class end)
+end
+for i = 1, #ColorPresets do SetCss("Preset " .. i, "levo-touch") end
+for row = 1, Cfg.WheelSize do
+  for col = 1, Cfg.WheelSize do
+    if WheelCell(row, col, Cfg.WheelSize) then SetCss(("Wheel %d.%d"):format(row, col), "levo-touch") end
+  end
+end
+SetCss("Preview", "levo-swatch")
+for i = 1, Cfg.UserPresets do SetCss("User " .. i .. " Swatch", "levo-swatch") end
 LoadEmitter("White LED Color", "white", DEFAULT_WHITE, false)
 LoadEmitter("Amber LED Color", "amber", DEFAULT_AMBER, false)
 

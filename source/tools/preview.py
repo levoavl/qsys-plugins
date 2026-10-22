@@ -133,11 +133,13 @@ def render(page, layout, graphics, controls, demo, scale):
             col = rgb(c.get("Color"), (0, 160, 0))
             on = dv.get("Boolean", False)
             d.ellipse(S(x, y, x + w - 1, y + h - 1), fill=col if on else (90, 90, 90), outline=(60, 60, 60))
+        elif style == "Button" and not dv.get("Color") and len(c.get("Color") or ()) == 4 and c["Color"][3] == 0:
+            pass  # invisible touch button (alpha 0) over an image
         elif style == "Button":
-            col = rgb(dv.get("Color") or c.get("Color"), (128, 128, 128))
+            col = rgb(dv.get("Color") or c.get("Color"), (128, 128, 128))[:3]
             pressed = dv.get("Boolean", False)
             # Q-SYS draws a button in its off state light grey, in its on state in Color
-            off = rgb(c["OffColor"]) if c.get("OffColor") else (222, 222, 220)
+            off = rgb(c["OffColor"])[:3] if c.get("OffColor") else (222, 222, 220)
             fill = col if pressed or dv.get("Color") else off
             d.rounded_rectangle(S(x, y, x + w - 1, y + h - 1), radius=3 * scale, fill=fill, outline=(70, 70, 70))
             lum = 0.3 * fill[0] + 0.59 * fill[1] + 0.11 * fill[2]

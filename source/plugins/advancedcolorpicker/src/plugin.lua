@@ -1,4 +1,4 @@
--- levo AVL Q-SYS plugin - Color Picker
+-- levo AVL Q-SYS plugin - Advanced Color Picker
 -- Built into a single .qplug by tools/build.py (resolves the #include lines).
 -- (c) levo AVL | Elias Jenny - MIT License
 
@@ -6,6 +6,7 @@
 --[[ #include "levo_brand.lua" ]]
 --[[ #include "color_math.lua" ]]
 --[[ #include "presets.lua" ]]
+--[[ #include "picker_images.lua" ]]
 
 PageNames = { "Presets", "Picker", "Outputs", "Setup", "About" }
 
@@ -26,7 +27,7 @@ function PickerConfig(props)
   end
   local cfg = {
     UserPresets = num("User Presets", 8, 0, 32),
-    WheelSize = num("Picker Resolution", 17, 11, 31),
+    WheelSize = num("Picker Resolution", 21, 11, 41),
     SeparateDimmer = str("Dimmer", "Scale Outputs") == "Separate Output",
     Subtract = str("White/Amber Mixing", "Subtract (accurate)") == "Subtract (accurate)",
     LinkLayout = str("Console Link", "RGB"),
