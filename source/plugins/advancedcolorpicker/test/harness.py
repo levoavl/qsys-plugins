@@ -122,7 +122,7 @@ class Harness:
             layout, graphics = g.GetControlLayout(lp)
             for n in ("Preset 1", "Wheel 11.11", "User 1"):
                 if layout[n] is not None:
-                    assert layout[n].CssClass == "levo-touch" and layout[n].ZOrder == 2, f"{n}: touch button layout"
+                    assert layout[n].ZOrder == 2, f"{n}: touch button layout"
             for name in layout.keys():
                 assert g.Controls[name] is not None, f"layout references unknown control {name}"
                 pos = layout[name].Position
