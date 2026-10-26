@@ -82,6 +82,7 @@ local function DefaultText(name, value)
   if c and c.String:match("^%s*$") then c.String = value end
 end
 DefaultText("Meter Control", "meter.1")
+DefaultText("Meter Control 2", "meter.1")
 if Opt.Console ~= "None" then DefaultText("Command Template", DEFAULT_TEMPLATE[Opt.Console]) end
 if Opt.Console == "grandMA2" then DefaultText("Username", "administrator") end
 
@@ -133,71 +134,87 @@ Controls["Shift Half Beat"].EventHandler = function() Engine:ShiftHalf(); Log(1,
 ---------------------------------------------------------------------------
 -- Level sources
 ---------------------------------------------------------------------------
-local Level = { db = -100, changes = 0, lastChange = -100, rate = 0, rateT = 0, problem = nil }
+local Level = { db = -100, db2 = nil, changes = 0, lastChange = -100, rate = 0, rateT = 0, problem = nil }
 
--- Named component: resolved lazily, re-resolved when the names change
-local Named = { comp = nil, ctl = nil, key = nil, nextTry = 0 }
-local function ResolveNamed(now)
-  local compName, ctlName = Text("Meter Component"), Text("Meter Control")
+-- Named components: resolved lazily, re-resolved when the names change.
+-- Slot 1 = kick band, slot 2 = second band.
+local Named = { {}, {} }
+local function ResolveNamed(slot, now)
+  local suffix = slot == 1 and "" or " 2"
+  local n = Named[slot]
+  local compName, ctlName = Text("Meter Component" .. suffix), Text("Meter Control" .. suffix)
   local key = compName .. "|" .. ctlName
-  if key == Named.key and (Named.ctl or now < Named.nextTry) then return Named.ctl end
-  Named.key, Named.ctl, Named.nextTry = key, nil, now + 2
+  if key == n.key and (n.ctl or now < (n.nextTry or 0)) then return n.ctl, n.problem end
+  n.key, n.ctl, n.nextTry, n.problem = key, nil, now + 2, nil
+  local band = slot == 1 and "" or " (band 2)"
   if compName == "" then
-    Level.problem = "No meter component name set (Setup)"
-    return nil
+    n.problem = "No meter component name set" .. band
+    return nil, n.problem
   end
   local ok, comp = pcall(function() return Component.New(compName) end)
   if not ok or not comp then
-    Level.problem = ("Component '%s' not found - check its Code Name and Script Access"):format(compName)
-    return nil
+    n.problem = ("Component '%s' not found - check its Code Name and Script Access"):format(compName)
+    return nil, n.problem
   end
   local ok2, ctl = pcall(function() return comp[ctlName] end)
   if not ok2 or not ctl then
-    Level.problem = ("Control '%s' not found in '%s'"):format(ctlName, compName)
-    return nil
+    n.problem = ("Control '%s' not found in '%s'"):format(ctlName, compName)
+    return nil, n.problem
   end
-  Named.comp, Named.ctl = comp, ctl
-  Level.problem = nil
-  Log(1, ("Reading level from %s / %s"):format(compName, ctlName))
-  return ctl
+  n.ctl = ctl
+  Log(1, ("Reading level%s from %s / %s"):format(band, compName, ctlName))
+  return ctl, nil
 end
 
--- Test generator: kicks at "Test BPM" with jitter, dropouts and a breakdown switch,
--- sampled like a meter that updates every "Test Update" ms.
-local Gen = { nextKick = nil, lastKick = -10, nextUpdate = 0, db = -45 }
+local function NamedValue(slot, now)
+  local ctl, problem = ResolveNamed(slot, now)
+  if not ctl then return -100, problem end
+  local ok, v = pcall(function() return ctl.Value end)
+  return ok and tonumber(v) or -100, nil
+end
+
+-- Test generator: kicks on every beat and, for the second band, a snare on beats 2 and 4,
+-- at "Test BPM" with jitter, dropouts and a breakdown switch, sampled like a meter that
+-- updates every "Test Update" ms.
+local Gen = { nextHit = nil, beat = 0, lastKick = -10, lastSnare = -10, nextUpdate = 0, db = -45, db2 = -50 }
+local function Decay(age, peak, len) return (age >= 0 and age < len) and (peak - age / len * 37) or -100 end
 local function GeneratorLevel(now)
   local bpm = math.max(40, Num("Test BPM", 128))
   local P = 60 / bpm
-  if not Gen.nextKick or Gen.nextKick < now - 1 then Gen.nextKick = now + 0.2 end
-  while now >= Gen.nextKick do
-    local breakdown = Controls["Test Breakdown"].Boolean
+  if not Gen.nextHit or Gen.nextHit < now - 1 then Gen.nextHit = now + 0.2 end
+  local breakdown = Controls["Test Breakdown"].Boolean
+  while now >= Gen.nextHit do
+    Gen.beat = Gen.beat % 4 + 1
+    local jitter = (math.random() * 2 - 1) * Num("Test Jitter", 5) / 1000
     if not breakdown and math.random() * 100 >= Num("Test Dropout", 10) then
-      Gen.lastKick = Gen.nextKick + (math.random() * 2 - 1) * Num("Test Jitter", 5) / 1000
+      Gen.lastKick = Gen.nextHit + jitter
     end
-    Gen.nextKick = Gen.nextKick + P
+    if (Gen.beat == 2 or Gen.beat == 4) and not breakdown then Gen.lastSnare = Gen.nextHit + jitter end
+    Gen.nextHit = Gen.nextHit + P
   end
   if now >= Gen.nextUpdate then
-    local age = now - Gen.lastKick
-    local floor = Controls["Test Breakdown"].Boolean and -30 or -45
-    local kick = (age >= 0 and age < 0.18) and (-8 - age / 0.18 * 37) or -100
-    Gen.db = math.max(kick, floor) + (math.random() * 3 - 1.5)
+    local floor = breakdown and -30 or -45
+    Gen.db = math.max(Decay(now - Gen.lastKick, -8, 0.18), floor) + (math.random() * 3 - 1.5)
+    Gen.db2 = math.max(Decay(now - Gen.lastSnare, -12, 0.12), floor - 5) + (math.random() * 3 - 1.5)
     Gen.nextUpdate = now + math.max(0.01, Num("Test Update", 20) / 1000)
   end
-  return Gen.db
+  return Gen.db, Gen.db2
 end
 
+-- Returns kick level, second band level (nil with one band), problem text
 local function ReadLevel(now)
+  local db, db2, p1, p2
   if Opt.LevelSource == "Test Generator" then
-    Level.problem = nil
-    return GeneratorLevel(now)
+    db, db2 = GeneratorLevel(now)
   elseif Opt.LevelSource == "Named Component" then
-    local ctl = ResolveNamed(now)
-    if not ctl then return -100 end
-    local ok, v = pcall(function() return ctl.Value end)
-    return ok and tonumber(v) or -100
+    db, p1 = NamedValue(1, now)
+    if Opt.Bands == 2 then db2, p2 = NamedValue(2, now) end
   else
-    return Num("Level In", -100)
+    db = Num("Level In", -100)
+    if Opt.Bands == 2 then db2 = Num("Level In 2", -100) end
   end
+  if Opt.Bands < 2 then db2 = nil end
+  return db, db2, p1 or p2
 end
 
 ---------------------------------------------------------------------------
@@ -241,23 +258,35 @@ end
 
 local function FormatBpm(bpm) return ("%.1f"):format(bpm) end
 
-local function TempoCommand(bpm)
+local function WholeBpm() return Ctl("Whole BPM") ~= nil and Controls["Whole BPM"].Boolean end
+
+-- Value as it goes to the console: whole numbers or one decimal
+local function SendValue(bpm)
+  if WholeBpm() then return math.floor(bpm + 0.5) end
+  return math.floor(bpm * 10 + 0.5) / 10
+end
+local function FormatSent(v)
+  return WholeBpm() and tostring(math.floor(v)) or FormatBpm(v)
+end
+
+local function TempoCommand(value)
   local template = Text("Command Template")
   if not template:find("{bpm}", 1, true) then
     SetError("Command Template needs a {bpm} placeholder")
     return nil
   end
   return (template:gsub("{master}", tostring(math.floor(Num("Speed Master", 1))))
-                  :gsub("{bpm}", FormatBpm(bpm)))
+                  :gsub("{bpm}", FormatSent(value)))
 end
 
 local function SendTempo(bpm, reason)
-  local cmd = TempoCommand(bpm)
+  local value = SendValue(bpm)
+  local cmd = TempoCommand(value)
   if not cmd then return end
   Out:Send(cmd, "tempo")
-  LastSentBpm = math.floor(bpm * 10 + 0.5) / 10
-  SetString("Last Sent", FormatBpm(LastSentBpm) .. " BPM")
-  Log(1, ("Tempo %s BPM (%s)"):format(FormatBpm(LastSentBpm), reason))
+  LastSentBpm = value
+  SetString("Last Sent", FormatSent(value) .. " BPM")
+  Log(1, ("Tempo %s BPM (%s)"):format(FormatSent(value), reason))
 end
 
 local function CheckSend(now)
@@ -265,10 +294,23 @@ local function CheckSend(now)
   if Engine.hold then return end
   local bpm = Engine:Bpm()
   if not bpm or not Engine:IsPrecise(now) then return end
-  local rounded = math.floor(bpm * 10 + 0.5) / 10
-  if LastSentBpm == nil or math.abs(rounded - LastSentBpm) >= Num("Send Hysteresis", 0.5) then
-    SendTempo(rounded, LastSentBpm == nil and "locked" or "changed")
+  if LastSentBpm == nil then
+    SendTempo(bpm, "locked")
+    return
   end
+  local hyst = Num("Send Hysteresis", 0.5)
+  if WholeBpm() then
+    -- a new whole number only when the tempo is clearly past the half-way point,
+    -- so 127.5 does not flap between 127 and 128
+    hyst = math.max(hyst, 0.7)
+  end
+  if SendValue(bpm) ~= LastSentBpm and math.abs(bpm - LastSentBpm) >= hyst then
+    SendTempo(bpm, "changed")
+  end
+end
+
+if Ctl("Whole BPM") then
+  Controls["Whole BPM"].EventHandler = function() LastSentBpm = nil end   -- resend in the new format
 end
 
 if Ctl("Send Now") then
@@ -294,6 +336,7 @@ local function UpdateDisplay(now)
   SetString("Detection State", Engine:State(now))
   SetValue("Confidence", math.floor(Engine.confidence * 100 + 0.5))
   SetValue("Input Level", math.max(-60, math.min(0, Level.db)), 0.1)
+  if Level.db2 then SetValue("Input Level 2", math.max(-60, math.min(0, Level.db2)), 0.1) end
   SetValue("Onset Strength", math.min(40, Engine.strength), 0.1)
   SetString("Onset Threshold", ("%.1f dB"):format(Engine.threshold))
   SetString("Onset Count", tostring(Engine.onsetCount))
@@ -309,6 +352,9 @@ local function UpdateStatus(now)
   local audio = Level.problem
   if not audio and Opt.LevelSource ~= "Test Generator" and now - Level.lastChange > NO_LEVEL_WARN then
     audio = Opt.LevelSource == "Wired Pin" and "No level updates on the Level In pin" or "No level updates from the meter"
+  end
+  if not audio and Opt.Bands == 2 and Opt.LevelSource ~= "Test Generator" and (Level.db2 or -100) <= -100 then
+    audio = "No level on band 2"
   end
   local code, text = OutState.code, OutState.text
   if audio then
@@ -333,8 +379,10 @@ local function OnTick()
   local now = Clock()
 
   -- level in, onsets
-  local db = ReadLevel(now)
-  if db ~= Level.db then
+  local db, db2, problem = ReadLevel(now)
+  Level.problem = problem
+  if db ~= Level.db or db2 ~= Level.db2 then
+    Level.db2 = db2
     Level.changes = Level.changes + 1
     Level.lastChange = now
     Level.db = db
@@ -343,7 +391,7 @@ local function OnTick()
     Level.rate = math.floor(Level.changes / (now - Level.rateT) + 0.5)
     Level.changes, Level.rateT = 0, now
   end
-  if Engine:Feed(now, db) then
+  if Engine:Feed(now, db, db2, Num("Band 2 Weight", 50) / 100) then
     SetBool("Onset", true)
     Pulse.onsetOff = now + 0.06
     if DebugLevel >= 2 then Log(2, ("Onset %.1f dB (threshold %.1f)"):format(Engine.strength, Engine.threshold)) end

@@ -228,13 +228,13 @@ check.failed = 0
 
 def test_all_combinations():
     print("Property combinations (controls, layouts, emulation run):")
-    for source, console, dbg in itertools.product(
-            ["Wired Pin", "Named Component", "Test Generator"],
+    for source, bands, console, dbg in itertools.product(
+            ["Wired Pin", "Named Component", "Test Generator"], ["1 (Kick)", "2 (Kick + Snare)"],
             ["None", "grandMA2", "grandMA3"], ["None", "Verbose"]):
-        p = Plugin({"Level Source": source, "Console Type": console, "Debug Print": dbg})
+        p = Plugin({"Level Source": source, "Input Bands": bands, "Console Type": console, "Debug Print": dbg})
         p.run(3)
         st = p.c("Status")
-        check(st.Value in (0, 1, 4), f"{source:15} / {console:8} / {dbg:7}: status {int(st.Value)} '{st.String}'")
+        check(st.Value in (0, 1, 4), f"{source:15} / {bands[0]} band / {console:8} / {dbg:7}: status {int(st.Value)} '{st.String}'")
 
 
 def test_engine_accuracy():
@@ -299,8 +299,7 @@ def test_ma2():
     n0 = len(s.tx)
     p.run(20, kick_level(128, 0.02))
     sent = [s.tx[i] for i in range(n0 + 1, len(s.tx) + 1) if "SpecialMaster" in s.tx[i]]
-    first = float(sent[0].split(" At ")[1]) if sent and sent[0].startswith("SpecialMaster 3.1 At ") else 0
-    check(abs(first - 128) <= 0.3, f"tempo command {sent[:1]}")
+    check(sent[:1] == ["SpecialMaster 3.1 At 128\r\n"], f"tempo command, whole BPM {sent[:1]}")
     check(len(sent) <= 3, f"hysteresis keeps sends low ({len(sent)} in 20 s)")
     check(p.c("Last Sent").String.endswith(" BPM"), f"Last Sent '{p.c('Last Sent').String}'")
     p.g.ServerFeed(s, "Error #72: COMMAND NOT EXECUTED\r\n")
@@ -408,6 +407,75 @@ def test_generator():
           f"generator 128 -> {p.c('BPM').Value:.1f}, {p.c('Detection State').String}, updates {p.c('Level Updates').String}")
 
 
+def pop_level(bpm, update=0.03, start=1000.5):
+    """Two meters: syncopated kick (beats 1, 2.5, 3 of the bar) and snare on 2 and 4."""
+    P = 60.0 / bpm
+    st = {"next": 0.0, "k": -45.0, "s": -50.0}
+
+    def last_hit(t, offsets):
+        if t < start:
+            return 99
+        bar = 4 * P
+        pos = (t - start) % bar
+        ages = [pos - o * P for o in offsets if pos >= o * P] or [pos + bar - offsets[-1] * P]
+        return min(ages)
+
+    def fn(p, t):
+        if t >= st["next"]:
+            ak, asn = last_hit(t, [0, 1.5, 2]), last_hit(t, [1, 3])
+            st["k"] = (-8 - ak / 0.18 * 37) if ak < 0.18 else -45.0
+            st["s"] = (-10 - asn / 0.12 * 37) if asn < 0.12 else -50.0
+            st["next"] = t + update
+        p.c("Level In").Value = st["k"]
+        if p.g.Controls["Level In 2"] is not None:
+            p.c("Level In 2").Value = st["s"]
+    return fn
+
+
+def test_two_bands():
+    print("Second band (kick + snare):")
+    for bands in ["1 (Kick)", "2 (Kick + Snare)"]:
+        p = Plugin({"Level Source": "Wired Pin", "Input Bands": bands, "Console Type": "None"})
+        p.run(25, pop_level(104))
+        beats, phase, last = 0, [], False
+        P = 60 / 104
+
+        def watch(pl, t):
+            nonlocal last
+            b = pl.c("Beat").Boolean
+            if b and not last:
+                x = ((t - 1000.5) / P) % 1
+                phase.append(min(x, 1 - x) * P * 1000)
+            last = b
+            pop_level(104)(pl, t)
+        p.run(10, watch)
+        mean = sum(phase) / len(phase) if phase else 999
+        ok = abs(p.c("BPM").Value - 104) < 0.5 and (bands[0] == "1" or mean < 60)
+        check(ok, f"{bands}: pop 104 BPM -> {p.c('BPM').Value:.1f}, {p.c('Detection State').String}, "
+                  f"beat phase {mean:.0f} ms")
+    p = Plugin({"Level Source": "Test Generator", "Input Bands": "2 (Kick + Snare)", "Console Type": "None"})
+    p.run(20)
+    check(abs(p.c("BPM").Value - 128) < 0.5, f"generator with snare band -> {p.c('BPM').Value:.1f}")
+
+
+def test_whole_bpm():
+    print("Whole BPM:")
+    def run(bpm, whole):
+        p = Plugin({"Level Source": "Wired Pin", "Console Type": "grandMA2"}, ma2_setup)
+        s = p.sockets()[0]
+        p.g.ServerEvent(s, "CONNECTED")
+        p.g.ServerFeed(s, "Logged in as User 'administrator'\r\n")
+        if not whole:
+            p.g.UserSet("Whole BPM", "Boolean", False)
+        p.run(30, kick_level(bpm, 0.03))
+        return [s.tx[i] for i in range(1, len(s.tx) + 1) if "SpecialMaster" in s.tx[i]]
+    sent = run(127.5, True)
+    check(len(sent) == 1 and sent[0] in ("SpecialMaster 3.1 At 127\r\n", "SpecialMaster 3.1 At 128\r\n"),
+          f"127.5 BPM, whole: no flapping, sent {sent}")
+    sent = run(127.5, False)
+    check(len(sent) >= 1 and sent[0].startswith("SpecialMaster 3.1 At 127."), f"whole off: decimal {sent[:1]}")
+
+
 if __name__ == "__main__":
     test_all_combinations()
     test_engine_accuracy()
@@ -417,5 +485,7 @@ if __name__ == "__main__":
     test_named_component()
     test_user_functions()
     test_generator()
+    test_two_bands()
+    test_whole_bpm()
     print(f"\n{'All tests passed' if not check.failed else f'{check.failed} test(s) FAILED'}")
     sys.exit(1 if check.failed else 0)

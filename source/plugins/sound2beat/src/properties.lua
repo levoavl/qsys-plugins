@@ -7,6 +7,13 @@ table.insert(props, {
   Value = "Wired Pin",
 })
 table.insert(props, {
+  -- 2 = a second band (e.g. snare) is analysed together with the kick
+  Name = "Input Bands",
+  Type = "enum",
+  Choices = { "1 (Kick)", "2 (Kick + Snare)" },
+  Value = "1 (Kick)",
+})
+table.insert(props, {
   -- where the tempo goes; "None" = detection only (pins)
   Name = "Console Type",
   Type = "enum",

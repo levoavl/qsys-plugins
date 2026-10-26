@@ -116,16 +116,30 @@ elseif CurrentPage == "Setup" then
   y = Section("Audio Input", y)
   if opt.LevelSource == "Wired Pin" then
     y = Row("Level In (dB)", "Level In", "Audio Input~Level In", y, 80, { Style = "Text", FontSize = 11 })
-    Label("Wire a meter's output pin here (low band, e.g. 50-120 Hz).", M + LW, y - 4, W - M - LW - M, 16, { size = 10, color = C.Mid })
+    Label("Wire a meter's output pin here (kick band, e.g. 45-120 Hz).", M + LW, y - 4, W - M - LW - M, 16, { size = 10, color = C.Mid })
     y = y + 16
+    if opt.Bands == 2 then
+      y = Row("Level In 2 (dB)", "Level In 2", "Audio Input~Level In 2", y, 80, { Style = "Text", FontSize = 11 })
+      Label("Second band, e.g. snare 150-400 Hz.", M + LW, y - 4, W - M - LW - M, 16, { size = 10, color = C.Mid })
+      y = y + 16
+    end
   elseif opt.LevelSource == "Named Component" then
     y = Row("Meter Component", "Meter Component", "Audio Input~Meter Component", y, 200, Field())
     y = Row("Meter Control", "Meter Control", "Audio Input~Meter Control", y, 200, Field())
     Label("Code Name of the meter, Script Access enabled. Control: e.g. meter.1", M + LW, y - 4, W - M - LW - M, 16, { size = 10, color = C.Mid })
     y = y + 16
+    if opt.Bands == 2 then
+      y = Row("Meter Component 2", "Meter Component 2", "Audio Input~Meter Component 2", y, 200, Field())
+      y = Row("Meter Control 2", "Meter Control 2", "Audio Input~Meter Control 2", y, 200, Field())
+    end
   else
     Label("Test Generator active - settings on the Debug page.", M + LW, y, W - M - LW - M, 18, { color = C.Mid })
     y = y + 26
+  end
+  if opt.Bands == 2 then
+    y = Row("Band 2 Weight", "Band 2 Weight", "Audio Input~Band 2 Weight", y, 180, { Style = "Fader", Color = C.Atlantic })
+    Label("Input 2", M + LW + 190, y - 26, 50, 18, { color = C.Mid })
+    Place("Input Level 2", "Audio Input~Input Level 2", M + LW + 240, y - 23, W - 2 * M - LW - 240, 12, { Color = C.Amber, ShowTextbox = false, CornerRadius = 0 })
   end
   y = y + 6
 
@@ -153,6 +167,7 @@ elseif CurrentPage == "Setup" then
     Label("{master} and {bpm} are replaced.", M + LW, y - 4, W - M - LW - M, 16, { size = 10, color = C.Mid })
     y = y + 16
     y = Row("Send Hysteresis", "Send Hysteresis", "Console~Send Hysteresis", y, 80, Field())
+    y = Row("Whole BPM", "Whole BPM", "Console~Whole BPM", y, 80, Button("Whole BPM", { Color = C.Amber }))
     if opt.Console == "grandMA2" then
       Label("Connected", M + LW, y, 70, 18)
       Place("Connected", "Console~Connected", M + LW + 72, y + 1, 16, 16, { Color = C.Atlantic })

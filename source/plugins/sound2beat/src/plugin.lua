@@ -15,6 +15,7 @@ function Options(props)
   end
   return {
     LevelSource = v("Level Source", "Wired Pin"),
+    Bands = tonumber(v("Input Bands", "1"):match("%d")) or 1,
     Console = v("Console Type", "grandMA2"),
   }
 end

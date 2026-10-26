@@ -70,6 +70,7 @@ end
 
 function BeatEngine:Reset()
   self.levels = {}          -- { t, db } of the last MIN_WINDOW
+  self.levels2 = {}         -- same for the second band
   self.strength = 0
   self.statMean, self.statVar = 1, 1
   self.armed = true
@@ -198,15 +199,29 @@ end
 ---------------------------------------------------------------------------
 -- Onset detection
 ---------------------------------------------------------------------------
--- Feed the current level (dB). Returns true when an onset was detected.
-function BeatEngine:Feed(t, db)
-  db = tonumber(db) or -100
-  local lv = self.levels
-  lv[#lv + 1] = { t, db }
-  while #lv > 1 and lv[1][1] < t - MIN_WINDOW do table.remove(lv, 1) end
+-- Rise of `db` above its minimum over the last MIN_WINDOW, per band
+local function Rise(list, t, db)
+  list[#list + 1] = { t, db }
+  while #list > 1 and list[1][1] < t - MIN_WINDOW do table.remove(list, 1) end
   local minDb = db
-  for i = 1, #lv do if lv[i][2] < minDb then minDb = lv[i][2] end end
-  local s = db - minDb
+  for i = 1, #list do if list[i][2] < minDb then minDb = list[i][2] end end
+  return db - minDb
+end
+
+-- Feed the current level (dB) of the kick band, and optionally of a second band
+-- (e.g. snare) with its weight 0..1. The onset strength is the weighted sum of the
+-- rises of both bands - like a two-band spectral flux. Returns true on an onset.
+function BeatEngine:Feed(t, db, db2, weight2)
+  db = tonumber(db) or -100
+  local s = Rise(self.levels, t, db)
+  local gateDb = db
+  db2 = tonumber(db2)
+  if db2 and (weight2 or 0) > 0 then
+    self.levels2 = self.levels2 or {}
+    local s2 = db2 >= GATE_DB and Rise(self.levels2, t, db2) or 0
+    s = s + weight2 * s2
+    gateDb = math.max(db, db2)   -- band 2 alone keeps the gate open
+  end
   self.strength = s
 
   -- strength statistics (exponential, time based so the tick rate does not matter)
@@ -233,7 +248,7 @@ function BeatEngine:Feed(t, db)
   local thr = math.max(floor, self.statMean + k * math.sqrt(self.statVar))
   self.threshold = thr
 
-  if db < GATE_DB then
+  if gateDb < GATE_DB then
     self.silentSince = self.silentSince or t
   else
     self.silentSince = nil
@@ -246,7 +261,7 @@ function BeatEngine:Feed(t, db)
   end
   if s < thr * 0.5 then self.armed = true end
   local refractory = 0.6 * 60 / self.bpmMax
-  if self.armed and s >= thr and db >= GATE_DB and (t - self.lastOnset) >= refractory then
+  if self.armed and s >= thr and gateDb >= GATE_DB and (t - self.lastOnset) >= refractory then
     self.armed = false
     -- loudest level of this onset (the meter may still rise in the next updates)
     self.onsetDb = db
@@ -369,14 +384,17 @@ function BeatEngine:CorrectPhase(t)
   fit[#fit + 1] = { n = n, t = t, on = onBeat, db = self.onsetDb }
   while #fit > FIT_MAX or (#fit > 0 and fit[1].t < t - FIT_AGE) do table.remove(fit, 1) end
   if #fit < FIT_MIN then return end
-  -- The clock sits on the offbeat when nearly all onsets fall between the beats, or
-  -- when the onsets between the beats are clearly louder (kick vs. offbeat bass).
+  -- The clock sits on the offbeat when clearly more onsets fall between the beats than
+  -- on them, or - with about as many on both (kick vs. offbeat bass) - when the onsets
+  -- between the beats are clearly louder in the kick band.
   local nOn, nOff, dbOn, dbOff = 0, 0, 0, 0
   for _, p in ipairs(fit) do
     if p.on then nOn = nOn + 1; dbOn = dbOn + p.db else nOff = nOff + 1; dbOff = dbOff + p.db end
   end
-  local louderOff = nOn >= 6 and nOff >= 6 and (dbOff / nOff) > (dbOn / nOn) + OFFBEAT_DB
-  if (nOff / #fit > 0.75 or louderOff) and t >= (self.noFlipUntil or 0) then
+  local moreOff = nOff > 1.4 * nOn + 1
+  local comparable = nOn >= 6 and nOff >= 6 and nOff >= 0.7 * nOn and nOn >= 0.7 * nOff
+  local louderOff = comparable and (dbOff / nOff) > (dbOn / nOn) + OFFBEAT_DB
+  if (moreOff or louderOff) and t >= (self.noFlipUntil or 0) then
     -- renumber instead of starting over: the timing data stays valid
     self.nextBeat = self.nextBeat + half
     for _, p in ipairs(fit) do p.n = p.n - 0.5; p.on = not p.on end

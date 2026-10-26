@@ -7,7 +7,7 @@ breakdowns. Every output is a plain Q-SYS control with its own pin.
 
 Part of [levo AVL Q-SYS Plugins](../../../README.md).
 
-> Status: **0.1 – in testing.** Not released yet.
+> Status: **0.2 – in testing.** Not released yet.
 
 ## Tested on
 
@@ -42,11 +42,20 @@ Use the feed that goes to the amplifiers (post master), so what the plugin hears
 the room hears.
 
 ```
-music feed ──► Mixer (mono sum) ──► Filter: band-pass 50–120 Hz ──► Meter ──► (pin) ──► Sound2Beat "Level In"
+                         ┌─► HPF 45 Hz ─► LPF 120 Hz ─► Meter ─► Sound2Beat "Level In"    (kick)
+music feed ─► Mixer 2×1 ─┤
+   (mono)                └─► HPF 150 Hz ─► LPF 400 Hz ─► Meter ─► Sound2Beat "Level In 2"  (snare, optional)
 ```
 
-- **Meter:** a peak meter without hold works best (the attack of the kick has to come
-  through). Try RMS if the detection is jumpy.
+- **Tap point:** before the system limiter/compressor if possible – they flatten the kick.
+- **No AGC / compressor in the branch.** The detection works on level rises in dB and is
+  independent of the volume; a gain control only smooths the rises it needs.
+- **Filters:** steep (Linkwitz-Riley 24 dB/oct or more). The high-pass at about 45 Hz keeps
+  sub bass out, which would otherwise hold the level up between the kicks.
+- **Meter:** the level must drop clearly between two kicks. Compare peak and RMS on the
+  Debug page – use whichever makes `Onset Strength` jump most clearly on each kick.
+- **Second band** (property `Input Bands` = 2): recommended for pop, rock and live bands,
+  where the kick alone is syncopated or weak. `Band 2 Weight` sets how much it counts.
 - **Wired Pin** (default): wire the meter's output pin to the plugin's `Level In` pin.
 - **Named Component:** give the meter a Code Name, enable *Script Access*, and enter the
   name on the Setup page (control name usually `meter.1`).
@@ -76,6 +85,7 @@ The Debug page shows `Level Updates` – how often the level actually changes pe
 | Property | Values | Default | |
 |---|---|---|---|
 | Level Source | Wired Pin / Named Component / Test Generator | Wired Pin | Where the kick level comes from. Test Generator simulates kicks (for Emulation). |
+| Input Bands | 1 (Kick) / 2 (Kick + Snare) | 1 (Kick) | Analyse a second band together with the kick |
 | Console Type | None / grandMA2 / grandMA3 | grandMA2 | Where the tempo goes. None = pins only. |
 | Debug Print | None / Basic / Verbose | None | Verbose logs every onset and every command |
 
@@ -112,7 +122,11 @@ The Debug page shows `Level Updates` – how often the level actually changes pe
 | Control | | Default |
 |---|---|---|
 | Level In | dB input pin (Wired Pin source) | |
+| Level In 2 | dB input pin, second band | |
 | Meter Component / Meter Control | Named Component source | – / `meter.1` |
+| Meter Component 2 / Meter Control 2 | Named Component source, second band | – / `meter.1` |
+| Band 2 Weight | How much the second band counts | 50 % |
+| Input Level 2 | Level of the second band (meter) | |
 | BPM Min / BPM Max | Tempo range, at least one octave. Tempos outside are folded in (174 → 87). | 80 / 160 |
 | Sensitivity | Higher = smaller level jumps count as kicks | 50 % |
 | Min Confidence | Below this the tempo is not sent | 50 % |
@@ -123,6 +137,7 @@ The Debug page shows `Level Updates` – how often the level actually changes pe
 | Speed Master | Speed master number | 1 |
 | Command Template | `{master}` and `{bpm}` are replaced | see above |
 | Send Hysteresis | Minimum tempo change before a new value is sent (BPM) | 0.5 |
+| Whole BPM | Send whole numbers (a new value only past ±0.7 BPM) | on |
 | Connected / Logged In / Reconnect | MA2 connection | |
 
 ### Debug page

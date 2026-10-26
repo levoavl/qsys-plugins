@@ -5,6 +5,20 @@ Format: [Keep a Changelog](https://keepachangelog.com), versioning: `major.minor
 
 ## [Unreleased]
 
+## [0.2] – 2026-10-26
+
+### Added
+- Property `Input Bands`: optional second band (e.g. snare 150–400 Hz) via `Level In 2` or
+  `Meter Component 2` / `Meter Control 2`, analysed together with the kick
+  (weighted sum of both level rises, `Band 2 Weight`). Locks pop and syncopated
+  patterns far more reliably. Test generator adds a snare on 2 and 4.
+- `Whole BPM` toggle (default on): tempo is sent as a whole number; a new value only when
+  the tempo is more than 0.7 BPM away from the last one, so 127.5 does not flap.
+
+### Changed
+- Beat vs. offbeat: the half of the beat grid with clearly more onsets is the beat;
+  loudness only decides when both halves have about as many (kick vs. offbeat bass).
+
 ## [0.1] – 2026-10-16
 
 First test version.
