@@ -1,17 +1,26 @@
 # Advanced Color Picker – Q-SYS Plugin
 
 Colour picker for Q-SYS: fixed presets, a colour wheel, HSV, Kelvin and hex entry, user
-presets and fades – and it works together with the built-in Q-SYS **Color Picker**. Outputs the colour as hex and as 0-255 levels for RGB, RGBW, RGBA and
-RGBWA fixtures, plus a two-way **Console Link** for lighting console faders (e.g. the
-levo AVL grandMA2 plugin).
+presets and fades – and it works together with the built-in Q-SYS **Color Picker**.
+Outputs the colour as hex and as 0-255 levels for RGB, RGBW, RGBA and RGBWA fixtures,
+plus a two-way **Console Link** for lighting console faders (e.g. the levo AVL grandMA2
+plugin).
 
 No device, no network – runs the same on a Core and in Emulation mode.
 
+Part of [levo AVL Q-SYS Plugins](../README.md).
+
+<a href="https://github.com/levoavl/qsys-plugins/releases/download/advancedcolorpicker-v1.0/levo-advancedcolorpicker.qplug"><img src="https://img.shields.io/badge/-%E2%AC%87_Download_v1.0-FFB830?style=for-the-badge" alt="Download Advanced Color Picker plugin v1.0"></a>
+<a href="CHANGELOG.md"><img src="https://img.shields.io/badge/-Changelog-00468C?style=for-the-badge" alt="Changelog"></a>
+
 ## Tested on
 
-| Device | Version | Q-SYS | Result |
-|---|---|---|---|
-| – | – | Designer 10.1 | not tested on hardware yet |
+| Setup | Q-SYS | Result |
+|---|---|---|
+| Emulation + UCI with custom CSS style | Designer 10.1 | ✅ presets, colour wheel, user presets, UCI |
+| Console Link ↔ levo AVL grandMA2 plugin 1.0, grandMA2 onPC 3.9.60.91 | Designer 10.1 | ✅ two-way |
+| Q-SYS Color Picker (Hue / Saturation / Value) | Designer 10.1 | ✅ two-way |
+| Touch panel, persistence over a Core restart | – | not tested yet |
 
 ## Properties
 
@@ -120,10 +129,12 @@ presets and the colour wheel – are colour displays with an invisible touch but
 `User n Swatch` indicators for the user presets. Copy display and button together onto the
 UCI.
 
+On the UCI the touch buttons must lie **in front of** the colour displays: if the user
+presets show no colour (black), select the `User n` buttons and use *Bring to Front*.
+
 If your style gives every button a background, the touch buttons become visible and cover
-the colours (the user presets then show no colour on the UCI). Select the touch buttons on
-the UCI (`Preset n`, `User n`, and the wheel cells if needed) and give them a CSS class,
-e.g. `levo-touch`, with this rule in your style sheet:
+the colours. Select the touch buttons on the UCI (`Preset n`, `User n`, and the wheel cells
+if needed) and give them a CSS class, e.g. `levo-touch`, with this rule in your style sheet:
 
 ```css
 .levo-touch { background-color: transparent; border-width: 0; }

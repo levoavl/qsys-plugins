@@ -37,12 +37,12 @@ local function Image(data, x, y, w, h)
   table.insert(content, { Type = "Image", Image = data, Position = { x, y }, Size = { w, h } })
 end
 -- No CSS classes here or at runtime: Designer does not take layout classes over to
--- UCI copies, and runtime classes would replace the ones given on the UCI. ZOrder
--- keeps touch buttons on top of the colour swatches.
+-- UCI copies, and runtime classes would replace the ones given on the UCI.
+-- On a UCI the touch buttons must lie in front of the swatches (Bring to Front).
 local function TouchButton(name, pretty, x, y, w, h)
   Place(name, pretty, x, y, w, h, {
     Style = "Button", Legend = "", Color = CLEAR, OffColor = CLEAR, UnlinkOffColor = true,
-    StrokeWidth = 0, CornerRadius = 0, Margin = 0, ZOrder = 2,
+    StrokeWidth = 0, CornerRadius = 0, Margin = 0,
   })
 end
 
@@ -90,7 +90,7 @@ if CurrentPage == "Presets" then
       local x, cy = M + col * cw, y + row * 52
       -- same as the fixed presets: tap the colour itself (swatch + invisible button on top)
       Place("User " .. i .. " Swatch", "User Presets~User " .. i .. "~Swatch", x, cy, cw - 6, 30,
-        { Style = "Text", Color = C.Line, CornerRadius = 0, StrokeWidth = 0, ZOrder = 1 })
+        { Style = "Text", Color = C.Line, CornerRadius = 0, StrokeWidth = 0 })
       TouchButton("User " .. i, "User Presets~User " .. i .. "~Recall", x, cy, cw - 6, 30)
       Label(tostring(i), x, cy + 31, cw - 6, 14, { size = 9, color = C.Mid, align = "Center" })
     end
