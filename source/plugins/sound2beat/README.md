@@ -7,7 +7,7 @@ breakdowns. Every output is a plain Q-SYS control with its own pin.
 
 Part of [levo AVL Q-SYS Plugins](../../../README.md).
 
-> Status: **0.2 – in testing.** Not released yet.
+> Status: **0.3 – in testing.** Not released yet.
 
 ## Tested on
 
