@@ -137,7 +137,7 @@ The Debug page shows `Level Updates` – how often the level actually changes pe
 | Speed Master | Speed master number | 1 |
 | Command Template | `{master}` and `{bpm}` are replaced | see above |
 | Send Hysteresis | Minimum tempo change before a new value is sent (BPM) | 0.5 |
-| Whole BPM | Send whole numbers (a new value only past ±0.7 BPM) | on |
+| Whole BPM | Send and display whole numbers (a new value only past ±0.7 BPM); BPM pin stays exact | on |
 | Connected / Logged In / Reconnect | MA2 connection | |
 
 ### Debug page

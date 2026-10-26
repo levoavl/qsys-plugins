@@ -13,7 +13,8 @@ Format: [Keep a Changelog](https://keepachangelog.com), versioning: `major.minor
   (weighted sum of both level rises, `Band 2 Weight`). Locks pop and syncopated
   patterns far more reliably. Test generator adds a snare on 2 and 4.
 - `Whole BPM` toggle (default on): tempo is sent as a whole number; a new value only when
-  the tempo is more than 0.7 BPM away from the last one, so 127.5 does not flap.
+  the tempo is more than 0.7 BPM away from the last one, so 127.5 does not flap. The big
+  BPM display follows the toggle; the BPM pin and the Debug page keep the exact value.
 
 ### Changed
 - Beat vs. offbeat: the half of the beat grid with clearly more onsets is the beat;

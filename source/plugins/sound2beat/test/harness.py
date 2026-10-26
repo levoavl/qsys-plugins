@@ -472,6 +472,10 @@ def test_whole_bpm():
     sent = run(127.5, True)
     check(len(sent) == 1 and sent[0] in ("SpecialMaster 3.1 At 127\r\n", "SpecialMaster 3.1 At 128\r\n"),
           f"127.5 BPM, whole: no flapping, sent {sent}")
+    p = Plugin({"Level Source": "Wired Pin", "Console Type": "grandMA2"}, ma2_setup)
+    p.run(25, kick_level(115.4, 0.03))
+    check(p.c("BPM Text").String == "115" and abs(p.c("BPM").Value - 115.4) < 0.3,
+          f"display whole: '{p.c('BPM Text').String}', BPM pin {p.c('BPM').Value:.1f}")
     sent = run(127.5, False)
     check(len(sent) >= 1 and sent[0].startswith("SpecialMaster 3.1 At 127."), f"whole off: decimal {sent[:1]}")
 

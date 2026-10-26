@@ -326,11 +326,22 @@ end
 -- Display
 ---------------------------------------------------------------------------
 local Pulse = { beatOff = 0, downOff = 0, onsetOff = 0 }
+local ShownWhole = nil   -- whole BPM currently shown
 
 local function UpdateDisplay(now)
   local bpm = Engine:Bpm()
   SetValue("BPM", bpm and math.floor(bpm * 10 + 0.5) / 10 or 0, 0.01)
-  SetString("BPM Text", bpm and FormatBpm(bpm) or "---")
+  -- big display: whole numbers when "Whole BPM" is on (same 0.7 BPM lock as for sending);
+  -- the BPM pin and the Debug page keep the exact value
+  if not bpm then
+    ShownWhole = nil
+    SetString("BPM Text", "---")
+  elseif WholeBpm() then
+    if not ShownWhole or math.abs(bpm - ShownWhole) >= 0.7 then ShownWhole = math.floor(bpm + 0.5) end
+    SetString("BPM Text", tostring(ShownWhole))
+  else
+    SetString("BPM Text", FormatBpm(bpm))
+  end
   local locked = Engine:IsLocked(now)
   SetBool("Locked", locked)
   SetString("Detection State", Engine:State(now))
