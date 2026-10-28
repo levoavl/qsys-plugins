@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Offline test harness for the Sound2Beat plugin (no Q-SYS needed).
+Offline test harness for the Beat Analyzer plugin (no Q-SYS needed).
 
 Runs the built .qplug in Lua 5.3 (lupa) with mocks for Controls, Properties, Timer,
 TcpSocket, UdpSocket and Component, and checks:
@@ -12,8 +12,8 @@ TcpSocket, UdpSocket and Component, and checks:
   - Named Component level source, Tap, Hold, Half/Double
 
     pip install lupa
-    python3 source/tools/build.py sound2beat
-    python3 source/plugins/sound2beat/test/harness.py
+    python3 source/tools/build.py beatanalyzer
+    python3 source/plugins/beatanalyzer/test/harness.py
 
 (c) levo AVL | Elias Jenny - MIT License
 """
@@ -28,7 +28,7 @@ from lupa.lua53 import LuaRuntime
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tools"))
 from build import output_path  # noqa: E402
 
-QPLUG = output_path("sound2beat")
+QPLUG = output_path("beatanalyzer")
 
 MOCKS = r"""
 -- ---------------------------------------------------------------- controls
@@ -213,7 +213,7 @@ def kick_level(bpm, update=0.02, start=1000.5):
             age = (t - start) % P if t >= start else 99
             state["db"] = (-8 - age / 0.18 * 37) if age < 0.18 else -45.0
             state["next"] = t + update
-        p.c("Level In").Value = state["db"]
+        p.c("Kick Level").Value = state["db"]
     return fn
 
 
@@ -229,16 +229,16 @@ check.failed = 0
 def test_all_combinations():
     print("Property combinations (controls, layouts, emulation run):")
     for source, bands, console, dbg in itertools.product(
-            ["Wired Pin", "Named Component", "Test Generator"], ["1 (Kick)", "2 (Kick + Snare)"],
+            ["Wired Pin", "Named Component", "Test Generator"], ["Kick", "Kick + Snare"],
             ["None", "grandMA2", "grandMA3"], ["None", "Verbose"]):
-        p = Plugin({"Level Source": source, "Input Bands": bands, "Console Type": console, "Debug Print": dbg})
+        p = Plugin({"Level Source": source, "Inputs": bands, "Console Type": console, "Debug Print": dbg})
         p.run(3)
         st = p.c("Status")
-        check(st.Value in (0, 1, 4), f"{source:15} / {bands[0]} band / {console:8} / {dbg:7}: status {int(st.Value)} '{st.String}'")
+        check(st.Value in (0, 1, 4), f"{source:15} / {bands:12} / {console:8} / {dbg:7}: status {int(st.Value)} '{st.String}'")
 
 
 def test_engine_accuracy():
-    print("Detection via Level In pin:")
+    print("Detection via Kick Level pin:")
     for bpm, upd in [(128, 0.01), (128, 0.05), (124, 0.03), (95, 0.03), (140, 0.02), (174, 0.03)]:
         p = Plugin({"Level Source": "Wired Pin", "Console Type": "None"})
         p.run(25, kick_level(bpm, upd))
@@ -269,7 +269,7 @@ def test_beat_outputs():
     beats = 0
     def silent(pl, t):
         nonlocal beats, last
-        pl.c("Level In").Value = -100
+        pl.c("Kick Level").Value = -100
         b = pl.c("Beat").Boolean
         if b and not last:
             beats += 1
@@ -347,14 +347,14 @@ def test_named_component():
     print("Named Component source:")
     meter = {}
     def setup(p):
-        p.c("Meter Component").String = "KickMeter"
+        p.c("Kick Component").String = "KickMeter"
         L = p.lua
         meter["ctl"] = L.table_from({"Value": -100})
         p.g.NamedComponents["KickMeter"] = L.table_from({"meter.1": meter["ctl"]})
     p = Plugin({"Level Source": "Named Component", "Console Type": "None"}, setup)
     fn = kick_level(130, 0.02)
     def level(pl, t):
-        fn(pl, t)   # writes Level In? not present -> write to the named control instead
+        fn(pl, t)   # writes Kick Level? not present -> write to the named control instead
     state = {"next": 0, "db": -45}
     def comp_level(pl, t):
         P = 60 / 130
@@ -366,7 +366,7 @@ def test_named_component():
     p.run(20, comp_level)
     check(abs(p.c("BPM").Value - 130) < 0.5, f"130 BPM from named meter -> {p.c('BPM').Value:.1f}")
     p2 = Plugin({"Level Source": "Named Component", "Console Type": "None"},
-                lambda p: setattr(p.c("Meter Component"), "String", "Missing"))
+                lambda p: setattr(p.c("Kick Component"), "String", "Missing"))
     p2.run(1)
     check(p2.c("Status").Value == 1 and "not found" in p2.c("Status").String,
           f"missing component -> '{p2.c('Status').String}'")
@@ -426,16 +426,16 @@ def pop_level(bpm, update=0.03, start=1000.5):
             st["k"] = (-8 - ak / 0.18 * 37) if ak < 0.18 else -45.0
             st["s"] = (-10 - asn / 0.12 * 37) if asn < 0.12 else -50.0
             st["next"] = t + update
-        p.c("Level In").Value = st["k"]
-        if p.g.Controls["Level In 2"] is not None:
-            p.c("Level In 2").Value = st["s"]
+        p.c("Kick Level").Value = st["k"]
+        if p.g.Controls["Snare Level"] is not None:
+            p.c("Snare Level").Value = st["s"]
     return fn
 
 
 def test_two_bands():
     print("Second band (kick + snare):")
-    for bands in ["1 (Kick)", "2 (Kick + Snare)"]:
-        p = Plugin({"Level Source": "Wired Pin", "Input Bands": bands, "Console Type": "None"})
+    for bands in ["Kick", "Kick + Snare"]:
+        p = Plugin({"Level Source": "Wired Pin", "Inputs": bands, "Console Type": "None"})
         p.run(25, pop_level(104))
         beats, phase, last = 0, [], False
         P = 60 / 104
@@ -450,10 +450,10 @@ def test_two_bands():
             pop_level(104)(pl, t)
         p.run(10, watch)
         mean = sum(phase) / len(phase) if phase else 999
-        ok = abs(p.c("BPM").Value - 104) < 0.5 and (bands[0] == "1" or mean < 60)
+        ok = abs(p.c("BPM").Value - 104) < 0.5 and (bands == "Kick" or mean < 60)
         check(ok, f"{bands}: pop 104 BPM -> {p.c('BPM').Value:.1f}, {p.c('Detection State').String}, "
                   f"beat phase {mean:.0f} ms")
-    p = Plugin({"Level Source": "Test Generator", "Input Bands": "2 (Kick + Snare)", "Console Type": "None"})
+    p = Plugin({"Level Source": "Test Generator", "Inputs": "Kick + Snare", "Console Type": "None"})
     p.run(20)
     check(abs(p.c("BPM").Value - 128) < 0.5, f"generator with snare band -> {p.c('BPM').Value:.1f}")
 

@@ -30,7 +30,7 @@ Num("Bar Position", "Integer", 0, 4, 0, "Output")
 Led("Locked")
 TextOut("Detection State")
 Meter("Confidence", 0, 100)
-Meter("Input Level", -60, 0)
+Meter("Kick Meter", -60, 0)
 TextOut("Tempo Scale")
 
 -- Tempo (user)
@@ -44,19 +44,19 @@ Trigger("Shift Half Beat")
 
 -- Detection setup
 if opt.LevelSource == "Wired Pin" then
-  Num("Level In", "dB", -100, 20, -100, "Input")
-  if opt.Bands == 2 then Num("Level In 2", "dB", -100, 20, -100, "Input") end
+  Num("Kick Level", "dB", -100, 20, -100, "Input")
+  if opt.Bands == 2 then Num("Snare Level", "dB", -100, 20, -100, "Input") end
 elseif opt.LevelSource == "Named Component" then
-  TextIn("Meter Component", "Input")
-  TextIn("Meter Control", "Input")
+  TextIn("Kick Component", "Input")
+  TextIn("Kick Control", "Input")
   if opt.Bands == 2 then
-    TextIn("Meter Component 2", "Input")
-    TextIn("Meter Control 2", "Input")
+    TextIn("Snare Component", "Input")
+    TextIn("Snare Control", "Input")
   end
 end
 if opt.Bands == 2 then
-  Num("Band 2 Weight", "Percent", 0, 100, 50)
-  Meter("Input Level 2", -60, 0)
+  Num("Snare Weight", "Percent", 0, 100, 50)
+  Meter("Snare Meter", -60, 0)
 end
 Num("BPM Min", "Integer", 40, 200, 80)
 Num("BPM Max", "Integer", 60, 300, 160)

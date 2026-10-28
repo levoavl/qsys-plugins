@@ -32,9 +32,19 @@ grandMA2 plugin) and to the Q-SYS Color Picker. Colours survive UCI styles (CSS)
 
 Tested on Q-SYS Designer 10.1 (Emulation, UCI) · with grandMA2 onPC 3.9.60.91
 
+### 🥁 Beat Analyzer
+
+Beat and BPM detection from the music running through Q-SYS (kick and optional snare
+meters), with tempo sync to a **grandMA2 or grandMA3 speed master**. Beat LED, bar
+position, tap, hold and ½/2× – the beat keeps running through breakdowns.
+
+<a href="https://github.com/levoavl/qsys-plugins/releases/download/beatanalyzer-v1.0/levo-beatanalyzer.qplug"><img src="https://img.shields.io/badge/-%E2%AC%87_Download_v1.0-FFB830?style=for-the-badge" alt="Download Beat Analyzer plugin v1.0"></a>
+<a href="BeatAnalyzer"><img src="https://img.shields.io/badge/-Manual-00468C?style=for-the-badge" alt="Beat Analyzer manual"></a>
+
+Tested on Core 24f · Q-SYS Designer 10.1 · with grandMA2 3.9.60.91
+
 > [!NOTE]
-> **Coming soon:** Blackmagic ATEM (all models incl. multi-M/E) · Sound2Beat (beat / BPM
-> detection for lighting sync) · Resolume Arena · Pharos
+> **Coming soon:** Blackmagic ATEM (all models incl. multi-M/E) · Resolume Arena · Pharos
 
 ## Installation
 

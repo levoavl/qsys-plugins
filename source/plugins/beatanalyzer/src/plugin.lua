@@ -1,4 +1,4 @@
--- levo AVL Q-SYS plugin - Sound2Beat (beat / BPM detection, tempo sync to grandMA2/3)
+-- levo AVL Q-SYS plugin - Beat Analyzer (beat / BPM detection, tempo sync to grandMA2/3)
 -- Built into a single .qplug by tools/build.py (resolves the #include lines).
 -- (c) levo AVL | Elias Jenny - MIT License
 
@@ -15,7 +15,7 @@ function Options(props)
   end
   return {
     LevelSource = v("Level Source", "Wired Pin"),
-    Bands = tonumber(v("Input Bands", "1"):match("%d")) or 1,
+    Bands = v("Inputs", "Kick") == "Kick + Snare" and 2 or 1,
     Console = v("Console Type", "grandMA2"),
   }
 end

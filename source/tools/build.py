@@ -6,7 +6,7 @@ Usage (from the repository root):
     python3 source/tools/build.py              # build all plugins
     python3 source/tools/build.py grandma2     # build one plugin
     python3 source/tools/build.py --check      # build + Lua 5.3 syntax check (needs `pip install lupa`)
-    python3 source/tools/build.py sound2beat --dev   # test build with dev stamp, see below
+    python3 source/tools/build.py beatanalyzer --dev   # test build with dev stamp, see below
 
 What it does:
     1. Regenerates source/shared/lua/levo_assets.lua from the logo originals in
@@ -19,7 +19,7 @@ What it does:
 
 --dev builds a test copy into source/.dev-build/ (not committed) instead of the normal
 output. The test copy is stamped with branch, commit and build time, shown in the schematic
-block under the plugin name and on the About page, e.g. "dev sound2beat a1b2c3d+ 22.10. 12:41"
+block under the plugin name and on the About page, e.g. "dev beatanalyzer a1b2c3d+ 22.10. 12:41"
 ("+" = uncommitted changes). File name and plugin Id stay the same, so the test copy simply
 replaces the previous one in the Q-SYS plugin folder. The version gets the build time as
 a third part (1.0 -> 1.0.2610281135) so Designer offers the update in existing designs.

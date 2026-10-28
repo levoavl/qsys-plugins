@@ -1,9 +1,27 @@
-# Changelog – Sound2Beat
+# Changelog – Beat Analyzer
 
 All notable changes to this plugin are documented here.
-Format: [Keep a Changelog](https://keepachangelog.com), versioning: `major.minor` (see [source/README.md](../../README.md#versions)).
+Format: [Keep a Changelog](https://keepachangelog.com), versioning: `major.minor` (see [source/README.md](../source/README.md#versions)).
 
 ## [Unreleased]
+
+## [1.0] – 2026-10-28
+
+First release. Developed as "Sound2Beat" (versions 0.1–0.3).
+
+### Changed
+- Renamed to **Beat Analyzer** (`levo AVL~Beat Analyzer`, file `levo-beatanalyzer.qplug`).
+  The plugin Id is unchanged, so 0.x instances are updated in place.
+- Inputs named after what goes in (re-wire 0.x designs once):
+  `Level In` → `Kick Level`, `Level In 2` → `Snare Level`, `Band 2 Weight` → `Snare Weight`,
+  `Input Level` / `Input Level 2` → `Kick Meter` / `Snare Meter`,
+  `Meter Component` / `Meter Control` → `Kick Component` / `Kick Control`,
+  `Meter Component 2` / `Meter Control 2` → `Snare Component` / `Snare Control`,
+  setup section "Audio Input" → "Level Input".
+- Property `Input Bands` (1 / 2) → `Inputs` (Kick / Kick + Snare).
+
+### Added
+- Ready-made DSP signal chain (kick and snare branches) as a Q-SYS user component.
 
 ## [0.3] – 2026-10-26
 

@@ -9,7 +9,7 @@ local UI_INTERVAL = 0.1       -- display refresh for BPM, state, meters (s)
 local NO_LEVEL_WARN = 5       -- no level change for this long -> warning (s)
 
 local function Log(level, msg)
-  if level <= DebugLevel then print(("[Sound2Beat] %s"):format(msg)) end
+  if level <= DebugLevel then print(("[Beat Analyzer] %s"):format(msg)) end
 end
 
 ---------------------------------------------------------------------------
@@ -81,8 +81,8 @@ local function DefaultText(name, value)
   local c = Ctl(name)
   if c and c.String:match("^%s*$") then c.String = value end
 end
-DefaultText("Meter Control", "meter.1")
-DefaultText("Meter Control 2", "meter.1")
+DefaultText("Kick Control", "meter.1")
+DefaultText("Snare Control", "meter.1")
 if Opt.Console ~= "None" then DefaultText("Command Template", DEFAULT_TEMPLATE[Opt.Console]) end
 if Opt.Console == "grandMA2" then DefaultText("Username", "administrator") end
 
@@ -140,13 +140,13 @@ local Level = { db = -100, db2 = nil, changes = 0, lastChange = -100, rate = 0, 
 -- Slot 1 = kick band, slot 2 = second band.
 local Named = { {}, {} }
 local function ResolveNamed(slot, now)
-  local suffix = slot == 1 and "" or " 2"
+  local prefix = slot == 1 and "Kick" or "Snare"
   local n = Named[slot]
-  local compName, ctlName = Text("Meter Component" .. suffix), Text("Meter Control" .. suffix)
+  local compName, ctlName = Text(prefix .. " Component"), Text(prefix .. " Control")
   local key = compName .. "|" .. ctlName
   if key == n.key and (n.ctl or now < (n.nextTry or 0)) then return n.ctl, n.problem end
   n.key, n.ctl, n.nextTry, n.problem = key, nil, now + 2, nil
-  local band = slot == 1 and "" or " (band 2)"
+  local band = slot == 1 and " (kick)" or " (snare)"
   if compName == "" then
     n.problem = "No meter component name set" .. band
     return nil, n.problem
@@ -210,8 +210,8 @@ local function ReadLevel(now)
     db, p1 = NamedValue(1, now)
     if Opt.Bands == 2 then db2, p2 = NamedValue(2, now) end
   else
-    db = Num("Level In", -100)
-    if Opt.Bands == 2 then db2 = Num("Level In 2", -100) end
+    db = Num("Kick Level", -100)
+    if Opt.Bands == 2 then db2 = Num("Snare Level", -100) end
   end
   if Opt.Bands < 2 then db2 = nil end
   return db, db2, p1 or p2
@@ -346,8 +346,8 @@ local function UpdateDisplay(now)
   SetBool("Locked", locked)
   SetString("Detection State", Engine:State(now))
   SetValue("Confidence", math.floor(Engine.confidence * 100 + 0.5))
-  SetValue("Input Level", math.max(-60, math.min(0, Level.db)), 0.1)
-  if Level.db2 then SetValue("Input Level 2", math.max(-60, math.min(0, Level.db2)), 0.1) end
+  SetValue("Kick Meter", math.max(-60, math.min(0, Level.db)), 0.1)
+  if Level.db2 then SetValue("Snare Meter", math.max(-60, math.min(0, Level.db2)), 0.1) end
   SetValue("Onset Strength", math.min(40, Engine.strength), 0.1)
   SetString("Onset Threshold", ("%.1f dB"):format(Engine.threshold))
   SetString("Onset Count", tostring(Engine.onsetCount))
@@ -362,10 +362,10 @@ end
 local function UpdateStatus(now)
   local audio = Level.problem
   if not audio and Opt.LevelSource ~= "Test Generator" and now - Level.lastChange > NO_LEVEL_WARN then
-    audio = Opt.LevelSource == "Wired Pin" and "No level updates on the Level In pin" or "No level updates from the meter"
+    audio = Opt.LevelSource == "Wired Pin" and "No level updates on the Kick Level pin" or "No level updates from the kick meter"
   end
   if not audio and Opt.Bands == 2 and Opt.LevelSource ~= "Test Generator" and (Level.db2 or -100) <= -100 then
-    audio = "No level on band 2"
+    audio = "No level on the snare input"
   end
   local code, text = OutState.code, OutState.text
   if audio then
@@ -383,7 +383,7 @@ end
 local MainTimer = Timer.New()
 -- Keep long-lived objects reachable from a global. A timer that is only held by
 -- a local variable gets garbage collected on the Core and silently stops.
-Sound2BeatRuntime = { Timer = MainTimer, Engine = Engine, Out = Out }
+BeatAnalyzerRuntime = { Timer = MainTimer, Engine = Engine, Out = Out }
 
 local function OnTick()
   TickTime = TickTime + TICK
@@ -402,7 +402,7 @@ local function OnTick()
     Level.rate = math.floor(Level.changes / (now - Level.rateT) + 0.5)
     Level.changes, Level.rateT = 0, now
   end
-  if Engine:Feed(now, db, db2, Num("Band 2 Weight", 50) / 100) then
+  if Engine:Feed(now, db, db2, Num("Snare Weight", 50) / 100) then
     SetBool("Onset", true)
     Pulse.onsetOff = now + 0.06
     if DebugLevel >= 2 then Log(2, ("Onset %.1f dB (threshold %.1f)"):format(Engine.strength, Engine.threshold)) end
@@ -453,6 +453,6 @@ end
 ---------------------------------------------------------------------------
 SetStatus(STATUS.Initializing, "Starting")
 Level.rateT, Level.lastChange = Clock(), Clock()
-Log(1, ("Sound2Beat %s started: source %s, console %s, clock %s"):format(
+Log(1, ("Beat Analyzer %s started: source %s, console %s, clock %s"):format(
   PluginInfo.BuildVersion, Opt.LevelSource, Opt.Console, ClockSource))
 MainTimer:Start(TICK)

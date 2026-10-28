@@ -1,4 +1,4 @@
--- levo AVL Q-SYS plugin - Sound2Beat (beat / BPM detection, tempo sync to grandMA2/3)
+-- levo AVL Q-SYS plugin - Beat Analyzer (beat / BPM detection, tempo sync to grandMA2/3)
 -- Built into a single .qplug by tools/build.py (resolves the #include lines).
 -- (c) levo AVL | Elias Jenny - MIT License
 
@@ -6,9 +6,9 @@
 -- (c) levo AVL | Elias Jenny - MIT License
 
 PluginInfo = {
-  Name         = "levo AVL~Sound2Beat",  -- "Folder~Name" in the Q-SYS schematic library
-  Version      = "0.3",
-  BuildVersion = "0.3",  -- versions are major.minor, see source/README.md
+  Name         = "levo AVL~Beat Analyzer",  -- "Folder~Name" in the Q-SYS schematic library
+  Version      = "1.0",
+  BuildVersion = "1.0",  -- versions are major.minor, see source/README.md
   Id           = "d47b20d7-684f-462e-b3d1-285ca6155205",
   Author       = "levo AVL | Elias Jenny",
   Description  = "Beat and BPM detection from a Q-SYS level meter, with tempo sync to grandMA2 (Telnet) or grandMA3 (OSC).",
@@ -165,7 +165,7 @@ function Options(props)
   end
   return {
     LevelSource = v("Level Source", "Wired Pin"),
-    Bands = tonumber(v("Input Bands", "1"):match("%d")) or 1,
+    Bands = v("Inputs", "Kick") == "Kick + Snare" and 2 or 1,
     Console = v("Console Type", "grandMA2"),
   }
 end
@@ -191,18 +191,18 @@ function GetProperties()
   -- >>> properties.lua
 -- (c) levo AVL | Elias Jenny - MIT License
 table.insert(props, {
-  -- where the low-band level comes from
+  -- where the kick (and snare) levels come from
   Name = "Level Source",
   Type = "enum",
   Choices = { "Wired Pin", "Named Component", "Test Generator" },
   Value = "Wired Pin",
 })
 table.insert(props, {
-  -- 2 = a second band (e.g. snare) is analysed together with the kick
-  Name = "Input Bands",
+  -- "Kick + Snare": a second level input is analysed together with the kick
+  Name = "Inputs",
   Type = "enum",
-  Choices = { "1 (Kick)", "2 (Kick + Snare)" },
-  Value = "1 (Kick)",
+  Choices = { "Kick", "Kick + Snare" },
+  Value = "Kick",
 })
 table.insert(props, {
   -- where the tempo goes; "None" = detection only (pins)
@@ -271,7 +271,7 @@ Num("Bar Position", "Integer", 0, 4, 0, "Output")
 Led("Locked")
 TextOut("Detection State")
 Meter("Confidence", 0, 100)
-Meter("Input Level", -60, 0)
+Meter("Kick Meter", -60, 0)
 TextOut("Tempo Scale")
 
 -- Tempo (user)
@@ -285,19 +285,19 @@ Trigger("Shift Half Beat")
 
 -- Detection setup
 if opt.LevelSource == "Wired Pin" then
-  Num("Level In", "dB", -100, 20, -100, "Input")
-  if opt.Bands == 2 then Num("Level In 2", "dB", -100, 20, -100, "Input") end
+  Num("Kick Level", "dB", -100, 20, -100, "Input")
+  if opt.Bands == 2 then Num("Snare Level", "dB", -100, 20, -100, "Input") end
 elseif opt.LevelSource == "Named Component" then
-  TextIn("Meter Component", "Input")
-  TextIn("Meter Control", "Input")
+  TextIn("Kick Component", "Input")
+  TextIn("Kick Control", "Input")
   if opt.Bands == 2 then
-    TextIn("Meter Component 2", "Input")
-    TextIn("Meter Control 2", "Input")
+    TextIn("Snare Component", "Input")
+    TextIn("Snare Control", "Input")
   end
 end
 if opt.Bands == 2 then
-  Num("Band 2 Weight", "Percent", 0, 100, 50)
-  Meter("Input Level 2", -60, 0)
+  Num("Snare Weight", "Percent", 0, 100, 50)
+  Meter("Snare Meter", -60, 0)
 end
 Num("BPM Min", "Integer", 40, 200, 80)
 Num("BPM Max", "Integer", 60, 300, 160)
@@ -438,8 +438,8 @@ if CurrentPage == "Control" then
   y = y + 44
   Label("Confidence", M, y, 80, 18, { color = C.Mid })
   Place("Confidence", "Tempo~Confidence", M + 84, y + 3, 180, 12, { Color = C.Atlantic, ShowTextbox = false, CornerRadius = 0 })
-  Label("Input", W - M - 200, y, 44, 18, { color = C.Mid, align = "Right" })
-  Place("Input Level", "Tempo~Input Level", W - M - 150, y + 3, 150, 12, { Color = C.Amber, ShowTextbox = false, CornerRadius = 0 })
+  Label("Kick", W - M - 200, y, 44, 18, { color = C.Mid, align = "Right" })
+  Place("Kick Meter", "Tempo~Kick Meter", W - M - 150, y + 3, 150, 12, { Color = C.Amber, ShowTextbox = false, CornerRadius = 0 })
   y = y + 30
 
   -- Manual control
@@ -468,33 +468,33 @@ if CurrentPage == "Control" then
   y = y + 34
 
 elseif CurrentPage == "Setup" then
-  y = Section("Audio Input", y)
+  y = Section("Level Input", y)
   if opt.LevelSource == "Wired Pin" then
-    y = Row("Level In (dB)", "Level In", "Audio Input~Level In", y, 80, { Style = "Text", FontSize = 11 })
+    y = Row("Kick Level (dB)", "Kick Level", "Level Input~Kick Level", y, 80, { Style = "Text", FontSize = 11 })
     Label("Wire a meter's output pin here (kick band, e.g. 45-120 Hz).", M + LW, y - 4, W - M - LW - M, 16, { size = 10, color = C.Mid })
     y = y + 16
     if opt.Bands == 2 then
-      y = Row("Level In 2 (dB)", "Level In 2", "Audio Input~Level In 2", y, 80, { Style = "Text", FontSize = 11 })
-      Label("Second band, e.g. snare 150-400 Hz.", M + LW, y - 4, W - M - LW - M, 16, { size = 10, color = C.Mid })
+      y = Row("Snare Level (dB)", "Snare Level", "Level Input~Snare Level", y, 80, { Style = "Text", FontSize = 11 })
+      Label("Snare band, e.g. 150-400 Hz (a hi-hat band works too).", M + LW, y - 4, W - M - LW - M, 16, { size = 10, color = C.Mid })
       y = y + 16
     end
   elseif opt.LevelSource == "Named Component" then
-    y = Row("Meter Component", "Meter Component", "Audio Input~Meter Component", y, 200, Field())
-    y = Row("Meter Control", "Meter Control", "Audio Input~Meter Control", y, 200, Field())
+    y = Row("Kick Component", "Kick Component", "Level Input~Kick Component", y, 200, Field())
+    y = Row("Kick Control", "Kick Control", "Level Input~Kick Control", y, 200, Field())
     Label("Code Name of the meter, Script Access enabled. Control: e.g. meter.1", M + LW, y - 4, W - M - LW - M, 16, { size = 10, color = C.Mid })
     y = y + 16
     if opt.Bands == 2 then
-      y = Row("Meter Component 2", "Meter Component 2", "Audio Input~Meter Component 2", y, 200, Field())
-      y = Row("Meter Control 2", "Meter Control 2", "Audio Input~Meter Control 2", y, 200, Field())
+      y = Row("Snare Component", "Snare Component", "Level Input~Snare Component", y, 200, Field())
+      y = Row("Snare Control", "Snare Control", "Level Input~Snare Control", y, 200, Field())
     end
   else
     Label("Test Generator active - settings on the Debug page.", M + LW, y, W - M - LW - M, 18, { color = C.Mid })
     y = y + 26
   end
   if opt.Bands == 2 then
-    y = Row("Band 2 Weight", "Band 2 Weight", "Audio Input~Band 2 Weight", y, 180, { Style = "Fader", Color = C.Atlantic })
-    Label("Input 2", M + LW + 190, y - 26, 50, 18, { color = C.Mid })
-    Place("Input Level 2", "Audio Input~Input Level 2", M + LW + 240, y - 23, W - 2 * M - LW - 240, 12, { Color = C.Amber, ShowTextbox = false, CornerRadius = 0 })
+    y = Row("Snare Weight", "Snare Weight", "Level Input~Snare Weight", y, 180, { Style = "Fader", Color = C.Atlantic })
+    Label("Snare", M + LW + 190, y - 26, 50, 18, { color = C.Mid })
+    Place("Snare Meter", "Level Input~Snare Meter", M + LW + 240, y - 23, W - 2 * M - LW - 240, 12, { Color = C.Amber, ShowTextbox = false, CornerRadius = 0 })
   end
   y = y + 6
 
@@ -585,7 +585,7 @@ if Controls then
   -- >>> beat_engine.lua
 -- (c) levo AVL | Elias Jenny - MIT License
 --
--- Sound2Beat beat engine. Pure Lua 5.3, no Q-SYS APIs, so it can be tested offline.
+-- Beat Analyzer beat engine. Pure Lua 5.3, no Q-SYS APIs, so it can be tested offline.
 -- All functions take the time `t` in seconds from a monotonic clock.
 --
 -- Signal path:
@@ -1452,7 +1452,7 @@ local UI_INTERVAL = 0.1       -- display refresh for BPM, state, meters (s)
 local NO_LEVEL_WARN = 5       -- no level change for this long -> warning (s)
 
 local function Log(level, msg)
-  if level <= DebugLevel then print(("[Sound2Beat] %s"):format(msg)) end
+  if level <= DebugLevel then print(("[Beat Analyzer] %s"):format(msg)) end
 end
 
 ---------------------------------------------------------------------------
@@ -1524,8 +1524,8 @@ local function DefaultText(name, value)
   local c = Ctl(name)
   if c and c.String:match("^%s*$") then c.String = value end
 end
-DefaultText("Meter Control", "meter.1")
-DefaultText("Meter Control 2", "meter.1")
+DefaultText("Kick Control", "meter.1")
+DefaultText("Snare Control", "meter.1")
 if Opt.Console ~= "None" then DefaultText("Command Template", DEFAULT_TEMPLATE[Opt.Console]) end
 if Opt.Console == "grandMA2" then DefaultText("Username", "administrator") end
 
@@ -1583,13 +1583,13 @@ local Level = { db = -100, db2 = nil, changes = 0, lastChange = -100, rate = 0, 
 -- Slot 1 = kick band, slot 2 = second band.
 local Named = { {}, {} }
 local function ResolveNamed(slot, now)
-  local suffix = slot == 1 and "" or " 2"
+  local prefix = slot == 1 and "Kick" or "Snare"
   local n = Named[slot]
-  local compName, ctlName = Text("Meter Component" .. suffix), Text("Meter Control" .. suffix)
+  local compName, ctlName = Text(prefix .. " Component"), Text(prefix .. " Control")
   local key = compName .. "|" .. ctlName
   if key == n.key and (n.ctl or now < (n.nextTry or 0)) then return n.ctl, n.problem end
   n.key, n.ctl, n.nextTry, n.problem = key, nil, now + 2, nil
-  local band = slot == 1 and "" or " (band 2)"
+  local band = slot == 1 and " (kick)" or " (snare)"
   if compName == "" then
     n.problem = "No meter component name set" .. band
     return nil, n.problem
@@ -1653,8 +1653,8 @@ local function ReadLevel(now)
     db, p1 = NamedValue(1, now)
     if Opt.Bands == 2 then db2, p2 = NamedValue(2, now) end
   else
-    db = Num("Level In", -100)
-    if Opt.Bands == 2 then db2 = Num("Level In 2", -100) end
+    db = Num("Kick Level", -100)
+    if Opt.Bands == 2 then db2 = Num("Snare Level", -100) end
   end
   if Opt.Bands < 2 then db2 = nil end
   return db, db2, p1 or p2
@@ -1789,8 +1789,8 @@ local function UpdateDisplay(now)
   SetBool("Locked", locked)
   SetString("Detection State", Engine:State(now))
   SetValue("Confidence", math.floor(Engine.confidence * 100 + 0.5))
-  SetValue("Input Level", math.max(-60, math.min(0, Level.db)), 0.1)
-  if Level.db2 then SetValue("Input Level 2", math.max(-60, math.min(0, Level.db2)), 0.1) end
+  SetValue("Kick Meter", math.max(-60, math.min(0, Level.db)), 0.1)
+  if Level.db2 then SetValue("Snare Meter", math.max(-60, math.min(0, Level.db2)), 0.1) end
   SetValue("Onset Strength", math.min(40, Engine.strength), 0.1)
   SetString("Onset Threshold", ("%.1f dB"):format(Engine.threshold))
   SetString("Onset Count", tostring(Engine.onsetCount))
@@ -1805,10 +1805,10 @@ end
 local function UpdateStatus(now)
   local audio = Level.problem
   if not audio and Opt.LevelSource ~= "Test Generator" and now - Level.lastChange > NO_LEVEL_WARN then
-    audio = Opt.LevelSource == "Wired Pin" and "No level updates on the Level In pin" or "No level updates from the meter"
+    audio = Opt.LevelSource == "Wired Pin" and "No level updates on the Kick Level pin" or "No level updates from the kick meter"
   end
   if not audio and Opt.Bands == 2 and Opt.LevelSource ~= "Test Generator" and (Level.db2 or -100) <= -100 then
-    audio = "No level on band 2"
+    audio = "No level on the snare input"
   end
   local code, text = OutState.code, OutState.text
   if audio then
@@ -1826,7 +1826,7 @@ end
 local MainTimer = Timer.New()
 -- Keep long-lived objects reachable from a global. A timer that is only held by
 -- a local variable gets garbage collected on the Core and silently stops.
-Sound2BeatRuntime = { Timer = MainTimer, Engine = Engine, Out = Out }
+BeatAnalyzerRuntime = { Timer = MainTimer, Engine = Engine, Out = Out }
 
 local function OnTick()
   TickTime = TickTime + TICK
@@ -1845,7 +1845,7 @@ local function OnTick()
     Level.rate = math.floor(Level.changes / (now - Level.rateT) + 0.5)
     Level.changes, Level.rateT = 0, now
   end
-  if Engine:Feed(now, db, db2, Num("Band 2 Weight", 50) / 100) then
+  if Engine:Feed(now, db, db2, Num("Snare Weight", 50) / 100) then
     SetBool("Onset", true)
     Pulse.onsetOff = now + 0.06
     if DebugLevel >= 2 then Log(2, ("Onset %.1f dB (threshold %.1f)"):format(Engine.strength, Engine.threshold)) end
@@ -1896,7 +1896,7 @@ end
 ---------------------------------------------------------------------------
 SetStatus(STATUS.Initializing, "Starting")
 Level.rateT, Level.lastChange = Clock(), Clock()
-Log(1, ("Sound2Beat %s started: source %s, console %s, clock %s"):format(
+Log(1, ("Beat Analyzer %s started: source %s, console %s, clock %s"):format(
   PluginInfo.BuildVersion, Opt.LevelSource, Opt.Console, ClockSource))
 MainTimer:Start(TICK)
 -- <<< runtime.lua

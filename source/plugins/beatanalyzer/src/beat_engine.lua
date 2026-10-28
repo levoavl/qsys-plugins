@@ -1,6 +1,6 @@
 -- (c) levo AVL | Elias Jenny - MIT License
 --
--- Sound2Beat beat engine. Pure Lua 5.3, no Q-SYS APIs, so it can be tested offline.
+-- Beat Analyzer beat engine. Pure Lua 5.3, no Q-SYS APIs, so it can be tested offline.
 -- All functions take the time `t` in seconds from a monotonic clock.
 --
 -- Signal path:

@@ -33,11 +33,11 @@ folder; their `.qplug` is written next to the sources in `source/plugins/<name>/
 ### Test builds
 
 ```
-python3 source/tools/build.py sound2beat --dev
+python3 source/tools/build.py beatanalyzer --dev
 ```
 
 Writes a test copy to `source/.dev-build/` (not committed) that carries a stamp like
-`dev sound2beat a1b2c3d+ 22.10. 12:41` – branch, commit (`+` = uncommitted changes) and
+`dev beatanalyzer a1b2c3d+ 22.10. 12:41` – branch, commit (`+` = uncommitted changes) and
 build time. Q-SYS Designer shows it in the schematic block under the plugin name and on the
 About page. File name and plugin Id stay the same, so a new test build simply replaces the
 previous one in the plugin folder and you always see which state you are testing.
@@ -108,7 +108,7 @@ Plugins use two-part versions `major.minor` (e.g. `1.0`, `1.1`, `2.0`):
 ### Publishing a release
 
 1. **First release only:** create the public folder in the repository root, named like the
-   product (e.g. `ATEM/`, `Sound2Beat/` – matched case-insensitively against the source
+   product (e.g. `ATEM/`, `BeatAnalyzer/` – matched case-insensitively against the source
    folder name) and move README.md and CHANGELOG.md there.
 2. Update `CHANGELOG.md` and the version in `info.lua`, then build – the `.qplug` now lands
    in the public folder.
