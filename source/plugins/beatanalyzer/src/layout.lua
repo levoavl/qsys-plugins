@@ -120,7 +120,7 @@ elseif CurrentPage == "Setup" then
     y = y + 16
     if opt.Bands == 2 then
       y = Row("Snare Level (dB)", "Snare Level", "Level Input~Snare Level", y, 80, { Style = "Text", FontSize = 11 })
-      Label("Snare band, e.g. 150-400 Hz (a hi-hat band works too).", M + LW, y - 4, W - M - LW - M, 16, { size = 10, color = C.Mid })
+      Label("Snare band, e.g. 120-400 Hz (a hi-hat band works too).", M + LW, y - 4, W - M - LW - M, 16, { size = 10, color = C.Mid })
       y = y + 16
     end
   elseif opt.LevelSource == "Named Component" then

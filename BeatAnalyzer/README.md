@@ -40,25 +40,52 @@ last good tempo instead of sending wrong values.
 
 ## Design setup
 
-Use the feed that goes to the amplifiers, so what the plugin hears is what the room hears.
+The plugin needs the levels of a kick band and – optionally – a snare band. A ready-made
+signal chain for this is included as a Q-SYS user component.
 
-```
-                         ┌─► HPF 45 Hz  ─► LPF 120 Hz ─► Meter ─► Beat Analyzer "Kick Level"
-music feed ─► Mixer 2×1 ─┤
-   (mono)                └─► HPF 150 Hz ─► LPF 400 Hz ─► Meter ─► Beat Analyzer "Snare Level"  (optional)
-```
+### Ready-made signal chain (user component)
 
-- **Tap point:** before the system limiter/compressor if possible – they flatten the kick.
+<a href="https://github.com/levoavl/qsys-plugins/releases/download/beatanalyzer-v1.0/levo-beatanalyzer-signal-chains.quc"><img src="https://img.shields.io/badge/-%E2%AC%87_Download_signal_chains-FFB830?style=for-the-badge" alt="Download Beat Analyzer signal chains"></a>
+
+`levo-beatanalyzer-signal-chains.quc` contains two containers – use the one that matches
+your feed and delete the other:
+
+| Container | Input | Outputs |
+|---|---|---|
+| **Beat Analyzer Signal Chain Mono** | 1 (mono) | 1 = kick level, 2 = snare level |
+| **Beat Analyzer Signal Chain Stereo** | 1 = L, 2 = R (summed to mono) | 1 = kick level, 2 = snare level |
+
+![Signal chain, stereo version](signal-chain-stereo.png)
+
+1. Copy the `.quc` file into your Q-SYS user components folder
+   (`Documents\QSC\Q-Sys Designer\User Components`) and restart Designer – it appears in the
+   Schematic Library under *User Components*. You can also drag it from the folder onto the
+   schematic.
+2. Feed the container's input(s) with the signal that goes to the amplifiers.
+3. Wire **output 1 → `Kick Level`** and **output 2 → `Snare Level`** of the Beat Analyzer.
+   Set the plugin property `Inputs` to *Kick + Snare*. With *Kick* only, leave output 2 open.
+
+What is inside (each branch: high-pass → low-pass → True Peak/RMS meter, peak level out):
+
+| Branch | High-pass | Low-pass | Meter |
+|---|---|---|---|
+| Kick | 40 Hz, Linkwitz-Riley 24 dB/oct | 120 Hz, Linkwitz-Riley 24 dB/oct | Peak, response 100 ms |
+| Snare | 120 Hz, Linkwitz-Riley 24 dB/oct | 400 Hz, Linkwitz-Riley 24 dB/oct | Peak, response 80 ms |
+
+### Notes for your own chain
+
+- **Tap point:** the feed that goes to the amplifiers, before the system limiter/compressor
+  if possible – they flatten the kick.
 - **No AGC / compressor in the branch.** The detection works on level rises in dB and is
   independent of the volume; a gain control only smooths the rises it needs.
-- **Filters:** steep (Linkwitz-Riley 24 dB/oct or more). The high-pass at about 45 Hz keeps
-  sub bass out, which would otherwise hold the level up between the kicks.
-- **Meter:** the level must drop clearly between two kicks. Compare peak and RMS on the
-  Debug page – use whichever makes `Onset Strength` jump most clearly on each kick.
-- **Snare input** (property `Inputs` = Kick + Snare): recommended for pop, rock and live
-  bands, where the kick alone is syncopated or weak. `Snare Weight` sets how much it counts.
-  A hi-hat band works as well.
-- **Wired Pin** (default): wire the meter output pins to `Kick Level` / `Snare Level`.
+- **Filters:** steep (Linkwitz-Riley 24 dB/oct or more). The kick high-pass keeps sub bass
+  out, which would otherwise hold the level up between the kicks.
+- **Meter:** the level must drop clearly between two kicks. Shorter response = faster drop.
+  On the Debug page `Onset Strength` should jump clearly on each kick and fall in between;
+  if the Onset LED flickers between beats, the response is too short.
+- **Snare input:** recommended for pop, rock and live bands, where the kick alone is
+  syncopated or weak. `Snare Weight` sets how much it counts. A hi-hat band works as well.
+- **Wired Pin** (default): wire the meter peak level pins to `Kick Level` / `Snare Level`.
 - **Named Component:** give the meters a Code Name, enable *Script Access*, and enter the
   names on the Setup page (control name usually `meter.1`).
 
