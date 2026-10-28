@@ -10,7 +10,7 @@ No device, no network – runs the same on a Core and in Emulation mode.
 
 Part of [levo AVL Q-SYS Plugins](../README.md).
 
-<a href="https://github.com/levoavl/qsys-plugins/releases/download/advancedcolorpicker-v1.0/levo-advancedcolorpicker.qplug"><img src="https://img.shields.io/badge/-%E2%AC%87_Download_v1.0-FFB830?style=for-the-badge" alt="Download Advanced Color Picker plugin v1.0"></a>
+<a href="https://github.com/levoavl/qsys-plugins/releases/download/advancedcolorpicker-v1.1/levo-advancedcolorpicker.qplug"><img src="https://img.shields.io/badge/-%E2%AC%87_Download_v1.1-FFB830?style=for-the-badge" alt="Download Advanced Color Picker plugin v1.1"></a>
 <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/-Changelog-00468C?style=for-the-badge" alt="Changelog"></a>
 
 ## Tested on

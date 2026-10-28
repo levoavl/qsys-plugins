@@ -27,7 +27,7 @@ Presets, colour wheel, HSV, Kelvin and hex entry, user presets and fades. Output
 RGB / RGBW / RGBA / RGBWA levels 0–255 and links both ways to console faders (e.g. the
 grandMA2 plugin) and to the Q-SYS Color Picker. Colours survive UCI styles (CSS).
 
-<a href="https://github.com/levoavl/qsys-plugins/releases/download/advancedcolorpicker-v1.0/levo-advancedcolorpicker.qplug"><img src="https://img.shields.io/badge/-%E2%AC%87_Download_v1.0-FFB830?style=for-the-badge" alt="Download Advanced Color Picker plugin v1.0"></a>
+<a href="https://github.com/levoavl/qsys-plugins/releases/download/advancedcolorpicker-v1.1/levo-advancedcolorpicker.qplug"><img src="https://img.shields.io/badge/-%E2%AC%87_Download_v1.1-FFB830?style=for-the-badge" alt="Download Advanced Color Picker plugin v1.1"></a>
 <a href="AdvancedColorPicker"><img src="https://img.shields.io/badge/-Manual-00468C?style=for-the-badge" alt="Advanced Color Picker manual"></a>
 
 Tested on Q-SYS Designer 10.1 (Emulation, UCI) · with grandMA2 onPC 3.9.60.91
