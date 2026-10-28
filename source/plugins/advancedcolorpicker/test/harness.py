@@ -94,7 +94,7 @@ end
 
 
 class Harness:
-    def __init__(self, props=None, preset=None):
+    def __init__(self, props=None, preset=None, settle=True):
         self.lua = LuaRuntime(unpack_returned_tuples=True)
         L = self.lua
         L.execute(MOCKS)
@@ -128,6 +128,8 @@ class Harness:
         L.execute(src)  # with Controls set -> runtime runs
         L.execute("collectgarbage() collectgarbage()")  # catch objects only held by locals
         self.g = g
+        if settle:
+            self.tick(45)  # past the start-up grace time
 
     def c(self, name):
         ctl = self.g.Controls[name]
@@ -446,6 +448,48 @@ def test_qsys_color_picker():
     check(h.s("Hex") == "#FFBF80", f"... and adopted after the hold ({h.s('Hex')})")
 
 
+def test_startup():
+    print("startup with console and Q-SYS Color Picker wired")
+    # The MA2 plugin already holds the console state when the design starts; Q-SYS
+    # does not fire an event for it. The picker must take it over without fader moves.
+    h = Harness(preset={"Hex": "#FFFFFF", "Dimmer": 100, "Link Red": 0, "Link Green": 0, "Link Blue": 100}, settle=False)
+    h.tick(45)
+    check(h.s("Hex") == "#0000FF", f"console state held by the wired pins adopted after start ({h.s('Hex')})")
+    check(h.v("Link Blue") == 100 and h.v("Link Red") == 0, "start does not overwrite the console")
+
+    # A wired Q-SYS Color Picker reports its stale state right after start: ignored,
+    # and the picker gets our colour instead. The console must not be touched.
+    h = Harness(preset={"Hex": "#00FF00", "Dimmer": 100, "Link Red": 0, "Link Green": 100, "Link Blue": 0}, settle=False)
+    qp = QsysPicker(h)
+    qp.drag(0, 100, 100)  # stale red from the last run
+    h.tick(45)
+    check(h.s("Hex") == "#00FF00" and h.v("Link Green") == 100, f"stale picker values at start ignored ({h.s('Hex')})")
+    check(h.v("Hue") == 120, "picker resynced to our colour after start")
+
+    # After start the first console move is adopted right away
+    con = Console(h)
+    con.pull()
+    con.move("Red", 100)
+    check(h.s("Hex") == "#FFFF00", f"first console move after start adopted ({h.s('Hex')})")
+    qp.pull()  # picker echoes the new colour (rounded)
+    h.tick(10)
+    con.move("Red", 50)
+    check(h.s("Hex") == "#80FF00", f"next console move adopted, no hold from the picker echo ({h.s('Hex')})")
+
+
+def test_no_needless_hold():
+    print("hold time only after real writes")
+    h = Harness()
+    con = Console(h)
+    h.tick(45)
+    h.press("Preset 1")
+    h.tick(30)
+    con.pull()
+    h.press("Preset 1")  # same colour again: nothing written to the console
+    con.move("Green", 100)
+    check(h.s("Hex") == "#FFFF00", f"console move right after an unchanged write adopted ({h.s('Hex')})")
+
+
 def test_calibration():
     print("LED calibration")
     h = Harness()
@@ -458,7 +502,7 @@ def test_calibration():
 
 def main():
     for t in (test_start_and_presets, test_inputs, test_dimmer_and_fade, test_user_presets,
-              test_console_link, test_link_rgbwa_separate, test_picker_wheel, test_qsys_color_picker, test_calibration):
+              test_console_link, test_link_rgbwa_separate, test_picker_wheel, test_qsys_color_picker, test_startup, test_no_needless_hold, test_calibration):
         t()
     print()
     if FAILED:

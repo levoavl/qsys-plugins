@@ -118,8 +118,13 @@ What happens:
 - With *Scale Outputs* the console levels contain the dimmer. When the console is brighter
   than the dimmer allows, the dimmer goes up; all faders at 0 sets the dimmer to 0 and
   keeps the colour.
-- On start the picker does not write the Link – the console keeps its state and the
-  picker takes it over as soon as the console reports it.
+- On start the picker does not write the Link – the console keeps its state. After 2 s
+  the picker takes over what the Link inputs hold (no fader move needed); if all of them
+  are at 0 (nothing wired yet, fresh instance) it keeps its own colour until the console
+  reports. A wired Q-SYS Color Picker is ignored during these 2 s and then gets the
+  current colour.
+- The hold time only starts when the picker really sent new values to the console, so
+  console moves are taken over immediately otherwise.
 
 ## UCIs and UCI styles (CSS)
 

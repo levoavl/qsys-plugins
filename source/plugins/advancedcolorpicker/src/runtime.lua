@@ -9,6 +9,7 @@ local FEEDBACK_HOLD = 1.0  -- after writing the console link, link input is only
 local FEEDBACK_TOL = 0.6   -- link input within this many % of what was sent counts as our own echo
 local HSV_HOLD = 0.3       -- after writing Hue/Saturation/Brightness, differing input is checked after this time
 local HSV_TOL = { 1, 0.6, 0.6 }  -- hue (deg), saturation and brightness (%) tolerance for our own echo
+local START_GRACE = 2.0    -- after start: wired inputs settle, then the console wins, the Q-SYS picker follows
 local DEFAULT_WHITE, DEFAULT_AMBER = "#FFFFFF", "#FFBF00"
 local EMPTY_SWATCH = string.format("#%02X%02X%02X", table.unpack(LevoBrand.Colors.Line))
 
@@ -83,6 +84,7 @@ local LinkPending = false        -- link input arrived during the hold time
 local HsvSent = nil              -- { hue, sat %, bri % }
 local HsvWrittenAt = -math.huge
 local HsvPending = false
+local StartupUntil = START_GRACE  -- Now < StartupUntil: start-up, see Start below
 local MixOpts = { subtract = Cfg.Subtract, white = { 1, 1, 1 }, amber = { 1, 0.749, 0 } }
 
 local function Round2(x) return math.floor(x * 100 + 0.5) / 100 end
@@ -90,6 +92,20 @@ local function Round2(x) return math.floor(x * 100 + 0.5) / 100 end
 ---------------------------------------------------------------------------
 -- Outputs and display
 ---------------------------------------------------------------------------
+local function LinkName(ch) return "Link " .. ChannelNames[ch] end
+
+-- Console link values (%) for the current colour
+local function LinkTarget()
+  local scale = Cfg.SeparateDimmer and 1 or State.dim
+  local mix = ColorMath.Mix(State.r, State.g, State.b, Cfg.LinkLayout, MixOpts)
+  local out = {}
+  for _, ch in ipairs(Cfg.LinkChannels) do
+    local v = (ch == "D") and State.dim or mix[ch] * scale
+    out[ch] = Round2(ColorMath.Clamp01(v) * 100)
+  end
+  return out
+end
+
 local function WriteOutputs(writeLink)
   local r, g, b = State.r, State.g, State.b
   local scale = Cfg.SeparateDimmer and 1 or State.dim
@@ -100,15 +116,20 @@ local function WriteOutputs(writeLink)
   if Cfg.SeparateDimmer then SetValue("Dimmer Level", ColorMath.To255(State.dim)) end
 
   if writeLink and #Cfg.LinkChannels > 0 then
-    local mix = ColorMath.Mix(r, g, b, Cfg.LinkLayout, MixOpts)
-    for _, ch in ipairs(Cfg.LinkChannels) do
-      local v = (ch == "D") and State.dim or mix[ch] * scale
-      v = Round2(ColorMath.Clamp01(v) * 100)
+    local changed = false
+    for ch, v in pairs(LinkTarget()) do
       LinkSent[ch] = v
-      SetValue("Link " .. ChannelNames[ch], v)
+      if math.abs(Controls[LinkName(ch)].Value - v) > 1e-6 then
+        Controls[LinkName(ch)].Value = v
+        changed = true
+      end
     end
-    LinkWrittenAt = Now
-    WakeTimer()  -- advances Now through the hold time
+    -- the hold time only starts when the console really got new values, otherwise it
+    -- would delay console moves for nothing
+    if changed then
+      LinkWrittenAt = Now
+      WakeTimer()  -- advances Now through the hold time
+    end
   end
 end
 
@@ -129,11 +150,17 @@ local function ShowColor(skip)
       State.sat = s
     end
     HsvSent = { math.floor(State.hue + 0.5), Round2(State.sat * 100), Round2(v * 100) }
-    SetValue("Hue", HsvSent[1])
-    SetValue("Saturation", HsvSent[2])
-    SetValue("Brightness", HsvSent[3])
-    HsvWrittenAt = Now
-    WakeTimer()  -- advances Now through the hold time
+    local changed = false
+    for i, name in ipairs({ "Hue", "Saturation", "Brightness" }) do
+      if math.abs(Controls[name].Value - HsvSent[i]) > 1e-6 then
+        Controls[name].Value = HsvSent[i]
+        changed = true
+      end
+    end
+    if changed then  -- hold time only after real writes
+      HsvWrittenAt = Now
+      WakeTimer()  -- advances Now through the hold time
+    end
   end
   SetValue("Dimmer", Round2(State.dim * 100))
   SetSwatch("Preview", hex)
@@ -177,8 +204,6 @@ end
 ---------------------------------------------------------------------------
 -- Console link feedback
 ---------------------------------------------------------------------------
-local function LinkName(ch) return "Link " .. ChannelNames[ch] end
-
 -- true when every link input still matches what we wrote (= our own echo)
 local function LinkInSync()
   for _, ch in ipairs(Cfg.LinkChannels) do
@@ -223,7 +248,7 @@ end
 
 local function OnLinkInput(ctl)
   if LinkInSync() then return end  -- echo of our own write
-  if Fade or (Now - LinkWrittenAt) < FEEDBACK_HOLD then
+  if Now < StartupUntil or Fade or (Now - LinkWrittenAt) < FEEDBACK_HOLD then
     LinkPending = true             -- console may still report old values, check later
     WakeTimer()
     Log(2, "Link input held during fade/hold time")
@@ -291,12 +316,16 @@ end
 
 local function AdoptHsv()
   HsvSent = { Controls.Hue.Value, Controls.Saturation.Value, Controls.Brightness.Value }
+  local r, g, b = ColorMath.HsvToRgb(Controls.Hue.Value, Controls.Saturation.Value / 100, Controls.Brightness.Value / 100)
+  -- same colour (e.g. the picker reports another hue for a grey): nothing to do -
+  -- writing would restart the hold times and could fight a console move
+  if ColorMath.ToHex(r, g, b) == ColorMath.ToHex(State.r, State.g, State.b) and not Fade then return end
   State.hue = Controls.Hue.Value
   State.sat = Controls.Saturation.Value / 100
-  local r, g, b = ColorMath.HsvToRgb(State.hue, State.sat, Controls.Brightness.Value / 100)
   ApplyColor(r, g, b, { skip = "hsv" })
 end
 local function OnHsv()
+  if Now < StartupUntil then return end  -- stale values of a wired Q-SYS Color Picker, resynced after start
   if HsvInSync() then return end  -- echo of our own write
   if Fade or (Now - HsvWrittenAt) < HSV_HOLD then
     -- a wired Color Picker may still answer with intermediate values, check later
@@ -389,8 +418,30 @@ end
 ---------------------------------------------------------------------------
 -- Timer: fades and delayed link checks
 ---------------------------------------------------------------------------
+-- End of start-up: the console keeps its state - the picker takes over what the wired
+-- Link inputs hold (Q-SYS fires no event for values that were already there), and a
+-- wired Q-SYS Color Picker gets our colour.
+local function EndStartup()
+  StartupUntil = -math.huge
+  LinkPending = false
+  -- all inputs at 0 = no information (fresh instance, link just switched on, nothing
+  -- wired): keep our colour; a real console report later is still adopted
+  local anyLevel = false
+  for _, ch in ipairs(Cfg.LinkChannels) do
+    if Controls[LinkName(ch)].Value > 0 then anyLevel = true end
+  end
+  if anyLevel and not LinkInSync() then
+    AdoptLink()
+  else
+    HsvSent = nil  -- force: push our colour to a wired picker
+    ShowColor()
+  end
+  Log(1, "Start-up done")
+end
+
 MainTimer.EventHandler = function()
   Now = Now + TICK
+  if Now >= StartupUntil and StartupUntil > 0 then EndStartup() end
   if Fade then FadeStep() end
   if LinkPending and not Fade and (Now - LinkWrittenAt) >= FEEDBACK_HOLD then
     LinkPending = false
@@ -401,7 +452,7 @@ MainTimer.EventHandler = function()
     if not HsvInSync() then AdoptHsv() end
   end
   -- nothing pending: stop until the next WakeTimer
-  if not Fade and not LinkPending and not HsvPending
+  if not Fade and not LinkPending and not HsvPending and Now >= StartupUntil
     and (Now - LinkWrittenAt) >= FEEDBACK_HOLD and (Now - HsvWrittenAt) >= HSV_HOLD then
     MainTimer:Stop()
     TimerRunning = false
@@ -432,7 +483,9 @@ else
 end
 for i = 1, Cfg.UserPresets do ShowUser(i) end
 ShowColor()
-WriteOutputs(false)  -- the console keeps its state on start; its feedback is adopted when it arrives
+WriteOutputs(false)  -- the console keeps its state on start
+for ch, v in pairs(LinkTarget()) do LinkSent[ch] = v end  -- what we would send, compared at the end of start-up
+WakeTimer()  -- runs EndStartup after START_GRACE
 
 SetStatus(STATUS.OK, "OK")
 Log(1, ("Started, build %s - link %s, %d user preset(s)"):format(

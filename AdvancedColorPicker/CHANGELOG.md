@@ -20,7 +20,8 @@ First release.
   calibrated LED colours, *Subtract* (accurate) or *Add* (brighter).
 - Dimmer, scaled into the outputs or as a separate output.
 - Two-way Console Link (percent, input + output pin), e.g. to the grandMA2 plugin faders,
-  with echo suppression and hold time.
+  with echo suppression and hold time. On start the console state is taken over without
+  moving the faders.
 - Two-way link to the Q-SYS Color Picker via Hue / Saturation / Brightness.
 - Preset colours and colour wheel are images with invisible touch buttons, so UCI styles
   (CSS) cannot override them. The plugin writes no CSS class, colour or legend on buttons
