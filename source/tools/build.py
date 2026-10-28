@@ -21,7 +21,9 @@ What it does:
 output. The test copy is stamped with branch, commit and build time, shown in the schematic
 block under the plugin name and on the About page, e.g. "dev sound2beat a1b2c3d+ 22.10. 12:41"
 ("+" = uncommitted changes). File name and plugin Id stay the same, so the test copy simply
-replaces the previous one in the Q-SYS plugin folder. Released files never carry a stamp.
+replaces the previous one in the Q-SYS plugin folder. The version gets the build time as
+a third part (1.0 -> 1.0.2610281135) so Designer offers the update in existing designs.
+Released files never carry a stamp.
 
 Include lookup order: the plugin's own src/ folder first, then source/shared/lua/.
 The include syntax is the same one the QSC plugin compiler uses, so the sources
@@ -138,15 +140,20 @@ def dev_stamp() -> str:
     branch = git("rev-parse", "--abbrev-ref", "HEAD") or "?"
     commit = git("rev-parse", "--short=7", "HEAD") or "?"
     dirty = "+" if git("status", "--porcelain", "--", "source") else ""
-    return f"dev {branch} {commit}{dirty} {now:%d.%m. %H:%M}"
+    return f"dev {branch} {commit}{dirty} {now:%d.%m. %H:%M}", now.strftime("%y%m%d%H%M")
 
 
-def stamp_source(source: str, stamp: str) -> str:
-    """Append Lua that shows the dev stamp without touching the plugin's own code."""
+def stamp_source(source: str, stamp: str, build_no: str) -> str:
+    """Append Lua that shows the dev stamp without touching the plugin's own code.
+    The version gets the build time as a third part (1.0 -> 1.0.2610281135): Designer
+    only offers to update a plugin in a design when the version in the plugin folder is
+    newer, so every test build must count up."""
     return source.rstrip() + f"""
 
 -- >>> dev build stamp (added by build.py --dev, never in released files)
 PluginInfo.DevBuild = "{stamp}"
+PluginInfo.Version = PluginInfo.Version .. ".{build_no}"
+PluginInfo.BuildVersion = PluginInfo.BuildVersion .. ".{build_no}"
 do
   local prettyName = GetPrettyName
   GetPrettyName = function(props) return prettyName(props) .. "\\n" .. PluginInfo.DevBuild end
@@ -181,8 +188,8 @@ def build(plugin_dir: Path, check: bool, dev: bool = False) -> None:
     source = resolve(entry, [plugin_dir / "src", SHARED_LUA], [])
     out = output_path(plugin_dir.name)
     if dev:
-        stamp = dev_stamp()
-        source = stamp_source(source, stamp)
+        stamp, build_no = dev_stamp()
+        source = stamp_source(source, stamp, build_no)
         DEV_DIR.mkdir(exist_ok=True)
         out = DEV_DIR / out.name
     if check:
