@@ -30,7 +30,8 @@ TextOut("Last Error")
 TextOut("Reconnects")
 
 -- Source names as reported by the switcher (for UCI labels)
-for _, id in ipairs(AtemTopology.ButtonSourceUnion(topo, mode)) do
+local _, named = AtemTopology.NamePlacement(topo, props)
+for _, id in ipairs(named) do
   TextOut("Name " .. AtemTopology.SourceKey(id))
 end
 
@@ -58,5 +59,40 @@ for me = 1, topo.MEs do
   for k = 1, topo.USKs do
     Toggle(p .. "Next Key " .. k)
     Toggle(p .. "Key " .. k .. " On Air")
+    TextIn(p .. "Key " .. k .. " Fill")   -- combo box
+    TextIn(p .. "Key " .. k .. " Key")    -- combo box (key / cut source)
+    TextOut(p .. "Key " .. k .. " Type")
+  end
+end
+
+-- Downstream keyers
+for n = 1, topo.DSKs do
+  local p = "DSK " .. n .. " "
+  Toggle(p .. "On Air")
+  Toggle(p .. "Tie")
+  Toggle(p .. "Auto")              -- lit while the DSK mixes
+  Led(p .. "In Transition")
+  TextIn(p .. "Rate")              -- "s:ff"
+  TextIn(p .. "Fill")              -- combo box
+  TextIn(p .. "Key")               -- combo box
+end
+
+-- Aux outputs
+local auxMode = AtemTopology.AuxMode(props)
+for aux = 1, topo.Aux do
+  TextIn("Aux " .. aux)            -- combo box
+  for _, id in ipairs(AtemTopology.AuxButtonSources(topo, aux, auxMode)) do
+    Toggle("Aux " .. aux .. " " .. AtemTopology.SourceKey(id))
+  end
+end
+
+-- SuperSource boxes
+local boxIds = AtemTopology.BoxButtonSources(topo, mode)
+for ss = 1, topo.SuperSources do
+  for box = 1, AtemTopology.BOXES do
+    local p = "SS" .. ss .. " Box " .. box .. " "
+    Toggle(p .. "Enable")
+    TextIn(p .. "Source")          -- combo box
+    for _, id in ipairs(boxIds) do Toggle(p .. AtemTopology.SourceKey(id)) end
   end
 end

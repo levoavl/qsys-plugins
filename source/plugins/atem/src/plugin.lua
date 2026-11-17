@@ -14,12 +14,7 @@
 --[[ #include "atem_topology.lua" ]]
 
 function PageList(props)
-  local topo = AtemTopology.Resolve(props)
-  local pages = {}
-  for me = 1, topo.MEs do pages[#pages + 1] = "M/E " .. me end
-  pages[#pages + 1] = "Setup"
-  pages[#pages + 1] = "About"
-  return pages
+  return AtemTopology.Pages(AtemTopology.Resolve(props))
 end
 
 function GetColor(props)

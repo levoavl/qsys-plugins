@@ -38,40 +38,91 @@ local W, H = 640, 400
 local y = LevoBrand.HeaderHeight + 2 + 10
 
 local BW, BH, GAP = 60, 40, 4   -- source buttons
+local NAME_H = 16
+local nameOwner = AtemTopology.NamePlacement(topo, props)
+local FLAT = { Style = "Text", Color = C.Porcelain, StrokeWidth = 0, FontSize = 11, TextColor = C.Onyx, HTextAlign = "Left" }
+
+local function GridShape(n)
+  local rows = math.max(1, math.ceil(n / 16))
+  return math.max(1, math.ceil(n / rows)), rows
+end
+
+-- Buttons for `ids`; name(id) -> control name, pretty(id) -> pretty name
+local function SourceGrid(ids, x, gy, color, name, pretty)
+  local cols, rows = GridShape(#ids)
+  for i, id in ipairs(ids) do
+    local _, short = AtemTopology.SourceKey(id)
+    local col, row = (i - 1) % cols, (i - 1) // cols
+    Button(name(id), pretty(id), short, x + col * (BW + GAP), gy + row * (BH + GAP), BW, BH, color)
+  end
+  return rows * (BH + GAP)
+end
+
+-- Source names (from the switcher) in the grid columns of `ids`, for the ones
+-- this grid owns. Returns the height used (0 when there is nothing to place).
+local function NameGrid(gridKey, ids, x, gy)
+  local owned = {}
+  for _, id in ipairs(nameOwner[gridKey] or {}) do owned[id] = true end
+  if not next(owned) then return 0 end
+  local cols, rows = GridShape(#ids)
+  for i, id in ipairs(ids) do
+    if owned[id] then
+      local key = AtemTopology.SourceKey(id)
+      local col, row = (i - 1) % cols, (i - 1) // cols
+      Place("Name " .. key, "Source Names~" .. key, x + col * (BW + GAP), gy + row * (NAME_H + 2), BW, NAME_H,
+        { Style = "Text", Color = C.Porcelain, StrokeWidth = 0, FontSize = 9, TextColor = C.Mid, HTextAlign = "Center" })
+    end
+  end
+  return rows * (NAME_H + 2) + 4
+end
+
+local function GridWidth(n)
+  local cols = GridShape(n)
+  return cols * (BW + GAP) - GAP
+end
+
+local function NoButtons(prop, x, gy, w)
+  Label("Source buttons are off (property \"" .. prop .. "\") - use the combo box.", x, gy, w, 18,
+    { size = 10, color = C.Mid })
+  return 24
+end
+
 local meIndex = CurrentPage and tonumber(CurrentPage:match("^M/E (%d+)$"))
+local auxFirst, auxLast = nil, nil
+if CurrentPage == "Aux" then
+  auxFirst, auxLast = 1, topo.Aux
+elseif CurrentPage then
+  local f, l = CurrentPage:match("^Aux (%d+)%-(%d+)$")
+  if f then auxFirst, auxLast = tonumber(f), tonumber(l) end
+end
+local ssIndex = nil
+if CurrentPage == "SuperSource" then ssIndex = 1
+elseif CurrentPage then ssIndex = tonumber(CurrentPage:match("^SuperSource (%d+)$")) end
 
 if meIndex then
   local me = meIndex
   local p = "ME" .. me .. " "
   local g = "M/E " .. me .. "~"
   local ids = AtemTopology.MEButtonSources(topo, me, mode)
-  local n = #ids
-  local rows = math.max(1, math.ceil(n / 16))
-  local cols = math.max(1, math.ceil(n / rows))
-  local gridW = cols * (BW + GAP) - GAP
-  local contentW = math.max(gridW, 760)
+  local contentW = math.max(GridWidth(#ids), 760)
   W = M * 2 + contentW
 
   local function Bus(bus, color)
     y = Section(bus, M, y, contentW)
     Label(bus .. " source", M + contentW - 330, y - 28, 120, 20, { align = "Right", color = C.Mid })
     Place(p .. bus, g .. bus .. "~Source", M + contentW - 200, y - 28, 200, 20, { Style = "ComboBox" })
-    for i, id in ipairs(ids) do
-      local key, short = AtemTopology.SourceKey(id)
-      local col, row = (i - 1) % cols, (i - 1) // cols
-      Button(p .. bus .. " " .. key, g .. bus .. "~" .. key, short,
-        M + col * (BW + GAP), y + row * (BH + GAP), BW, BH, color)
-    end
-    if n == 0 then
-      Label("Source buttons are off (property \"Source Buttons\") - use the combo box.", M, y, contentW, 18,
-        { size = 10, color = C.Mid })
-      y = y + 24
+    if #ids == 0 then
+      y = y + NoButtons("Source Buttons", M, y, contentW)
     else
-      y = y + rows * (BH + GAP) + 8
+      y = y + SourceGrid(ids, M, y, color,
+        function(id) return p .. bus .. " " .. AtemTopology.SourceKey(id) end,
+        function(id) return g .. bus .. "~" .. AtemTopology.SourceKey(id) end) + 4
     end
   end
   Bus("Preview", C.TallyGreen)
+  y = y + NameGrid("me" .. me, ids, M, y)
   Bus("Program", C.TallyRed)
+  y = y + 4
 
   -- Transition area: settings on the left, Cut / Auto / T-bar / FTB on the right
   y = Section("Transition", M, y, contentW)
@@ -120,8 +171,110 @@ if meIndex then
   Button(p .. "Fade to Black", g .. "Fade to Black~Fade to Black", "FTB", rx + 190, y, 90, 56, C.TallyRed, { FontSize = 14 })
   Label("FTB rate", rx + 190, y + 64, 90, 16, { size = 10, color = C.Mid })
   Place(p .. "Fade to Black Rate", g .. "Fade to Black~Rate", rx + 190, y + 80, 90, 22, { Style = "Text" })
+  y = math.max(leftBottom, top + 160)
 
-  H = math.max(leftBottom, top + 160) + M
+  -- Downstream keyers act on the program output: on the first M/E page
+  if me == 1 and topo.DSKs > 0 then
+    y = Section("Downstream Keys", M, y, contentW)
+    local gw = 380
+    for n = 1, topo.DSKs do
+      local col, row = (n - 1) % 2, (n - 1) // 2
+      local x, ry = M + col * gw, y + row * 38
+      local d, dg = "DSK " .. n .. " ", "DSK " .. n .. "~"
+      Label("DSK " .. n, x, ry + 7, 44, 18, { style = "Bold" })
+      Button(d .. "Tie", dg .. "Tie", "TIE", x + 48, ry, 56, 30, C.Amber, { FontSize = 10 })
+      Button(d .. "On Air", dg .. "On Air", "ON AIR", x + 108, ry, 64, 30, C.TallyRed, { FontSize = 10 })
+      Button(d .. "Auto", dg .. "Auto", "AUTO", x + 176, ry, 56, 30, C.TallyRed, { FontSize = 10 })
+      Place(d .. "In Transition", dg .. "In Transition", x + 238, ry + 8, 14, 14, { Color = C.Amber })
+      Label("Rate", x + 256, ry + 7, 36, 18, { align = "Right", size = 10, color = C.Mid })
+      Place(d .. "Rate", dg .. "Rate", x + 296, ry + 4, 60, 22, { Style = "Text" })
+    end
+    y = y + math.ceil(topo.DSKs / 2) * 38
+  end
+  H = y + M
+
+elseif CurrentPage == "Keyers" then
+  W = 760
+  local cw = W - 2 * M
+  local function Header(cols)
+    for _, c in ipairs(cols) do Label(c[1], c[2], y, c[3], 16, { size = 10, color = C.Mid }) end
+    y = y + 18
+  end
+  for me = 1, (topo.USKs > 0 and topo.MEs or 0) do
+    local p, g = "ME" .. me .. " ", "M/E " .. me .. "~"
+    y = Section((topo.MEs > 1 and ("M/E " .. me .. " ") or "") .. "Upstream Keys", M, y, cw)
+    Header({ { "Type", M + 70, 80 }, { "Fill source", M + 170, 200 }, { "Key source", M + 390, 200 } })
+    for k = 1, topo.USKs do
+      local q = p .. "Key " .. k .. " "
+      Label("Key " .. k, M, y + 2, 60, 18, { style = "Bold" })
+      Place(q .. "Type", g .. "Keyers~Key " .. k .. " Type", M + 70, y, 90, 22, FLAT)
+      Place(q .. "Fill", g .. "Keyers~Key " .. k .. " Fill", M + 170, y, 200, 22, { Style = "ComboBox" })
+      Place(q .. "Key", g .. "Keyers~Key " .. k .. " Key", M + 390, y, 200, 22, { Style = "ComboBox" })
+      y = y + 28
+    end
+    y = y + 6
+  end
+  if topo.DSKs > 0 then
+    y = Section("Downstream Keys", M, y, cw)
+    Header({ { "Fill source", M + 170, 200 }, { "Key source", M + 390, 200 } })
+    for n = 1, topo.DSKs do
+      local d, dg = "DSK " .. n .. " ", "DSK " .. n .. "~"
+      Label("DSK " .. n, M, y + 2, 60, 18, { style = "Bold" })
+      Place(d .. "Fill", dg .. "Fill", M + 170, y, 200, 22, { Style = "ComboBox" })
+      Place(d .. "Key", dg .. "Key", M + 390, y, 200, 22, { Style = "ComboBox" })
+      y = y + 28
+    end
+    Label("On Air, Tie, Auto and Rate of the downstream keys are on page M/E 1.", M, y + 2, cw, 16,
+      { size = 10, color = C.Mid })
+    y = y + 22
+  end
+  H = y + M
+
+elseif auxFirst then
+  local auxMode = AtemTopology.AuxMode(props)
+  local widest = 0
+  for aux = auxFirst, auxLast do
+    widest = math.max(widest, GridWidth(#AtemTopology.AuxButtonSources(topo, aux, auxMode)))
+  end
+  local contentW = math.max(widest, 760)
+  W = M * 2 + contentW
+  for aux = auxFirst, auxLast do
+    local ids = AtemTopology.AuxButtonSources(topo, aux, auxMode)
+    y = Section("Aux " .. aux, M, y, contentW)
+    Label("Source", M + contentW - 330, y - 28, 120, 20, { align = "Right", color = C.Mid })
+    Place("Aux " .. aux, "Aux " .. aux .. "~Source", M + contentW - 200, y - 28, 200, 20, { Style = "ComboBox" })
+    if #ids == 0 then
+      y = y + NoButtons("Aux Buttons", M, y, contentW)
+    else
+      y = y + SourceGrid(ids, M, y, C.Amber,
+        function(id) return "Aux " .. aux .. " " .. AtemTopology.SourceKey(id) end,
+        function(id) return "Aux " .. aux .. "~" .. AtemTopology.SourceKey(id) end)
+      y = y + NameGrid("aux" .. aux, ids, M, y) + 6
+    end
+  end
+  H = y + M
+
+elseif ssIndex then
+  local ss = ssIndex
+  local ids = AtemTopology.BoxButtonSources(topo, mode)
+  local contentW = math.max(GridWidth(#ids), 760)
+  W = M * 2 + contentW
+  for box = 1, AtemTopology.BOXES do
+    local p, g = "SS" .. ss .. " Box " .. box .. " ", "Box " .. box .. "~"
+    y = Section("Box " .. box, M, y, contentW)
+    Button(p .. "Enable", g .. "Enable", "ENABLE", M + contentW - 420, y - 30, 80, 24, C.Amber, { FontSize = 10 })
+    Label("Source", M + contentW - 330, y - 28, 120, 20, { align = "Right", color = C.Mid })
+    Place(p .. "Source", g .. "Source", M + contentW - 200, y - 28, 200, 20, { Style = "ComboBox" })
+    if #ids == 0 then
+      y = y + NoButtons("Source Buttons", M, y, contentW)
+    else
+      y = y + SourceGrid(ids, M, y, C.Amber,
+        function(id) return p .. AtemTopology.SourceKey(id) end,
+        function(id) return g .. AtemTopology.SourceKey(id) end)
+      y = y + NameGrid("ss" .. ss .. "." .. box, ids, M, y) + 6
+    end
+  end
+  H = y + M
 
 elseif CurrentPage == "Setup" then
   local lw, fx = 120, M + 128
@@ -132,7 +285,6 @@ elseif CurrentPage == "Setup" then
     Place(name, pretty, fx, y, w, 22, extra)
     y = y + 28
   end
-  local FLAT = { Style = "Text", Color = C.Porcelain, StrokeWidth = 0, FontSize = 11, TextColor = C.Onyx, HTextAlign = "Left" }
   Row("IP Address", "IP Address", "Setup~IP Address", 160, { Style = "Text" })
   Label("Status", M, y + 1, lw, 20, { align = "Right" })
   Place("Status", "Status", fx, y, 360, 22)
@@ -150,19 +302,6 @@ elseif CurrentPage == "Setup" then
   Row("Reconnects", "Reconnects", "Debug~Reconnects", 80, { Style = "Text" })
   y = y + 6
 
-  local ids = AtemTopology.ButtonSourceUnion(topo, mode)
-  if #ids > 0 then
-    y = Section("Source Names (from switcher)", M, y, W - 2 * M)
-    local cols, cw = 3, (W - 2 * M) // 3
-    for i, id in ipairs(ids) do
-      local key = AtemTopology.SourceKey(id)
-      local col, row = (i - 1) % cols, (i - 1) // cols
-      local x, ry = M + col * cw, y + row * 24
-      Label(key, x, ry + 1, 90, 18, { align = "Right", size = 10, color = C.Mid })
-      Place("Name " .. key, "Source Names~" .. key, x + 96, ry, cw - 104, 20, FLAT)
-    end
-    y = y + math.ceil(#ids / cols) * 24 + 6
-  end
   H = y + M
 
 elseif CurrentPage == "About" then

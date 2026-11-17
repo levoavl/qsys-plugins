@@ -8,9 +8,9 @@ its own pin, so it can be dragged onto a UCI and styled freely.
 Part of [levo AVL Q-SYS Plugins](../README.md).
 
 > [!NOTE]
-> Work in progress (0.x). This first stage covers the connection and the M/E functions
-> (program / preview, transitions, fade to black, next transition, keyers on air).
-> DSK, aux, SuperSource, media, macros, audio, streaming and recording follow.
+> Work in progress (0.x). Done: connection, M/E functions, upstream / downstream keyers,
+> aux outputs, SuperSource boxes. Media, colour generators, macros, audio, streaming and
+> recording follow.
 
 ## Tested on
 
@@ -33,7 +33,8 @@ simultaneous control connections – close unused software panels if the connect
 |---|---|---|---|
 | Model | all ATEM models, Custom | ATEM Mini Extreme | Decides which M/Es, keyers and sources the plugin has |
 | Custom … | | | Counts for the *Custom* model (only shown for Custom) |
-| Source Buttons | All Sources / Inputs Only / None | All Sources | Buttons per source on the program and preview bus. The combo boxes always list every source. |
+| Source Buttons | All Sources / Inputs Only / None | All Sources | Buttons per source on the program / preview buses and the SuperSource boxes. The combo boxes always list every source. |
+| Aux Buttons | All Sources / Inputs Only / None | All Sources | Buttons per source on every aux output. On large switchers (Constellation: up to 48 aux) use *Inputs Only* or *None* – *All Sources* there means several thousand buttons. |
 | Button Legends | Default Names / Device Names | Default Names | *Device Names* writes the switcher's short source names (e.g. `CAM1`) as button legends. This overrides legends set on UCI copies of the buttons. |
 | Debug Print | None / Basic / Verbose | None | Basic: connection and user actions. Verbose: all protocol traffic. |
 
@@ -44,8 +45,13 @@ the status turns *Compromised* and names the switcher found.
 
 Source names in control names are fixed (`Input 1`, `Bars`, `Color 1`, `MP1`,
 `SuperSource`, `ME2 PGM` …) and do not change when sources are renamed on the switcher.
-The names set on the switcher are available as `Name <source>` (Setup page) and in the
-combo boxes.
+The names set on the switcher are available as `Name <source>` and in the combo boxes.
+Each name sits directly under the first button grid that contains the source (between
+preview and program on page M/E 1; sources that only exist on aux, e.g. clean feeds, on the
+Aux page). On a UCI the same name control can be placed as often as needed.
+
+Pages: `M/E n` · `Keyers` · `Aux` (`Aux 1-8`, `Aux 9-16` … above 8 aux) · `SuperSource` ·
+`Setup` · `About` – depending on the model.
 
 ### M/E n (page `M/E n`, controls `MEn …`)
 
@@ -66,6 +72,41 @@ combo boxes.
 | Next Background, Next Key k | Toggle | in/out | Elements of the next transition. At least one stays selected. |
 | Key k On Air | Toggle | in/out | Upstream keyer on air |
 
+### Downstream keyers (`DSK n …`, page M/E 1 and Keyers)
+
+| Control | Type | Pin | |
+|---|---|---|---|
+| On Air | Toggle | in/out | |
+| Tie | Toggle | in/out | |
+| Auto | Toggle | in/out | Mixes the DSK on / off, lit while it mixes |
+| In Transition | LED | out | |
+| Rate | Text `s:ff` | in/out | |
+| Fill, Key | Combo box | in/out | Fill and key (cut) source |
+
+### Upstream keyers (`MEn Key k …`, page Keyers)
+
+| Control | Type | Pin | |
+|---|---|---|---|
+| Fill, Key | Combo box | in/out | Fill and key (cut) source |
+| Type | Text | out | Luma / Chroma / Pattern / DVE |
+
+On Air and Next Key are on the M/E page (see above).
+
+### Aux (`Aux n …`, page Aux)
+
+| Control | Type | Pin | |
+|---|---|---|---|
+| Aux n | Combo box | in/out | Every source the switcher allows on that aux (incl. clean feeds, program / preview, multiview …) |
+| Aux n *source* | Toggle | in/out | Buttons for inputs, Black, Bars, colours, media players, SuperSource, clean feeds, M/E program / preview |
+
+### SuperSource (`SSn Box b …`, page SuperSource)
+
+| Control | Type | Pin | |
+|---|---|---|---|
+| Enable | Toggle | in/out | Box on / off |
+| Source | Combo box | in/out | Box source |
+| *source* | Toggle | in/out | One button per source |
+
 ### Setup
 
 | Control | Type | Pin | |
@@ -77,7 +118,7 @@ combo boxes.
 | Device | Text | out | Product name reported by the switcher |
 | Protocol Version | Text | out | ATEM protocol version (e.g. `2.32`) |
 | Last Error, Reconnects | Text | out | Diagnostics |
-| Name *source* | Text | out | Source names as set on the switcher |
+| Name *source* | Text | out | Source names as set on the switcher (placed under the button grids) |
 
 ## Connection behaviour
 

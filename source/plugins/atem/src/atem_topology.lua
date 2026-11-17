@@ -247,16 +247,100 @@ function T.MESources(topo, me)
   return T.SortSources(ids, TopoPort(topo))
 end
 
--- Union of all button sources over all M/Es, in source order (for the name list)
-function T.ButtonSourceUnion(topo, mode)
-  local seen, ids = {}, {}
-  for me = 1, topo.MEs do
-    for _, id in ipairs(T.MEButtonSources(topo, me, mode)) do seen[id] = true end
-  end
+-- Source availability for aux n (the Mini Extreme has extra bits for aux 1 / 2)
+function T.AuxAvailable(aux, sa)
+  if sa & T.Avail.Auxiliary ~= 0 then return true end
+  if aux == 1 and sa & 32 ~= 0 then return true end
+  if aux == 2 and sa & 64 ~= 0 then return true end
+  return false
+end
+
+-- Button sources for aux, SuperSource boxes: same ports as the M/E buttons
+local function ButtonSources(topo, mode, accept)
+  local ids = {}
+  if mode == "None" then return ids end
   for _, s in ipairs(topo.Sources) do
-    if seen[s[1]] then ids[#ids + 1] = s[1] end
+    local id, port, sa = s[1], s[2], s[3]
+    if accept(sa) and ((mode == "Inputs Only" and port == T.Port.External)
+        or (mode ~= "Inputs Only" and ME_BUTTON_PORTS[port])) then
+      ids[#ids + 1] = id
+    end
   end
   return T.SortSources(ids, TopoPort(topo))
+end
+
+function T.AuxButtonSources(topo, aux, mode)
+  return ButtonSources(topo, mode, function(sa) return T.AuxAvailable(aux, sa) end)
+end
+
+function T.BoxButtonSources(topo, mode)
+  return ButtonSources(topo, mode, function(sa) return sa & T.Avail.SuperSourceBox ~= 0 end)
+end
+
+T.BOXES = 4   -- boxes per SuperSource
+T.AUX_PER_PAGE = 8
+
+function T.AuxMode(props)
+  return PropValue(props, "Aux Buttons", "All Sources")
+end
+
+-- All button grids in page order. A source name is placed under the first grid
+-- that contains the source (a control can only be placed once in the layout).
+function T.Grids(topo, props)
+  local mode, auxMode = T.ButtonMode(props), T.AuxMode(props)
+  local grids = {}
+  for me = 1, topo.MEs do
+    grids[#grids + 1] = { key = "me" .. me, ids = T.MEButtonSources(topo, me, mode) }
+  end
+  for aux = 1, topo.Aux do
+    grids[#grids + 1] = { key = "aux" .. aux, ids = T.AuxButtonSources(topo, aux, auxMode) }
+  end
+  local boxIds = T.BoxButtonSources(topo, mode)
+  for ss = 1, topo.SuperSources do
+    for box = 1, T.BOXES do
+      grids[#grids + 1] = { key = "ss" .. ss .. "." .. box, ids = boxIds }
+    end
+  end
+  return grids
+end
+
+-- { grid key -> list of source ids whose name goes under that grid }, and the
+-- list of all named sources in order
+function T.NamePlacement(topo, props)
+  local seen, owner, all = {}, {}, {}
+  for _, g in ipairs(T.Grids(topo, props)) do
+    owner[g.key] = {}
+    for _, id in ipairs(g.ids) do
+      if not seen[id] then
+        seen[id] = true
+        table.insert(owner[g.key], id)
+        all[#all + 1] = id
+      end
+    end
+  end
+  return owner, all
+end
+
+-- Pages of the plugin
+function T.Pages(topo)
+  local pages = {}
+  for me = 1, topo.MEs do pages[#pages + 1] = "M/E " .. me end
+  if topo.USKs > 0 or topo.DSKs > 0 then pages[#pages + 1] = "Keyers" end
+  if topo.Aux > 0 then
+    if topo.Aux <= T.AUX_PER_PAGE then
+      pages[#pages + 1] = "Aux"
+    else
+      for first = 1, topo.Aux, T.AUX_PER_PAGE do
+        pages[#pages + 1] = ("Aux %d-%d"):format(first, math.min(topo.Aux, first + T.AUX_PER_PAGE - 1))
+      end
+    end
+  end
+  for ss = 1, topo.SuperSources do
+    pages[#pages + 1] = topo.SuperSources > 1 and ("SuperSource " .. ss) or "SuperSource"
+  end
+  pages[#pages + 1] = "Setup"
+  pages[#pages + 1] = "About"
+  return pages
 end
 
 function T.ButtonMode(props)

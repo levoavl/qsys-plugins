@@ -675,16 +675,100 @@ function T.MESources(topo, me)
   return T.SortSources(ids, TopoPort(topo))
 end
 
--- Union of all button sources over all M/Es, in source order (for the name list)
-function T.ButtonSourceUnion(topo, mode)
-  local seen, ids = {}, {}
-  for me = 1, topo.MEs do
-    for _, id in ipairs(T.MEButtonSources(topo, me, mode)) do seen[id] = true end
-  end
+-- Source availability for aux n (the Mini Extreme has extra bits for aux 1 / 2)
+function T.AuxAvailable(aux, sa)
+  if sa & T.Avail.Auxiliary ~= 0 then return true end
+  if aux == 1 and sa & 32 ~= 0 then return true end
+  if aux == 2 and sa & 64 ~= 0 then return true end
+  return false
+end
+
+-- Button sources for aux, SuperSource boxes: same ports as the M/E buttons
+local function ButtonSources(topo, mode, accept)
+  local ids = {}
+  if mode == "None" then return ids end
   for _, s in ipairs(topo.Sources) do
-    if seen[s[1]] then ids[#ids + 1] = s[1] end
+    local id, port, sa = s[1], s[2], s[3]
+    if accept(sa) and ((mode == "Inputs Only" and port == T.Port.External)
+        or (mode ~= "Inputs Only" and ME_BUTTON_PORTS[port])) then
+      ids[#ids + 1] = id
+    end
   end
   return T.SortSources(ids, TopoPort(topo))
+end
+
+function T.AuxButtonSources(topo, aux, mode)
+  return ButtonSources(topo, mode, function(sa) return T.AuxAvailable(aux, sa) end)
+end
+
+function T.BoxButtonSources(topo, mode)
+  return ButtonSources(topo, mode, function(sa) return sa & T.Avail.SuperSourceBox ~= 0 end)
+end
+
+T.BOXES = 4   -- boxes per SuperSource
+T.AUX_PER_PAGE = 8
+
+function T.AuxMode(props)
+  return PropValue(props, "Aux Buttons", "All Sources")
+end
+
+-- All button grids in page order. A source name is placed under the first grid
+-- that contains the source (a control can only be placed once in the layout).
+function T.Grids(topo, props)
+  local mode, auxMode = T.ButtonMode(props), T.AuxMode(props)
+  local grids = {}
+  for me = 1, topo.MEs do
+    grids[#grids + 1] = { key = "me" .. me, ids = T.MEButtonSources(topo, me, mode) }
+  end
+  for aux = 1, topo.Aux do
+    grids[#grids + 1] = { key = "aux" .. aux, ids = T.AuxButtonSources(topo, aux, auxMode) }
+  end
+  local boxIds = T.BoxButtonSources(topo, mode)
+  for ss = 1, topo.SuperSources do
+    for box = 1, T.BOXES do
+      grids[#grids + 1] = { key = "ss" .. ss .. "." .. box, ids = boxIds }
+    end
+  end
+  return grids
+end
+
+-- { grid key -> list of source ids whose name goes under that grid }, and the
+-- list of all named sources in order
+function T.NamePlacement(topo, props)
+  local seen, owner, all = {}, {}, {}
+  for _, g in ipairs(T.Grids(topo, props)) do
+    owner[g.key] = {}
+    for _, id in ipairs(g.ids) do
+      if not seen[id] then
+        seen[id] = true
+        table.insert(owner[g.key], id)
+        all[#all + 1] = id
+      end
+    end
+  end
+  return owner, all
+end
+
+-- Pages of the plugin
+function T.Pages(topo)
+  local pages = {}
+  for me = 1, topo.MEs do pages[#pages + 1] = "M/E " .. me end
+  if topo.USKs > 0 or topo.DSKs > 0 then pages[#pages + 1] = "Keyers" end
+  if topo.Aux > 0 then
+    if topo.Aux <= T.AUX_PER_PAGE then
+      pages[#pages + 1] = "Aux"
+    else
+      for first = 1, topo.Aux, T.AUX_PER_PAGE do
+        pages[#pages + 1] = ("Aux %d-%d"):format(first, math.min(topo.Aux, first + T.AUX_PER_PAGE - 1))
+      end
+    end
+  end
+  for ss = 1, topo.SuperSources do
+    pages[#pages + 1] = topo.SuperSources > 1 and ("SuperSource " .. ss) or "SuperSource"
+  end
+  pages[#pages + 1] = "Setup"
+  pages[#pages + 1] = "About"
+  return pages
 end
 
 function T.ButtonMode(props)
@@ -693,12 +777,7 @@ end
 -- <<< atem_topology.lua
 
 function PageList(props)
-  local topo = AtemTopology.Resolve(props)
-  local pages = {}
-  for me = 1, topo.MEs do pages[#pages + 1] = "M/E " .. me end
-  pages[#pages + 1] = "Setup"
-  pages[#pages + 1] = "About"
-  return pages
+  return AtemTopology.Pages(AtemTopology.Resolve(props))
 end
 
 function GetColor(props)
@@ -744,6 +823,14 @@ table.insert(props, { Name = "Custom Streaming / Recording", Type = "boolean", V
 table.insert(props, {
   -- Buttons per source on the M/E buses. The combo boxes always list every source.
   Name = "Source Buttons",
+  Type = "enum",
+  Choices = { "All Sources", "Inputs Only", "None" },
+  Value = "All Sources",
+})
+table.insert(props, {
+  -- Buttons per source on every aux output (combo boxes always list every source).
+  -- Large switchers: up to 48 aux x 100 sources - use "Inputs Only" or "None" there.
+  Name = "Aux Buttons",
   Type = "enum",
   Choices = { "All Sources", "Inputs Only", "None" },
   Value = "All Sources",
@@ -824,7 +911,8 @@ TextOut("Last Error")
 TextOut("Reconnects")
 
 -- Source names as reported by the switcher (for UCI labels)
-for _, id in ipairs(AtemTopology.ButtonSourceUnion(topo, mode)) do
+local _, named = AtemTopology.NamePlacement(topo, props)
+for _, id in ipairs(named) do
   TextOut("Name " .. AtemTopology.SourceKey(id))
 end
 
@@ -852,6 +940,41 @@ for me = 1, topo.MEs do
   for k = 1, topo.USKs do
     Toggle(p .. "Next Key " .. k)
     Toggle(p .. "Key " .. k .. " On Air")
+    TextIn(p .. "Key " .. k .. " Fill")   -- combo box
+    TextIn(p .. "Key " .. k .. " Key")    -- combo box (key / cut source)
+    TextOut(p .. "Key " .. k .. " Type")
+  end
+end
+
+-- Downstream keyers
+for n = 1, topo.DSKs do
+  local p = "DSK " .. n .. " "
+  Toggle(p .. "On Air")
+  Toggle(p .. "Tie")
+  Toggle(p .. "Auto")              -- lit while the DSK mixes
+  Led(p .. "In Transition")
+  TextIn(p .. "Rate")              -- "s:ff"
+  TextIn(p .. "Fill")              -- combo box
+  TextIn(p .. "Key")               -- combo box
+end
+
+-- Aux outputs
+local auxMode = AtemTopology.AuxMode(props)
+for aux = 1, topo.Aux do
+  TextIn("Aux " .. aux)            -- combo box
+  for _, id in ipairs(AtemTopology.AuxButtonSources(topo, aux, auxMode)) do
+    Toggle("Aux " .. aux .. " " .. AtemTopology.SourceKey(id))
+  end
+end
+
+-- SuperSource boxes
+local boxIds = AtemTopology.BoxButtonSources(topo, mode)
+for ss = 1, topo.SuperSources do
+  for box = 1, AtemTopology.BOXES do
+    local p = "SS" .. ss .. " Box " .. box .. " "
+    Toggle(p .. "Enable")
+    TextIn(p .. "Source")          -- combo box
+    for _, id in ipairs(boxIds) do Toggle(p .. AtemTopology.SourceKey(id)) end
   end
 end
 -- <<< controls.lua
@@ -902,40 +1025,91 @@ local W, H = 640, 400
 local y = LevoBrand.HeaderHeight + 2 + 10
 
 local BW, BH, GAP = 60, 40, 4   -- source buttons
+local NAME_H = 16
+local nameOwner = AtemTopology.NamePlacement(topo, props)
+local FLAT = { Style = "Text", Color = C.Porcelain, StrokeWidth = 0, FontSize = 11, TextColor = C.Onyx, HTextAlign = "Left" }
+
+local function GridShape(n)
+  local rows = math.max(1, math.ceil(n / 16))
+  return math.max(1, math.ceil(n / rows)), rows
+end
+
+-- Buttons for `ids`; name(id) -> control name, pretty(id) -> pretty name
+local function SourceGrid(ids, x, gy, color, name, pretty)
+  local cols, rows = GridShape(#ids)
+  for i, id in ipairs(ids) do
+    local _, short = AtemTopology.SourceKey(id)
+    local col, row = (i - 1) % cols, (i - 1) // cols
+    Button(name(id), pretty(id), short, x + col * (BW + GAP), gy + row * (BH + GAP), BW, BH, color)
+  end
+  return rows * (BH + GAP)
+end
+
+-- Source names (from the switcher) in the grid columns of `ids`, for the ones
+-- this grid owns. Returns the height used (0 when there is nothing to place).
+local function NameGrid(gridKey, ids, x, gy)
+  local owned = {}
+  for _, id in ipairs(nameOwner[gridKey] or {}) do owned[id] = true end
+  if not next(owned) then return 0 end
+  local cols, rows = GridShape(#ids)
+  for i, id in ipairs(ids) do
+    if owned[id] then
+      local key = AtemTopology.SourceKey(id)
+      local col, row = (i - 1) % cols, (i - 1) // cols
+      Place("Name " .. key, "Source Names~" .. key, x + col * (BW + GAP), gy + row * (NAME_H + 2), BW, NAME_H,
+        { Style = "Text", Color = C.Porcelain, StrokeWidth = 0, FontSize = 9, TextColor = C.Mid, HTextAlign = "Center" })
+    end
+  end
+  return rows * (NAME_H + 2) + 4
+end
+
+local function GridWidth(n)
+  local cols = GridShape(n)
+  return cols * (BW + GAP) - GAP
+end
+
+local function NoButtons(prop, x, gy, w)
+  Label("Source buttons are off (property \"" .. prop .. "\") - use the combo box.", x, gy, w, 18,
+    { size = 10, color = C.Mid })
+  return 24
+end
+
 local meIndex = CurrentPage and tonumber(CurrentPage:match("^M/E (%d+)$"))
+local auxFirst, auxLast = nil, nil
+if CurrentPage == "Aux" then
+  auxFirst, auxLast = 1, topo.Aux
+elseif CurrentPage then
+  local f, l = CurrentPage:match("^Aux (%d+)%-(%d+)$")
+  if f then auxFirst, auxLast = tonumber(f), tonumber(l) end
+end
+local ssIndex = nil
+if CurrentPage == "SuperSource" then ssIndex = 1
+elseif CurrentPage then ssIndex = tonumber(CurrentPage:match("^SuperSource (%d+)$")) end
 
 if meIndex then
   local me = meIndex
   local p = "ME" .. me .. " "
   local g = "M/E " .. me .. "~"
   local ids = AtemTopology.MEButtonSources(topo, me, mode)
-  local n = #ids
-  local rows = math.max(1, math.ceil(n / 16))
-  local cols = math.max(1, math.ceil(n / rows))
-  local gridW = cols * (BW + GAP) - GAP
-  local contentW = math.max(gridW, 760)
+  local contentW = math.max(GridWidth(#ids), 760)
   W = M * 2 + contentW
 
   local function Bus(bus, color)
     y = Section(bus, M, y, contentW)
     Label(bus .. " source", M + contentW - 330, y - 28, 120, 20, { align = "Right", color = C.Mid })
     Place(p .. bus, g .. bus .. "~Source", M + contentW - 200, y - 28, 200, 20, { Style = "ComboBox" })
-    for i, id in ipairs(ids) do
-      local key, short = AtemTopology.SourceKey(id)
-      local col, row = (i - 1) % cols, (i - 1) // cols
-      Button(p .. bus .. " " .. key, g .. bus .. "~" .. key, short,
-        M + col * (BW + GAP), y + row * (BH + GAP), BW, BH, color)
-    end
-    if n == 0 then
-      Label("Source buttons are off (property \"Source Buttons\") - use the combo box.", M, y, contentW, 18,
-        { size = 10, color = C.Mid })
-      y = y + 24
+    if #ids == 0 then
+      y = y + NoButtons("Source Buttons", M, y, contentW)
     else
-      y = y + rows * (BH + GAP) + 8
+      y = y + SourceGrid(ids, M, y, color,
+        function(id) return p .. bus .. " " .. AtemTopology.SourceKey(id) end,
+        function(id) return g .. bus .. "~" .. AtemTopology.SourceKey(id) end) + 4
     end
   end
   Bus("Preview", C.TallyGreen)
+  y = y + NameGrid("me" .. me, ids, M, y)
   Bus("Program", C.TallyRed)
+  y = y + 4
 
   -- Transition area: settings on the left, Cut / Auto / T-bar / FTB on the right
   y = Section("Transition", M, y, contentW)
@@ -984,8 +1158,110 @@ if meIndex then
   Button(p .. "Fade to Black", g .. "Fade to Black~Fade to Black", "FTB", rx + 190, y, 90, 56, C.TallyRed, { FontSize = 14 })
   Label("FTB rate", rx + 190, y + 64, 90, 16, { size = 10, color = C.Mid })
   Place(p .. "Fade to Black Rate", g .. "Fade to Black~Rate", rx + 190, y + 80, 90, 22, { Style = "Text" })
+  y = math.max(leftBottom, top + 160)
 
-  H = math.max(leftBottom, top + 160) + M
+  -- Downstream keyers act on the program output: on the first M/E page
+  if me == 1 and topo.DSKs > 0 then
+    y = Section("Downstream Keys", M, y, contentW)
+    local gw = 380
+    for n = 1, topo.DSKs do
+      local col, row = (n - 1) % 2, (n - 1) // 2
+      local x, ry = M + col * gw, y + row * 38
+      local d, dg = "DSK " .. n .. " ", "DSK " .. n .. "~"
+      Label("DSK " .. n, x, ry + 7, 44, 18, { style = "Bold" })
+      Button(d .. "Tie", dg .. "Tie", "TIE", x + 48, ry, 56, 30, C.Amber, { FontSize = 10 })
+      Button(d .. "On Air", dg .. "On Air", "ON AIR", x + 108, ry, 64, 30, C.TallyRed, { FontSize = 10 })
+      Button(d .. "Auto", dg .. "Auto", "AUTO", x + 176, ry, 56, 30, C.TallyRed, { FontSize = 10 })
+      Place(d .. "In Transition", dg .. "In Transition", x + 238, ry + 8, 14, 14, { Color = C.Amber })
+      Label("Rate", x + 256, ry + 7, 36, 18, { align = "Right", size = 10, color = C.Mid })
+      Place(d .. "Rate", dg .. "Rate", x + 296, ry + 4, 60, 22, { Style = "Text" })
+    end
+    y = y + math.ceil(topo.DSKs / 2) * 38
+  end
+  H = y + M
+
+elseif CurrentPage == "Keyers" then
+  W = 760
+  local cw = W - 2 * M
+  local function Header(cols)
+    for _, c in ipairs(cols) do Label(c[1], c[2], y, c[3], 16, { size = 10, color = C.Mid }) end
+    y = y + 18
+  end
+  for me = 1, (topo.USKs > 0 and topo.MEs or 0) do
+    local p, g = "ME" .. me .. " ", "M/E " .. me .. "~"
+    y = Section((topo.MEs > 1 and ("M/E " .. me .. " ") or "") .. "Upstream Keys", M, y, cw)
+    Header({ { "Type", M + 70, 80 }, { "Fill source", M + 170, 200 }, { "Key source", M + 390, 200 } })
+    for k = 1, topo.USKs do
+      local q = p .. "Key " .. k .. " "
+      Label("Key " .. k, M, y + 2, 60, 18, { style = "Bold" })
+      Place(q .. "Type", g .. "Keyers~Key " .. k .. " Type", M + 70, y, 90, 22, FLAT)
+      Place(q .. "Fill", g .. "Keyers~Key " .. k .. " Fill", M + 170, y, 200, 22, { Style = "ComboBox" })
+      Place(q .. "Key", g .. "Keyers~Key " .. k .. " Key", M + 390, y, 200, 22, { Style = "ComboBox" })
+      y = y + 28
+    end
+    y = y + 6
+  end
+  if topo.DSKs > 0 then
+    y = Section("Downstream Keys", M, y, cw)
+    Header({ { "Fill source", M + 170, 200 }, { "Key source", M + 390, 200 } })
+    for n = 1, topo.DSKs do
+      local d, dg = "DSK " .. n .. " ", "DSK " .. n .. "~"
+      Label("DSK " .. n, M, y + 2, 60, 18, { style = "Bold" })
+      Place(d .. "Fill", dg .. "Fill", M + 170, y, 200, 22, { Style = "ComboBox" })
+      Place(d .. "Key", dg .. "Key", M + 390, y, 200, 22, { Style = "ComboBox" })
+      y = y + 28
+    end
+    Label("On Air, Tie, Auto and Rate of the downstream keys are on page M/E 1.", M, y + 2, cw, 16,
+      { size = 10, color = C.Mid })
+    y = y + 22
+  end
+  H = y + M
+
+elseif auxFirst then
+  local auxMode = AtemTopology.AuxMode(props)
+  local widest = 0
+  for aux = auxFirst, auxLast do
+    widest = math.max(widest, GridWidth(#AtemTopology.AuxButtonSources(topo, aux, auxMode)))
+  end
+  local contentW = math.max(widest, 760)
+  W = M * 2 + contentW
+  for aux = auxFirst, auxLast do
+    local ids = AtemTopology.AuxButtonSources(topo, aux, auxMode)
+    y = Section("Aux " .. aux, M, y, contentW)
+    Label("Source", M + contentW - 330, y - 28, 120, 20, { align = "Right", color = C.Mid })
+    Place("Aux " .. aux, "Aux " .. aux .. "~Source", M + contentW - 200, y - 28, 200, 20, { Style = "ComboBox" })
+    if #ids == 0 then
+      y = y + NoButtons("Aux Buttons", M, y, contentW)
+    else
+      y = y + SourceGrid(ids, M, y, C.Amber,
+        function(id) return "Aux " .. aux .. " " .. AtemTopology.SourceKey(id) end,
+        function(id) return "Aux " .. aux .. "~" .. AtemTopology.SourceKey(id) end)
+      y = y + NameGrid("aux" .. aux, ids, M, y) + 6
+    end
+  end
+  H = y + M
+
+elseif ssIndex then
+  local ss = ssIndex
+  local ids = AtemTopology.BoxButtonSources(topo, mode)
+  local contentW = math.max(GridWidth(#ids), 760)
+  W = M * 2 + contentW
+  for box = 1, AtemTopology.BOXES do
+    local p, g = "SS" .. ss .. " Box " .. box .. " ", "Box " .. box .. "~"
+    y = Section("Box " .. box, M, y, contentW)
+    Button(p .. "Enable", g .. "Enable", "ENABLE", M + contentW - 420, y - 30, 80, 24, C.Amber, { FontSize = 10 })
+    Label("Source", M + contentW - 330, y - 28, 120, 20, { align = "Right", color = C.Mid })
+    Place(p .. "Source", g .. "Source", M + contentW - 200, y - 28, 200, 20, { Style = "ComboBox" })
+    if #ids == 0 then
+      y = y + NoButtons("Source Buttons", M, y, contentW)
+    else
+      y = y + SourceGrid(ids, M, y, C.Amber,
+        function(id) return p .. AtemTopology.SourceKey(id) end,
+        function(id) return g .. AtemTopology.SourceKey(id) end)
+      y = y + NameGrid("ss" .. ss .. "." .. box, ids, M, y) + 6
+    end
+  end
+  H = y + M
 
 elseif CurrentPage == "Setup" then
   local lw, fx = 120, M + 128
@@ -996,7 +1272,6 @@ elseif CurrentPage == "Setup" then
     Place(name, pretty, fx, y, w, 22, extra)
     y = y + 28
   end
-  local FLAT = { Style = "Text", Color = C.Porcelain, StrokeWidth = 0, FontSize = 11, TextColor = C.Onyx, HTextAlign = "Left" }
   Row("IP Address", "IP Address", "Setup~IP Address", 160, { Style = "Text" })
   Label("Status", M, y + 1, lw, 20, { align = "Right" })
   Place("Status", "Status", fx, y, 360, 22)
@@ -1014,19 +1289,6 @@ elseif CurrentPage == "Setup" then
   Row("Reconnects", "Reconnects", "Debug~Reconnects", 80, { Style = "Text" })
   y = y + 6
 
-  local ids = AtemTopology.ButtonSourceUnion(topo, mode)
-  if #ids > 0 then
-    y = Section("Source Names (from switcher)", M, y, W - 2 * M)
-    local cols, cw = 3, (W - 2 * M) // 3
-    for i, id in ipairs(ids) do
-      local key = AtemTopology.SourceKey(id)
-      local col, row = (i - 1) % cols, (i - 1) // cols
-      local x, ry = M + col * cw, y + row * 24
-      Label(key, x, ry + 1, 90, 18, { align = "Right", size = 10, color = C.Mid })
-      Place("Name " .. key, "Source Names~" .. key, x + 96, ry, cw - 104, 20, FLAT)
-    end
-    y = y + math.ceil(#ids / cols) * 24 + 6
-  end
   H = y + M
 
 elseif CurrentPage == "About" then
@@ -1418,6 +1680,9 @@ function S.New()
     inputs = {},          -- [source id] = { long, short, port, sa, me, default }
     inputOrder = {},
     me = {},
+    dsk = {},             -- [n] = { onAir, inTransition, isAuto, tie, rate, fill, key }
+    aux = {},             -- [n] = source id
+    ss = {},              -- [n] = { boxes = { [b] = { enabled, source } } }
     initDone = false,
   }
 end
@@ -1429,7 +1694,7 @@ local function ME(st, i)
       program = nil, preview = nil, inTransition = false, remaining = 0, handle = 0,
       style = 0, selection = 1, nextStyle = 0, nextSelection = 1, previewTransition = false,
       ftbBlack = false, ftbInTransition = false, ftbRate = 0,
-      rates = {}, keyOnAir = {},
+      rates = {}, keyOnAir = {}, keys = {},
     }
     st.me[i] = m
   end
@@ -1549,6 +1814,68 @@ D["KeOn"] = function(st, d)
   return "me"
 end
 
+-- protocol 2.29 (firmware 8.0.1) and later
+local function V801(st) return st.version >= 0x0002001d end
+-- protocol 2.28 (firmware 8.0) and later
+local function V80(st) return st.version >= 0x0002001c end
+S.V80, S.V801 = V80, V801
+
+local function Dsk(st, i)
+  local d = st.dsk[i]
+  if not d then
+    d = { onAir = false, inTransition = false, isAuto = false, tie = false, rate = 0 }
+    st.dsk[i] = d
+  end
+  return d
+end
+
+D["DskS"] = function(st, d)
+  local k = Dsk(st, P.U8(d, 0) + 1)
+  k.onAir = P.U8(d, 1) == 1
+  k.inTransition = P.U8(d, 2) == 1
+  k.isAuto = P.U8(d, 3) == 1
+  return "dsk"
+end
+
+D["DskP"] = function(st, d)
+  local k = Dsk(st, P.U8(d, 0) + 1)
+  k.tie = P.U8(d, 1) == 1
+  k.rate = P.U8(d, 2)
+  return "dsk"
+end
+
+D["DskB"] = function(st, d)
+  local k = Dsk(st, P.U8(d, 0) + 1)
+  k.fill = P.U16(d, 2)
+  k.key = P.U16(d, 4)
+  return "dsk"
+end
+
+D["AuxS"] = function(st, d)
+  st.aux[P.U8(d, 0) + 1] = P.U16(d, 2)
+  return "aux"
+end
+
+D["KeBP"] = function(st, d)
+  local m = ME(st, P.U8(d, 0) + 1)
+  local k = P.U8(d, 1) + 1
+  m.keys[k] = { type = P.U8(d, 2), fill = P.U16(d, 6), key = P.U16(d, 8) }
+  return "me"
+end
+
+D["SSBP"] = function(st, d)
+  local ssId, box, i = 0, nil, 0
+  if V80(st) then
+    ssId, box, i = P.U8(d, 0), P.U8(d, 1), 2
+  else
+    box = P.U8(d, 0)
+  end
+  local ss = st.ss[ssId + 1] or { boxes = {} }
+  st.ss[ssId + 1] = ss
+  ss.boxes[box + 1] = { enabled = P.U8(d, i > 0 and 2 or 1) == 1, source = P.U16(d, i + 2) }
+  return "ss"
+end
+
 D["InCm"] = function(st, d)
   st.initDone = true
   return "init"
@@ -1563,9 +1890,13 @@ function S.Apply(st, name, data)
   if not fn then return nil end
   local ok, key = pcall(fn, st, data)
   if not ok then return "error", key end
-  local me = nil
-  if key == "me" then me = P.U8(data, 0) + 1 end
-  return key, me
+  local index = nil
+  if key == "me" or key == "dsk" or key == "aux" then
+    index = P.U8(data, 0) + 1
+  elseif key == "ss" then
+    index = V80(st) and P.U8(data, 0) + 1 or 1
+  end
+  return key, index
 end
 
 ---------------------------------------------------------------------------
@@ -1588,6 +1919,32 @@ function Cmd.PreviewTransition(me, on) return C("CTPr", W8(me - 1) .. W8(on and 
 function Cmd.NextStyle(me, style) return C("CTTp", W8(1) .. W8(me - 1) .. W8(style) .. "\0") end
 function Cmd.NextSelection(me, mask) return C("CTTp", W8(2) .. W8(me - 1) .. "\0" .. W8(mask)) end
 function Cmd.KeyOnAir(me, key, on) return C("CKOn", W8(me - 1) .. W8(key - 1) .. W8(on and 1 or 0) .. "\0") end
+
+-- Downstream keyers (n: 1-based)
+function Cmd.DskOnAir(n, on) return C("CDsL", W8(n - 1) .. W8(on and 1 or 0) .. "\0\0") end
+function Cmd.DskTie(n, on) return C("CDsT", W8(n - 1) .. W8(on and 1 or 0) .. "\0\0") end
+function Cmd.DskRate(n, rate) return C("CDsR", W8(n - 1) .. W8(rate) .. "\0\0") end
+function Cmd.DskFill(n, source) return C("CDsF", W8(n - 1) .. "\0" .. W16(source)) end
+function Cmd.DskKey(n, source) return C("CDsC", W8(n - 1) .. "\0" .. W16(source)) end
+function Cmd.DskAuto(st, n)
+  if S.V801(st) then return C("DDsA", "\0" .. W8(n - 1) .. "\0\0") end
+  return C("DDsA", W8(n - 1) .. "\0\0\0")
+end
+
+function Cmd.Aux(aux, source) return C("CAuS", W8(1) .. W8(aux - 1) .. W16(source)) end
+
+function Cmd.KeyFill(me, key, source) return C("CKeF", W8(me - 1) .. W8(key - 1) .. W16(source)) end
+function Cmd.KeyKey(me, key, source) return C("CKeC", W8(me - 1) .. W8(key - 1) .. W16(source)) end
+
+-- SuperSource box: flags 1 = enabled, 2 = source
+function Cmd.SuperSourceBox(st, ss, box, enabled, source)
+  local flag = (enabled ~= nil and 1 or 0) | (source and 2 or 0)
+  if S.V80(st) then
+    return C("CSBP", W16(flag) .. W8(ss - 1) .. W8(box - 1) .. W8(enabled and 1 or 0) .. "\0"
+      .. W16(source or 0) .. P.Pad(16))
+  end
+  return C("CSBP", W16(flag) .. W8(box - 1) .. W8(enabled and 1 or 0) .. W16(source or 0) .. P.Pad(18))
+end
 
 -- Transition rate of a style (0 Mix, 1 Dip, 2 Wipe, 3 DVE); nil for styles without rate
 function Cmd.TransitionRate(me, style, rate)
@@ -1668,15 +2025,21 @@ end
 local St = AtemState.New()
 local Ready = false            -- state dump complete
 
--- button sources per M/E (fixed by the design) and the keys of all sources
-local MEButtons = {}
+-- Button sources per bus (fixed by the design)
+local AuxMode = AtemTopology.AuxMode(Properties)
+local MEButtons, AuxButtons = {}, {}
 for me = 1, Topo.MEs do MEButtons[me] = AtemTopology.MEButtonSources(Topo, me, ButtonMode) end
-local NameSources = AtemTopology.ButtonSourceUnion(Topo, ButtonMode)
+for aux = 1, Topo.Aux do AuxButtons[aux] = AtemTopology.AuxButtonSources(Topo, aux, AuxMode) end
+local BoxButtons = AtemTopology.BoxButtonSources(Topo, ButtonMode)
+local _, NameSources = AtemTopology.NamePlacement(Topo, Properties)
+local KeyTypes = { [0] = "Luma", "Chroma", "Pattern", "DVE" }
+
+local function Key(id) return (AtemTopology.SourceKey(id)) end
 
 local function LongName(id)
   local inp = St.inputs[id]
   if inp and inp.long ~= "" then return inp.long end
-  return (AtemTopology.SourceKey(id))
+  return Key(id)
 end
 
 local function ShortName(id)
@@ -1686,25 +2049,65 @@ local function ShortName(id)
   return short
 end
 
--- Combo box lists: name <-> source id per M/E
-local ComboNames = {}   -- [me] = { [id] = name }
-local ComboIds = {}     -- [me] = { [name] = id }
-
-local function MESourceList(me)
+-- Combo box groups: which sources a combo offers, name <-> id per group
+local Combos = {}   -- name -> { controls = {...}, accept = fn(port, sa, me), byId, byName }
+local function AddCombo(name, controls, accept)
+  Combos[name] = { controls = controls, accept = accept, byId = {}, byName = {} }
+end
+for me = 1, Topo.MEs do
   local bit = 1 << (me - 1)
-  if Ready and next(St.inputs) then
-    local ids = {}
-    for _, id in ipairs(St.inputOrder) do
-      if St.inputs[id].me & bit ~= 0 then ids[#ids + 1] = id end
+  AddCombo("me" .. me, { "ME" .. me .. " Program", "ME" .. me .. " Preview" },
+    function(port, sa, meAvail) return meAvail & bit ~= 0 end)
+end
+do
+  local keyControls = {}
+  for me = 1, Topo.MEs do
+    for k = 1, Topo.USKs do
+      keyControls[#keyControls + 1] = "ME" .. me .. " Key " .. k .. " Fill"
+      keyControls[#keyControls + 1] = "ME" .. me .. " Key " .. k .. " Key"
     end
-    return AtemTopology.SortSources(ids, function(id) return St.inputs[id].port end)
   end
-  return AtemTopology.MESources(Topo, me)
+  for n = 1, Topo.DSKs do
+    keyControls[#keyControls + 1] = "DSK " .. n .. " Fill"
+    keyControls[#keyControls + 1] = "DSK " .. n .. " Key"
+  end
+  AddCombo("key", keyControls, function(port, sa) return sa & AtemTopology.Avail.KeySource ~= 0 end)
+end
+for aux = 1, Topo.Aux do
+  AddCombo("aux" .. aux, { "Aux " .. aux }, function(port, sa) return AtemTopology.AuxAvailable(aux, sa) end)
+end
+do
+  local boxControls = {}
+  for ss = 1, Topo.SuperSources do
+    for box = 1, AtemTopology.BOXES do boxControls[#boxControls + 1] = "SS" .. ss .. " Box " .. box .. " Source" end
+  end
+  AddCombo("box", boxControls, function(port, sa) return sa & AtemTopology.Avail.SuperSourceBox ~= 0 end)
+end
+
+-- Sources of the switcher (after the state dump), else of the model table
+local function AllSources()
+  local list = {}
+  if Ready and next(St.inputs) then
+    for _, id in ipairs(St.inputOrder) do
+      local inp = St.inputs[id]
+      list[#list + 1] = { id, inp.port, inp.sa, inp.me }
+    end
+  else
+    list = Topo.Sources
+  end
+  return list
 end
 
 local function BuildCombos()
-  for me = 1, Topo.MEs do
-    local ids = MESourceList(me)
+  local sources = AllSources()
+  local portOf = {}
+  for _, s in ipairs(sources) do portOf[s[1]] = s[2] end
+  for _, combo in pairs(Combos) do
+    local ids = {}
+    for _, s in ipairs(sources) do
+      if combo.accept(s[2], s[3], s[4]) then ids[#ids + 1] = s[1] end
+    end
+    ids = AtemTopology.SortSources(ids, function(id) return portOf[id] end)
     local count = {}
     for _, id in ipairs(ids) do
       local n = LongName(id)
@@ -1713,33 +2116,44 @@ local function BuildCombos()
     local names, byId, byName = {}, {}, {}
     for _, id in ipairs(ids) do
       local n = LongName(id)
-      if count[n] > 1 then n = n .. " (" .. AtemTopology.SourceKey(id) .. ")" end
+      if count[n] > 1 then n = n .. " (" .. Key(id) .. ")" end
       names[#names + 1] = n
       byId[id], byName[n] = n, id
     end
-    ComboNames[me], ComboIds[me] = byId, byName
-    SetChoices("ME" .. me .. " Program", names)
-    SetChoices("ME" .. me .. " Preview", names)
+    combo.byId, combo.byName = byId, byName
+    for _, c in ipairs(combo.controls) do SetChoices(c, names) end
   end
+end
+
+local function ComboName(group, id)
+  if id == nil then return "" end
+  return Combos[group].byId[id] or LongName(id)
+end
+
+local function ComboId(group, name)
+  return Combos[group].byName[name]
 end
 
 local function RenderNames()
   for _, id in ipairs(NameSources) do
-    SetString("Name " .. AtemTopology.SourceKey(id), Ready and LongName(id) or "")
+    SetString("Name " .. Key(id), Ready and LongName(id) or "")
   end
   if DeviceLegends and Ready then
-    for me = 1, Topo.MEs do
-      for _, id in ipairs(MEButtons[me]) do
-        local key, short = AtemTopology.SourceKey(id), ShortName(id)
-        SetLegend("ME" .. me .. " Program " .. key, short)
-        SetLegend("ME" .. me .. " Preview " .. key, short)
+    local function legends(prefixes, ids)
+      for _, id in ipairs(ids) do
+        for _, p in ipairs(prefixes) do SetLegend(p .. Key(id), ShortName(id)) end
       end
+    end
+    for me = 1, Topo.MEs do legends({ "ME" .. me .. " Program ", "ME" .. me .. " Preview " }, MEButtons[me]) end
+    for aux = 1, Topo.Aux do legends({ "Aux " .. aux .. " " }, AuxButtons[aux]) end
+    for ss = 1, Topo.SuperSources do
+      for box = 1, AtemTopology.BOXES do legends({ "SS" .. ss .. " Box " .. box .. " " }, BoxButtons) end
     end
   end
 end
 
 ---------------------------------------------------------------------------
--- M/E rendering
+-- Rendering
 ---------------------------------------------------------------------------
 local TBarTouched = {}   -- [me] = time of the last user move
 
@@ -1749,35 +2163,18 @@ local function Fps()
 end
 
 local function RenderME(me)
-  local m = St.me[me]
+  local m = Ready and St.me[me] or nil
   local p = "ME" .. me .. " "
-  if not (Ready and m) then
-    for _, id in ipairs(MEButtons[me]) do
-      local key = AtemTopology.SourceKey(id)
-      SetBool(p .. "Program " .. key, false)
-      SetBool(p .. "Preview " .. key, false)
-    end
-    SetString(p .. "Program", "")
-    SetString(p .. "Preview", "")
-    for _, n in ipairs({ "Auto", "In Transition", "Fade to Black", "Preview Transition", "Next Background" }) do
-      SetBool(p .. n, false)
-    end
-    for _, style in ipairs(AtemTopology.TransitionStyles) do SetBool(p .. "Style " .. style, false) end
-    for k = 1, Topo.USKs do
-      SetBool(p .. "Next Key " .. k, false)
-      SetBool(p .. "Key " .. k .. " On Air", false)
-    end
-    return
-  end
+  m = m or { inTransition = false, handle = 0, ftbBlack = false, ftbInTransition = false, ftbRate = 0,
+    nextStyle = -1, nextSelection = 0, previewTransition = false, rates = {}, keyOnAir = {}, keys = {} }
 
   for _, id in ipairs(MEButtons[me]) do
-    local key = AtemTopology.SourceKey(id)
+    local key = Key(id)
     SetBool(p .. "Program " .. key, m.program == id)
     SetBool(p .. "Preview " .. key, m.preview == id)
   end
-  local names = ComboNames[me] or {}
-  SetString(p .. "Program", m.program and (names[m.program] or LongName(m.program)) or "")
-  SetString(p .. "Preview", m.preview and (names[m.preview] or LongName(m.preview)) or "")
+  SetString(p .. "Program", ComboName("me" .. me, m.program))
+  SetString(p .. "Preview", ComboName("me" .. me, m.preview))
 
   SetBool(p .. "Auto", m.inTransition)
   SetBool(p .. "In Transition", m.inTransition)
@@ -1785,7 +2182,7 @@ local function RenderME(me)
     SetPosition(p .. "T-Bar", m.inTransition and m.handle / 10000 or 0)
   end
   SetBool(p .. "Fade to Black", m.ftbBlack or m.ftbInTransition)
-  if m.ftbRate > 0 then SetString(p .. "Fade to Black Rate", AtemTopology.FormatRate(m.ftbRate, Fps())) end
+  SetString(p .. "Fade to Black Rate", m.ftbRate > 0 and AtemTopology.FormatRate(m.ftbRate, Fps()) or "")
 
   for i, style in ipairs(AtemTopology.TransitionStyles) do
     SetBool(p .. "Style " .. style, m.nextStyle == i - 1)
@@ -1796,18 +2193,67 @@ local function RenderME(me)
   SetBool(p .. "Preview Transition", m.previewTransition)
   SetBool(p .. "Next Background", m.nextSelection & 1 ~= 0)
   for k = 1, Topo.USKs do
+    local q = p .. "Key " .. k .. " "
     SetBool(p .. "Next Key " .. k, m.nextSelection & (1 << k) ~= 0)
-    SetBool(p .. "Key " .. k .. " On Air", m.keyOnAir[k] == true)
+    SetBool(q .. "On Air", m.keyOnAir[k] == true)
+    local key = m.keys[k]
+    SetString(q .. "Fill", key and ComboName("key", key.fill) or "")
+    SetString(q .. "Key", key and ComboName("key", key.key) or "")
+    SetString(q .. "Type", key and (KeyTypes[key.type] or ("Type " .. key.type)) or "")
   end
 end
 
-local Dirty = { me = {}, names = false }
+local function RenderDSK(n)
+  local d = Ready and St.dsk[n] or {}
+  local p = "DSK " .. n .. " "
+  SetBool(p .. "On Air", d.onAir == true)
+  SetBool(p .. "Tie", d.tie == true)
+  SetBool(p .. "Auto", d.isAuto == true and d.inTransition == true)
+  SetBool(p .. "In Transition", d.inTransition == true)
+  SetString(p .. "Rate", (d.rate or 0) > 0 and AtemTopology.FormatRate(d.rate, Fps()) or "")
+  SetString(p .. "Fill", ComboName("key", d.fill))
+  SetString(p .. "Key", ComboName("key", d.key))
+end
+
+local function RenderAux(aux)
+  local src = Ready and St.aux[aux] or nil
+  for _, id in ipairs(AuxButtons[aux]) do SetBool("Aux " .. aux .. " " .. Key(id), src == id) end
+  SetString("Aux " .. aux, ComboName("aux" .. aux, src))
+end
+
+local function RenderSS(ss)
+  local boxes = Ready and St.ss[ss] and St.ss[ss].boxes or {}
+  for box = 1, AtemTopology.BOXES do
+    local b = boxes[box] or {}
+    local p = "SS" .. ss .. " Box " .. box .. " "
+    SetBool(p .. "Enable", b.enabled == true)
+    for _, id in ipairs(BoxButtons) do SetBool(p .. Key(id), b.source == id) end
+    SetString(p .. "Source", ComboName("box", b.source))
+  end
+end
+
+local Dirty = { me = {}, dsk = {}, aux = {}, ss = {}, names = false }
 
 local function RenderAll()
   BuildCombos()
   RenderNames()
   for me = 1, Topo.MEs do RenderME(me) end
-  Dirty.me, Dirty.names = {}, false
+  for n = 1, Topo.DSKs do RenderDSK(n) end
+  for aux = 1, Topo.Aux do RenderAux(aux) end
+  for ss = 1, Topo.SuperSources do RenderSS(ss) end
+  Dirty = { me = {}, dsk = {}, aux = {}, ss = {}, names = false }
+end
+
+local function RenderDirty()
+  if Dirty.names then
+    RenderAll()
+    return
+  end
+  for me in pairs(Dirty.me) do if me <= Topo.MEs then RenderME(me) end end
+  for n in pairs(Dirty.dsk) do if n <= Topo.DSKs then RenderDSK(n) end end
+  for aux in pairs(Dirty.aux) do if aux <= Topo.Aux then RenderAux(aux) end end
+  for ss in pairs(Dirty.ss) do if ss <= Topo.SuperSources then RenderSS(ss) end end
+  Dirty = { me = {}, dsk = {}, aux = {}, ss = {}, names = false }
 end
 
 ---------------------------------------------------------------------------
@@ -1925,14 +2371,14 @@ local function OnCommand(name, data)
     return
   end
   if DebugLevel >= 2 and Ready then Log(2, ("< %s %s"):format(name, AtemProtocol.Hex(data, 24))) end
-  if key == "me" then
-    if me then Dirty.me[me] = true end
+  if key == "me" or key == "dsk" or key == "aux" or key == "ss" then
+    if me then Dirty[key][me] = true end
   elseif key == "input" then
     Dirty.names = true
   elseif key == "device" then
     if Ready then RenderDevice() end
   elseif key == "video" then
-    for i = 1, Topo.MEs do Dirty.me[i] = true end
+    Dirty.names = true   -- rates are shown in s:ff: render everything
   elseif key == "init" then
     OnInitDone()
   end
@@ -2036,16 +2482,7 @@ MainTimer.EventHandler = function()
     SetString("Status", ("%s - retry in %ds"):format(Conn.retryReason, math.ceil(Conn.retryAt - Now - 1e-6)))
   end
   Session:Tick(Now)
-  if Ready then
-    if Dirty.names then
-      BuildCombos()
-      RenderNames()
-      for me = 1, Topo.MEs do Dirty.me[me] = true end
-      Dirty.names = false
-    end
-    for me in pairs(Dirty.me) do RenderME(me) end
-    Dirty.me = {}
-  end
+  if Ready then RenderDirty() end
 end
 
 ---------------------------------------------------------------------------
@@ -2069,7 +2506,7 @@ for me = 1, Topo.MEs do
       end
     end
     Controls[p .. bus].EventHandler = function(c)
-      local id = ComboIds[me] and ComboIds[me][c.String]
+      local id = ComboId("me" .. me, c.String)
       if id then
         Send(make(me, id), ("M/E %d %s: %s"):format(me, bus, c.String))
       else
@@ -2160,6 +2597,108 @@ for me = 1, Topo.MEs do
       local on = not (m and m.keyOnAir[k])
       Send(Cmd.KeyOnAir(me, k, on), ("M/E %d Key %d %s"):format(me, k, on and "on air" or "off air"))
       AfterInput(me)
+    end
+  end
+end
+
+-- Upstream keyer sources
+for me = 1, Topo.MEs do
+  for k = 1, Topo.USKs do
+    local q = "ME" .. me .. " Key " .. k .. " "
+    for _, part in ipairs({ "Fill", "Key" }) do
+      Controls[q .. part].EventHandler = function(c)
+        local id = ComboId("key", c.String)
+        if id then
+          local make = part == "Fill" and Cmd.KeyFill or Cmd.KeyKey
+          Send(make(me, k, id), ("M/E %d Key %d %s: %s"):format(me, k, part, c.String))
+        end
+        RenderME(me)
+      end
+    end
+  end
+end
+
+-- Downstream keyers
+for n = 1, Topo.DSKs do
+  local p = "DSK " .. n .. " "
+  local function D() return St.dsk[n] or {} end
+  Controls[p .. "On Air"].EventHandler = function()
+    local on = not D().onAir
+    Send(Cmd.DskOnAir(n, on), ("DSK %d %s"):format(n, on and "on air" or "off air"))
+    RenderDSK(n)
+  end
+  Controls[p .. "Tie"].EventHandler = function()
+    local on = not D().tie
+    Send(Cmd.DskTie(n, on), ("DSK %d tie %s"):format(n, on and "on" or "off"))
+    RenderDSK(n)
+  end
+  Controls[p .. "Auto"].EventHandler = function()
+    Send(Cmd.DskAuto(St, n), ("DSK %d auto"):format(n))
+    RenderDSK(n)
+  end
+  Controls[p .. "Rate"].EventHandler = function(c)
+    local frames = AtemTopology.ParseRate(c.String, Fps())
+    if frames then
+      Send(Cmd.DskRate(n, frames), ("DSK %d rate %s (%d frames)"):format(n, c.String, frames), "dskrate" .. n)
+    else
+      Log(1, ("DSK %d: invalid rate '%s' (use s:ff, e.g. 1:00)"):format(n, c.String))
+    end
+    RenderDSK(n)
+  end
+  for _, part in ipairs({ "Fill", "Key" }) do
+    Controls[p .. part].EventHandler = function(c)
+      local id = ComboId("key", c.String)
+      if id then
+        local make = part == "Fill" and Cmd.DskFill or Cmd.DskKey
+        Send(make(n, id), ("DSK %d %s: %s"):format(n, part, c.String))
+      end
+      RenderDSK(n)
+    end
+  end
+end
+
+-- Aux outputs
+for aux = 1, Topo.Aux do
+  for _, id in ipairs(AuxButtons[aux]) do
+    Controls["Aux " .. aux .. " " .. Key(id)].EventHandler = function()
+      Send(Cmd.Aux(aux, id), ("Aux %d: %s"):format(aux, Key(id)))
+      RenderAux(aux)
+    end
+  end
+  Controls["Aux " .. aux].EventHandler = function(c)
+    local id = ComboId("aux" .. aux, c.String)
+    if id then
+      Send(Cmd.Aux(aux, id), ("Aux %d: %s"):format(aux, c.String))
+    else
+      Log(1, ("Aux %d: unknown source '%s'"):format(aux, c.String))
+    end
+    RenderAux(aux)
+  end
+end
+
+-- SuperSource boxes
+for ss = 1, Topo.SuperSources do
+  for box = 1, AtemTopology.BOXES do
+    local p = "SS" .. ss .. " Box " .. box .. " "
+    local function B()
+      local s = St.ss[ss]
+      return s and s.boxes[box] or {}
+    end
+    Controls[p .. "Enable"].EventHandler = function()
+      local on = not B().enabled
+      Send(Cmd.SuperSourceBox(St, ss, box, on, nil), ("SuperSource %d box %d %s"):format(ss, box, on and "on" or "off"))
+      RenderSS(ss)
+    end
+    local function SetSource(id, what)
+      Send(Cmd.SuperSourceBox(St, ss, box, nil, id), ("SuperSource %d box %d: %s"):format(ss, box, what))
+      RenderSS(ss)
+    end
+    for _, id in ipairs(BoxButtons) do
+      Controls[p .. Key(id)].EventHandler = function() SetSource(id, Key(id)) end
+    end
+    Controls[p .. "Source"].EventHandler = function(c)
+      local id = ComboId("box", c.String)
+      if id then SetSource(id, c.String) else RenderSS(ss) end
     end
   end
 end

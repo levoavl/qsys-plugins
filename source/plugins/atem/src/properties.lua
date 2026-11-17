@@ -26,6 +26,14 @@ table.insert(props, {
   Value = "All Sources",
 })
 table.insert(props, {
+  -- Buttons per source on every aux output (combo boxes always list every source).
+  -- Large switchers: up to 48 aux x 100 sources - use "Inputs Only" or "None" there.
+  Name = "Aux Buttons",
+  Type = "enum",
+  Choices = { "All Sources", "Inputs Only", "None" },
+  Value = "All Sources",
+})
+table.insert(props, {
   -- "Device Names" writes the switcher's short source names as button legends.
   -- That overrides any legend set on UCI copies of the buttons, hence off by default.
   Name = "Button Legends",

@@ -19,6 +19,9 @@ function S.New()
     inputs = {},          -- [source id] = { long, short, port, sa, me, default }
     inputOrder = {},
     me = {},
+    dsk = {},             -- [n] = { onAir, inTransition, isAuto, tie, rate, fill, key }
+    aux = {},             -- [n] = source id
+    ss = {},              -- [n] = { boxes = { [b] = { enabled, source } } }
     initDone = false,
   }
 end
@@ -30,7 +33,7 @@ local function ME(st, i)
       program = nil, preview = nil, inTransition = false, remaining = 0, handle = 0,
       style = 0, selection = 1, nextStyle = 0, nextSelection = 1, previewTransition = false,
       ftbBlack = false, ftbInTransition = false, ftbRate = 0,
-      rates = {}, keyOnAir = {},
+      rates = {}, keyOnAir = {}, keys = {},
     }
     st.me[i] = m
   end
@@ -150,6 +153,68 @@ D["KeOn"] = function(st, d)
   return "me"
 end
 
+-- protocol 2.29 (firmware 8.0.1) and later
+local function V801(st) return st.version >= 0x0002001d end
+-- protocol 2.28 (firmware 8.0) and later
+local function V80(st) return st.version >= 0x0002001c end
+S.V80, S.V801 = V80, V801
+
+local function Dsk(st, i)
+  local d = st.dsk[i]
+  if not d then
+    d = { onAir = false, inTransition = false, isAuto = false, tie = false, rate = 0 }
+    st.dsk[i] = d
+  end
+  return d
+end
+
+D["DskS"] = function(st, d)
+  local k = Dsk(st, P.U8(d, 0) + 1)
+  k.onAir = P.U8(d, 1) == 1
+  k.inTransition = P.U8(d, 2) == 1
+  k.isAuto = P.U8(d, 3) == 1
+  return "dsk"
+end
+
+D["DskP"] = function(st, d)
+  local k = Dsk(st, P.U8(d, 0) + 1)
+  k.tie = P.U8(d, 1) == 1
+  k.rate = P.U8(d, 2)
+  return "dsk"
+end
+
+D["DskB"] = function(st, d)
+  local k = Dsk(st, P.U8(d, 0) + 1)
+  k.fill = P.U16(d, 2)
+  k.key = P.U16(d, 4)
+  return "dsk"
+end
+
+D["AuxS"] = function(st, d)
+  st.aux[P.U8(d, 0) + 1] = P.U16(d, 2)
+  return "aux"
+end
+
+D["KeBP"] = function(st, d)
+  local m = ME(st, P.U8(d, 0) + 1)
+  local k = P.U8(d, 1) + 1
+  m.keys[k] = { type = P.U8(d, 2), fill = P.U16(d, 6), key = P.U16(d, 8) }
+  return "me"
+end
+
+D["SSBP"] = function(st, d)
+  local ssId, box, i = 0, nil, 0
+  if V80(st) then
+    ssId, box, i = P.U8(d, 0), P.U8(d, 1), 2
+  else
+    box = P.U8(d, 0)
+  end
+  local ss = st.ss[ssId + 1] or { boxes = {} }
+  st.ss[ssId + 1] = ss
+  ss.boxes[box + 1] = { enabled = P.U8(d, i > 0 and 2 or 1) == 1, source = P.U16(d, i + 2) }
+  return "ss"
+end
+
 D["InCm"] = function(st, d)
   st.initDone = true
   return "init"
@@ -164,9 +229,13 @@ function S.Apply(st, name, data)
   if not fn then return nil end
   local ok, key = pcall(fn, st, data)
   if not ok then return "error", key end
-  local me = nil
-  if key == "me" then me = P.U8(data, 0) + 1 end
-  return key, me
+  local index = nil
+  if key == "me" or key == "dsk" or key == "aux" then
+    index = P.U8(data, 0) + 1
+  elseif key == "ss" then
+    index = V80(st) and P.U8(data, 0) + 1 or 1
+  end
+  return key, index
 end
 
 ---------------------------------------------------------------------------
@@ -189,6 +258,32 @@ function Cmd.PreviewTransition(me, on) return C("CTPr", W8(me - 1) .. W8(on and 
 function Cmd.NextStyle(me, style) return C("CTTp", W8(1) .. W8(me - 1) .. W8(style) .. "\0") end
 function Cmd.NextSelection(me, mask) return C("CTTp", W8(2) .. W8(me - 1) .. "\0" .. W8(mask)) end
 function Cmd.KeyOnAir(me, key, on) return C("CKOn", W8(me - 1) .. W8(key - 1) .. W8(on and 1 or 0) .. "\0") end
+
+-- Downstream keyers (n: 1-based)
+function Cmd.DskOnAir(n, on) return C("CDsL", W8(n - 1) .. W8(on and 1 or 0) .. "\0\0") end
+function Cmd.DskTie(n, on) return C("CDsT", W8(n - 1) .. W8(on and 1 or 0) .. "\0\0") end
+function Cmd.DskRate(n, rate) return C("CDsR", W8(n - 1) .. W8(rate) .. "\0\0") end
+function Cmd.DskFill(n, source) return C("CDsF", W8(n - 1) .. "\0" .. W16(source)) end
+function Cmd.DskKey(n, source) return C("CDsC", W8(n - 1) .. "\0" .. W16(source)) end
+function Cmd.DskAuto(st, n)
+  if S.V801(st) then return C("DDsA", "\0" .. W8(n - 1) .. "\0\0") end
+  return C("DDsA", W8(n - 1) .. "\0\0\0")
+end
+
+function Cmd.Aux(aux, source) return C("CAuS", W8(1) .. W8(aux - 1) .. W16(source)) end
+
+function Cmd.KeyFill(me, key, source) return C("CKeF", W8(me - 1) .. W8(key - 1) .. W16(source)) end
+function Cmd.KeyKey(me, key, source) return C("CKeC", W8(me - 1) .. W8(key - 1) .. W16(source)) end
+
+-- SuperSource box: flags 1 = enabled, 2 = source
+function Cmd.SuperSourceBox(st, ss, box, enabled, source)
+  local flag = (enabled ~= nil and 1 or 0) | (source and 2 or 0)
+  if S.V80(st) then
+    return C("CSBP", W16(flag) .. W8(ss - 1) .. W8(box - 1) .. W8(enabled and 1 or 0) .. "\0"
+      .. W16(source or 0) .. P.Pad(16))
+  end
+  return C("CSBP", W16(flag) .. W8(box - 1) .. W8(enabled and 1 or 0) .. W16(source or 0) .. P.Pad(18))
+end
 
 -- Transition rate of a style (0 Mix, 1 Dip, 2 Wipe, 3 DVE); nil for styles without rate
 function Cmd.TransitionRate(me, style, rate)

@@ -145,6 +145,7 @@ class FakeAtem:
         self.program = {m: 1 for m in range(mes)}
         self.preview = {m: 2 for m in range(mes)}
         self.next = {}
+        self.boxes = {}
         self.video_mode = 10   # 1080p25
 
     # -------- packets to the plugin
@@ -168,7 +169,8 @@ class FakeAtem:
         lst += [(i, f"Camera {i}", f"CAM{i}", 0) for i in range(1, 9)]
         lst += [(3010, "Media Player 1", "MP1", 4), (3011, "Media Player 1 Key", "MP1K", 5),
                 (3020, "Media Player 2", "MP2", 4), (3021, "Media Player 2 Key", "MP2K", 5),
-                (6000, "Super Source", "SSRC", 6), (10010, "Program", "PGM", 128)]
+                (6000, "Super Source", "SSRC", 6), (7001, "Clean Feed 1", "CFD1", 128),
+                (10010, "Program", "PGM", 128), (10011, "Preview", "PVW", 128)]
         return lst
 
     def state_commands(self):
@@ -182,7 +184,7 @@ class FakeAtem:
         for m in range(self.mes):
             c.append(cmd("_MeC", bytes([m, self.keys, 0, 0])))
         for (i, long, short, port) in self.inputs():
-            me_avail = 0 if (i == 10010) else (1 << self.mes) - 1
+            me_avail = 0 if (i >= 7000) else (1 << self.mes) - 1
             d = struct.pack(">H", i) + name_field(long, 20) + name_field(short, 4) + bytes([1, 0])
             d += struct.pack(">HH", 0, 2) + bytes([port, 0, 31, me_avail])
             c.append(cmd("InPr", d))
@@ -198,7 +200,16 @@ class FakeAtem:
                   cmd("FtbP", bytes([m, 30, 0, 0]))]
             for k in range(self.keys):
                 c.append(cmd("KeOn", bytes([m, k, 0, 0])))
+                c.append(cmd("KeBP", bytes([m, k, 0, 0, 0, 0]) + struct.pack(">HH", 3010, 3011) + bytes(12)))
             c.append(cmd("Zzzz", b"\x01\x02\x03\x04"))   # unknown command must be ignored
+        for n in range(2):
+            c += [cmd("DskS", bytes([n, 0, 0, 0, 0, 0, 0, 0])),
+                  cmd("DskP", bytes([n, 0, 25]) + bytes(17)),
+                  cmd("DskB", bytes([n, 0]) + struct.pack(">HH", 3010, 3011) + b"\0\0")]
+        for aux in range(3):
+            c.append(cmd("AuxS", bytes([aux, 0]) + struct.pack(">H", 10010)))
+        for box in range(4):
+            c.append(cmd("SSBP", bytes([0, box, 1 if box == 0 else 0, 0]) + struct.pack(">H", box + 1) + bytes(18)))
         c.append(cmd("InCm", b"\x01\0\0\0"))
         return c
 
@@ -266,6 +277,18 @@ class FakeAtem:
                 elif name == "CPvI":
                     self.preview[me] = struct.unpack(">H", d[2:4])[0]
                     feedback.append(cmd("PrvI", bytes([me, 0]) + d[2:4] + b"\0\0\0\0"))
+                elif name == "CAuS":
+                    feedback.append(cmd("AuxS", bytes([d[1], 0]) + d[2:4]))
+                elif name == "CDsL":
+                    feedback.append(cmd("DskS", bytes([d[0], d[1], 0, 0, 0, 0, 0, 0])))
+                elif name == "CSBP":
+                    flag = struct.unpack(">H", d[0:2])[0]
+                    box = self.boxes.setdefault(d[3], [0, d[3] + 1])
+                    if flag & 1:
+                        box[0] = d[4]
+                    if flag & 2:
+                        box[1] = struct.unpack(">H", d[6:8])[0]
+                    feedback.append(cmd("SSBP", bytes([d[2], d[3], box[0], 0]) + struct.pack(">H", box[1]) + bytes(18)))
                 elif name == "CTTp":
                     me = d[1]
                     style, sel = self.next.get(me, (0, 1))
@@ -475,6 +498,64 @@ def test_commands():
     return h
 
 
+def test_block2():
+    print("test_block2 (DSK, keyer sources, aux, SuperSource)")
+    h = Harness()
+    h.connect()
+    a = h.atem
+    a.take()
+    check(h.s("ME1 Key 1 Fill") == "Media Player 1" and h.s("ME1 Key 1 Type") == "Luma", "USK sources + type")
+    check(h.s("DSK 1 Fill") == "Media Player 1" and h.s("DSK 2 Rate") == "1:00", "DSK sources + rate")
+    check(h.b("Aux 1 ME1 PGM") and h.s("Aux 2") == "Program", "aux feedback")
+    check(h.s("Name ME1 PGM") == "Program" and h.s("Name Clean Feed 1") == "Clean Feed 1", "aux-only names on the aux page")
+    aux_choices = [h._s(x) for x in h.ctl("Aux 1").Choices.values()]
+    check("Clean Feed 1" in aux_choices and "Preview" in aux_choices, f"aux combo lists aux sources ({len(aux_choices)})")
+    check(h.b("SS1 Box 1 Enable") and h.b("SS1 Box 1 Input 1") and h.b("SS1 Box 2 Input 2"), "SuperSource feedback")
+    check(h.s("SS1 Box 3 Source") == "Camera 3", "box combo")
+
+    h.user("Aux 2 Input 5")
+    pk = a.take()
+    check(pk[0]["cmds"] == [("CAuS", bytes([1, 1, 0, 5]))], "aux 2 -> input 5")
+    a.handle(pk)
+    h.tick()
+    check(h.b("Aux 2 Input 5") and not h.b("Aux 2 ME1 PGM"), "aux button feedback")
+    h.user("Aux 3", "String", b"Clean Feed 1")
+    pk = a.take()
+    check(pk[0]["cmds"] == [("CAuS", bytes([1, 2]) + struct.pack(">H", 7001))], "aux combo -> clean feed")
+
+    h.user("DSK 1 On Air")
+    pk = a.take()
+    check(pk[0]["cmds"] == [("CDsL", bytes([0, 1, 0, 0]))], "DSK 1 on air")
+    a.handle(pk)
+    h.tick()
+    check(h.b("DSK 1 On Air"), "DSK feedback")
+    h.user("DSK 2 Auto")
+    h.user("DSK 2 Tie")
+    h.user("DSK 2 Rate", "String", b"0:12")
+    names = [c for p in a.take() for c in p["cmds"]]
+    check(names == [("DDsA", bytes([0, 1, 0, 0])), ("CDsT", bytes([1, 1, 0, 0])), ("CDsR", bytes([1, 12, 0, 0]))],
+          f"DSK auto (v8 format), tie, rate: {names}")
+    h.user("DSK 1 Key", "String", b"Camera 2")
+    pk = a.take()
+    check(pk[0]["cmds"] == [("CDsC", bytes([0, 0, 0, 2]))], "DSK key source")
+    h.user("ME1 Key 2 Fill", "String", b"Color Bars")
+    pk = a.take()
+    check(pk[0]["cmds"] == [("CKeF", bytes([0, 1]) + struct.pack(">H", 1000))], "USK fill source")
+
+    h.user("SS1 Box 2 Enable")
+    pk = a.take()
+    check(pk[0]["cmds"] == [("CSBP", struct.pack(">H", 1) + bytes([0, 1, 1, 0]) + bytes(18))], "box 2 enable")
+    a.handle(pk)
+    h.user("SS1 Box 4 Bars")
+    pk = a.take()
+    check(pk[0]["cmds"] == [("CSBP", struct.pack(">H", 2) + bytes([0, 3, 0, 0]) + struct.pack(">H", 1000) + bytes(16))],
+          "box 4 source bars")
+    a.handle(pk)
+    h.tick()
+    check(h.b("SS1 Box 2 Enable") and h.b("SS1 Box 4 Bars"), "box feedback")
+    return h
+
+
 def test_resend():
     print("test_resend")
     h = Harness()
@@ -621,6 +702,7 @@ def main():
     random.seed(1)
     test_connect()
     test_commands()
+    test_block2()
     test_resend()
     test_timeout_and_reconnect()
     test_no_device()

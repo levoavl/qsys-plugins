@@ -19,3 +19,9 @@ Format: [Keep a Changelog](https://keepachangelog.com), versioning: `major.minor
   ATEM Software Control (inputs first).
 - Rates as `s:ff` at the switcher's frame rate, like ATEM Software Control.
 - Reconnect countdown in the status text.
+- Downstream keyers: on air, tie, auto, rate, fill / key source.
+- Upstream keyers: fill / key source, key type.
+- Aux outputs: combo with every aux source plus buttons (property "Aux Buttons"), own
+  page(s), 8 aux per page.
+- SuperSource: box enable and source (combo + buttons).
+- Source names from the switcher placed directly under the button grids.
