@@ -51,17 +51,17 @@ combo boxes.
 
 | Control | Type | Pin | |
 |---|---|---|---|
-| Program / Preview | Combo box | in/out | Source by name (as set on the switcher) |
-| Program *source* / Preview *source* | Toggle | in/out | One button per source, lit when selected |
+| Preview / Program | Combo box | in/out | Source by name (as set on the switcher) |
+| Preview *source* / Program *source* | Toggle | in/out | One button per source, lit when selected (preview green, program red). Order as in ATEM Software Control: inputs, then Black, Bars, colours, media players … |
 | Cut | Trigger | in | |
 | Auto | Toggle | in/out | Starts the transition, lit while it runs |
 | T-Bar | Fader 0–1 | in/out | Manual transition. Feedback shows the position while a transition runs. |
 | In Transition | LED | out | |
 | Fade to Black | Toggle | in/out | Starts FTB, lit while black or fading |
-| Fade to Black Rate | Integer (frames) | in/out | |
+| Fade to Black Rate | Text `s:ff` | in/out | Like ATEM Software Control: `1:00` = 1 s at the switcher's frame rate. A plain number is taken as frames. |
 | Transition Style | Combo box | in/out | Mix / Dip / Wipe / DVE / Stinger |
 | Style Mix … Style Stinger | Toggle | in/out | Same as buttons |
-| Transition Rate | Integer (frames) | in/out | Rate of the selected style (Stinger has none) |
+| Transition Rate | Text `s:ff` | in/out | Rate of the selected style (Stinger has none), format as above |
 | Preview Transition | Toggle | in/out | |
 | Next Background, Next Key k | Toggle | in/out | Elements of the next transition. At least one stays selected. |
 | Key k On Air | Toggle | in/out | Upstream keyer on air |

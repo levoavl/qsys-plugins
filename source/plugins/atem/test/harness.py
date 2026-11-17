@@ -145,6 +145,7 @@ class FakeAtem:
         self.program = {m: 1 for m in range(mes)}
         self.preview = {m: 2 for m in range(mes)}
         self.next = {}
+        self.video_mode = 10   # 1080p25
 
     # -------- packets to the plugin
     def packet(self, commands, pid=None):
@@ -177,6 +178,7 @@ class FakeAtem:
         top[0], top[1], top[2], top[3], top[5] = self.mes, 24, 2, 3, 2
         top[11] = 1  # supersources (with v2.30 offset)
         c.append(cmd("_top", bytes(top)))
+        c.append(cmd("VidM", bytes([self.video_mode, 0, 0, 0])))
         for m in range(self.mes):
             c.append(cmd("_MeC", bytes([m, self.keys, 0, 0])))
         for (i, long, short, port) in self.inputs():
@@ -399,7 +401,9 @@ def test_connect():
     choices = [h._s(x) for x in h.ctl("ME1 Program").Choices.values()]
     check("Media Player 1 Key" in choices and "Program" not in choices, f"combo choices from switcher ({len(choices)})")
     check(h.s("Name Input 3") == "Camera 3", "source name output")
-    check(h.ctl("ME1 Transition Rate").Value == 25 and h.ctl("ME1 Fade to Black Rate").Value == 30, "rates")
+    check(h.s("ME1 Transition Rate") == "1:00" and h.s("ME1 Fade to Black Rate") == "1:05", "rates as s:ff (25 fps)")
+    order = [h._s(x) for x in h.ctl("ME1 Program").Choices.values()]
+    check(order[:9] == [f"Camera {i}" for i in range(1, 9)] + ["Black"], "inputs first, then Black (like Software Control)")
     check(h.b("ME1 Style Mix") and h.s("ME1 Transition Style") == "Mix", "style feedback")
     check(h.b("ME1 Next Background") and not h.b("ME1 Next Key 1"), "next transition feedback")
     acks = [p for p in h.atem.take(acks=True) if p["flags"] & F_ACK]
@@ -451,9 +455,14 @@ def test_commands():
     h.tick()
     h.user("ME1 Next Key 2")
     check([c for p in a.take() for c in p["cmds"]] == [], "last next-transition element cannot be deselected")
-    h.user("ME1 Transition Rate", "Value", 50)
+    h.user("ME1 Transition Rate", "String", b"2:00")
     pk = a.take()
-    check(pk[0]["cmds"] == [("CTDv", struct.pack(">H", 1) + bytes([0, 50]) + bytes(16))], "DVE rate")
+    check(pk[0]["cmds"] == [("CTDv", struct.pack(">H", 1) + bytes([0, 50]) + bytes(16))], "DVE rate 2:00 = 50 frames")
+    h.user("ME1 Fade to Black Rate", "String", b"40")
+    pk = a.take()
+    check(pk[0]["cmds"] == [("FtbC", bytes([1, 0, 40, 0]))], "plain number = frames")
+    h.user("ME1 Fade to Black Rate", "String", b"abc")
+    check(a.take() == [] and h.s("ME1 Fade to Black Rate") == "1:05", "invalid rate ignored, shows switcher value")
     h.user("ME1 Key 3 On Air")
     pk = a.take()
     check(pk[0]["cmds"] == [("CKOn", bytes([0, 2, 1, 0]))], "key 3 on air")
@@ -540,7 +549,10 @@ def test_no_device():
     for _ in range(int(20 / TICK)):
         h.tick()
     v, txt = h.status()
-    check(v == 4 and "No answer" in h.s("Last Error"), f"status Missing: {txt}")
+    check(v == 4 and txt.startswith("No answer from switcher - retry in"), f"status Missing: {txt}")
+    first = txt
+    h.tick(int(1.0 / TICK))
+    check(h.status()[1] != first or "retry in 1s" in first, f"countdown: {first} -> {h.status()[1]}")
     hellos = [p for p in h.atem.take() if p["flags"] == F_HELLO]
     check(10 <= len(hellos) <= 25, f"hello retried with backoff ({len(hellos)} in 20 s)")
     h.user("ME1 Cut")

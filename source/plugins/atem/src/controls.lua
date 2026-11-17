@@ -49,10 +49,10 @@ for me = 1, topo.MEs do
   Float(p .. "T-Bar")
   Led(p .. "In Transition")
   Toggle(p .. "Fade to Black")     -- lit while black / fading
-  Int(p .. "Fade to Black Rate", 1, 250)
+  TextIn(p .. "Fade to Black Rate")   -- "s:ff" like ATEM Software Control
   TextIn(p .. "Transition Style")  -- combo box
   for _, style in ipairs(AtemTopology.TransitionStyles) do Toggle(p .. "Style " .. style) end
-  Int(p .. "Transition Rate", 1, 250)
+  TextIn(p .. "Transition Rate")      -- "s:ff"
   Toggle(p .. "Preview Transition")
   Toggle(p .. "Next Background")
   for k = 1, topo.USKs do

@@ -31,11 +31,6 @@ local function SetBool(name, b)
   if c and c.Boolean ~= b then c.Boolean = b end
 end
 
-local function SetValue(name, v)
-  local c = Controls[name]
-  if c and c.Value ~= v then c.Value = v end
-end
-
 local function SetPosition(name, p)
   local c = Controls[name]
   if not c then return end
@@ -100,7 +95,7 @@ local function MESourceList(me)
     for _, id in ipairs(St.inputOrder) do
       if St.inputs[id].me & bit ~= 0 then ids[#ids + 1] = id end
     end
-    return ids
+    return AtemTopology.SortSources(ids, function(id) return St.inputs[id].port end)
   end
   return AtemTopology.MESources(Topo, me)
 end
@@ -146,6 +141,11 @@ end
 ---------------------------------------------------------------------------
 local TBarTouched = {}   -- [me] = time of the last user move
 
+-- frame rate for "s:ff" rates; 25 until the switcher reports its video mode
+local function Fps()
+  return St.videoMode and AtemTopology.ModeFps[St.videoMode] or 25
+end
+
 local function RenderME(me)
   local m = St.me[me]
   local p = "ME" .. me .. " "
@@ -183,14 +183,14 @@ local function RenderME(me)
     SetPosition(p .. "T-Bar", m.inTransition and m.handle / 10000 or 0)
   end
   SetBool(p .. "Fade to Black", m.ftbBlack or m.ftbInTransition)
-  if m.ftbRate > 0 then SetValue(p .. "Fade to Black Rate", m.ftbRate) end
+  if m.ftbRate > 0 then SetString(p .. "Fade to Black Rate", AtemTopology.FormatRate(m.ftbRate, Fps())) end
 
   for i, style in ipairs(AtemTopology.TransitionStyles) do
     SetBool(p .. "Style " .. style, m.nextStyle == i - 1)
   end
   SetString(p .. "Transition Style", AtemTopology.TransitionStyles[m.nextStyle + 1] or "")
   local rate = m.rates[m.nextStyle]
-  if rate and rate > 0 then SetValue(p .. "Transition Rate", rate) end
+  SetString(p .. "Transition Rate", (rate and rate > 0) and AtemTopology.FormatRate(rate, Fps()) or "")
   SetBool(p .. "Preview Transition", m.previewTransition)
   SetBool(p .. "Next Background", m.nextSelection & 1 ~= 0)
   for k = 1, Topo.USKs do
@@ -281,10 +281,11 @@ local function ScheduleRetry(reason)
   Conn.attempt = Conn.attempt + 1
   local delay = BACKOFF[math.min(Conn.attempt, #BACKOFF)]
   Conn.retryAt = Now + delay
+  Conn.retryReason = reason or "Not connected"
   Ready = false
   SetPhase("waiting")
   RenderAll()
-  SetStatus(STATUS.Missing, ("%s - retry in %ds"):format(reason or "Not connected", delay))
+  SetStatus(STATUS.Missing, ("%s - retry in %ds"):format(Conn.retryReason, delay))
   Log(1, ("%s, retry in %ds"):format(reason or "Disconnected", delay))
 end
 
@@ -328,6 +329,8 @@ local function OnCommand(name, data)
     Dirty.names = true
   elseif key == "device" then
     if Ready then RenderDevice() end
+  elseif key == "video" then
+    for i = 1, Topo.MEs do Dirty.me[i] = true end
   elseif key == "init" then
     OnInitDone()
   end
@@ -420,11 +423,15 @@ AtemRuntime = { Timer = MainTimer, Udp = Udp, Session = Session, Conn = Conn }
 
 MainTimer.EventHandler = function()
   Now = Now + TICK
-  if Conn.phase == "waiting" and Conn.retryAt and Now >= Conn.retryAt then
-    Conn.reconnects = Conn.reconnects + 1
-    SetString("Reconnects", tostring(Conn.reconnects))
-    Connect()
-    return
+  if Conn.phase == "waiting" and Conn.retryAt then
+    if Now >= Conn.retryAt then
+      Conn.reconnects = Conn.reconnects + 1
+      SetString("Reconnects", tostring(Conn.reconnects))
+      Connect()
+      return
+    end
+    -- count down in the status text
+    SetString("Status", ("%s - retry in %ds"):format(Conn.retryReason, math.ceil(Conn.retryAt - Now - 1e-6)))
   end
   Session:Tick(Now)
   if Ready then
@@ -487,7 +494,13 @@ for me = 1, Topo.MEs do
     AfterInput(me)
   end
   Controls[p .. "Fade to Black Rate"].EventHandler = function(c)
-    Send(Cmd.FadeToBlackRate(me, c.Value), ("M/E %d FTB rate %d"):format(me, c.Value), "ftbrate" .. me)
+    local frames = AtemTopology.ParseRate(c.String, Fps())
+    if frames then
+      Send(Cmd.FadeToBlackRate(me, frames), ("M/E %d FTB rate %s (%d frames)"):format(me, c.String, frames), "ftbrate" .. me)
+    else
+      Log(1, ("M/E %d: invalid FTB rate '%s' (use s:ff, e.g. 1:00)"):format(me, c.String))
+    end
+    AfterInput(me)
   end
 
   local function SetStyle(index)
@@ -506,13 +519,17 @@ for me = 1, Topo.MEs do
   Controls[p .. "Transition Rate"].EventHandler = function(c)
     local m = St.me[me]
     local style = m and m.nextStyle or 0
-    local cmd = Cmd.TransitionRate(me, style, c.Value)
+    local frames = AtemTopology.ParseRate(c.String, Fps())
+    local cmd = frames and Cmd.TransitionRate(me, style, frames)
     if cmd then
-      Send(cmd, ("M/E %d %s rate %d"):format(me, AtemTopology.TransitionStyles[style + 1], c.Value), "rate" .. me)
+      Send(cmd, ("M/E %d %s rate %s (%d frames)"):format(me, AtemTopology.TransitionStyles[style + 1], c.String, frames),
+        "rate" .. me)
+    elseif not frames then
+      Log(1, ("M/E %d: invalid rate '%s' (use s:ff, e.g. 1:00)"):format(me, c.String))
     else
       Log(1, ("M/E %d: %s has no rate"):format(me, AtemTopology.TransitionStyles[style + 1] or "?"))
-      AfterInput(me)
     end
+    AfterInput(me)
   end
   Controls[p .. "Preview Transition"].EventHandler = function()
     local m = St.me[me]

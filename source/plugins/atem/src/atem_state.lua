@@ -73,6 +73,11 @@ D["_MeC"] = function(st, d)
   return "device"
 end
 
+D["VidM"] = function(st, d)
+  st.videoMode = P.U8(d, 0)
+  return "video"
+end
+
 D["InPr"] = function(st, d)
   local id = P.U16(d, 0)
   local inp = st.inputs[id]

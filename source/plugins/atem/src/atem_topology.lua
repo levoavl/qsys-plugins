@@ -21,6 +21,34 @@ T.Avail = { Auxiliary = 1, Multiviewer = 2, SuperSourceArt = 4, SuperSourceBox =
 
 T.TransitionStyles = { "Mix", "Dip", "Wipe", "DVE", "Stinger" }
 
+-- Frames per second per ATEM video mode (VidM), as used for rates ("s:ff").
+-- Interlaced modes count frames, 23.98/29.97/59.94 count like 24/30/60.
+T.ModeFps = {
+  [0] = 30, 25, 30, 25, 50, 60, 25, 30, 24, 24, 25, 30, 50, 60,
+  24, 24, 25, 30, 50, 60, 24, 24, 25, 30, 50, 60, 30, 60,
+}
+
+-- 25 frames at 25 fps -> "1:00"
+function T.FormatRate(frames, fps)
+  fps = fps or 25
+  return ("%d:%02d"):format(frames // fps, frames % fps)
+end
+
+-- "1:00" -> 25 (at 25 fps); a plain number is taken as frames. nil if invalid.
+function T.ParseRate(text, fps)
+  fps = fps or 25
+  text = tostring(text or ""):gsub("%s", "")
+  local s, f = text:match("^(%d+)[:%.,](%d+)$")
+  local frames
+  if s then
+    frames = tonumber(s) * fps + tonumber(f)
+  else
+    frames = tonumber(text:match("^(%d+)$") or "")
+  end
+  if not frames or frames < 1 or frames > 250 then return nil end
+  return math.floor(frames)
+end
+
 function T.ModelNames()
   local names = {}
   for _, m in ipairs(AtemModels) do names[#names + 1] = m.Name end
@@ -169,6 +197,25 @@ function T.SourceKey(id)
   return "Source " .. id, tostring(id)
 end
 
+-- Order like ATEM Software Control: external inputs first, then Black, Bars,
+-- colours, media players ... (stable: keeps the given order inside both groups).
+-- portOf(id) returns the internal port type of a source.
+function T.SortSources(ids, portOf)
+  local inputs, rest = {}, {}
+  for _, id in ipairs(ids) do
+    if portOf(id) == T.Port.External then inputs[#inputs + 1] = id else rest[#rest + 1] = id end
+  end
+  for _, id in ipairs(rest) do inputs[#inputs + 1] = id end
+  return inputs
+end
+
+local function TopoPort(topo)
+  return function(id)
+    local s = topo.SourceById[id]
+    return s and s[2]
+  end
+end
+
 -- Sources that get a button on the M/E buses. Mode: "All Sources" | "Inputs Only" | "None"
 local ME_BUTTON_PORTS = {
   [T.Port.External] = true, [T.Port.Black] = true, [T.Port.ColorBars] = true,
@@ -188,7 +235,7 @@ function T.MEButtonSources(topo, me, mode)
       end
     end
   end
-  return ids
+  return T.SortSources(ids, TopoPort(topo))
 end
 
 -- All sources that can go on an M/E bus (combo boxes)
@@ -197,7 +244,7 @@ function T.MESources(topo, me)
   for _, s in ipairs(topo.Sources) do
     if s[4] & bit ~= 0 then ids[#ids + 1] = s[1] end
   end
-  return ids
+  return T.SortSources(ids, TopoPort(topo))
 end
 
 -- Union of all button sources over all M/Es, in source order (for the name list)
@@ -209,7 +256,7 @@ function T.ButtonSourceUnion(topo, mode)
   for _, s in ipairs(topo.Sources) do
     if seen[s[1]] then ids[#ids + 1] = s[1] end
   end
-  return ids
+  return T.SortSources(ids, TopoPort(topo))
 end
 
 function T.ButtonMode(props)

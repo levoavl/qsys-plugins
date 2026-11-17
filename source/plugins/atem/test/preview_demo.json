@@ -1,7 +1,7 @@
 {"ME1 Program Input 1": {"Boolean": true}, "ME1 Preview Input 2": {"Boolean": true},
  "ME1 Program": {"String": "Camera 1"}, "ME1 Preview": {"String": "Camera 2"},
  "ME1 Style Mix": {"Boolean": true}, "ME1 Next Background": {"Boolean": true},
- "ME1 Transition Rate": {"String": "25"}, "ME1 Fade to Black Rate": {"String": "30"},
+ "ME1 Transition Rate": {"String": "1:00"}, "ME1 Fade to Black Rate": {"String": "1:05"},
  "ME1 Transition Style": {"String": "Mix"}, "Device": {"String": "ATEM Mini Extreme"},
  "Protocol Version": {"String": "2.32"}, "IP Address": {"String": "192.168.10.240"},
  "Status": {"String": "OK"}, "Name Input 1": {"String": "Camera 1"}}

@@ -70,8 +70,8 @@ if meIndex then
       y = y + rows * (BH + GAP) + 8
     end
   end
-  Bus("Program", C.Amber)
-  Bus("Preview", C.Atlantic)
+  Bus("Preview", C.TallyGreen)
+  Bus("Program", C.TallyRed)
 
   -- Transition area: settings on the left, Cut / Auto / T-bar / FTB on the right
   y = Section("Transition", M, y, contentW)
@@ -95,11 +95,11 @@ if meIndex then
     Label("Key On Air", lx, y + 6, lw - 8, 18, { align = "Right" })
     for k = 1, topo.USKs do
       Button(p .. "Key " .. k .. " On Air", g .. "Keyers~Key " .. k .. " On Air", "ON AIR",
-        lx + lw + k * (SW + GAP), y, SW, 30, C.Amber, { FontSize = 10 })
+        lx + lw + k * (SW + GAP), y, SW, 30, C.TallyRed, { FontSize = 10 })
     end
     y = y + 36
   end
-  Label("Rate (frames)", lx, y + 3, lw - 8, 18, { align = "Right" })
+  Label("Rate", lx, y + 3, lw - 8, 18, { align = "Right" })
   Place(p .. "Transition Rate", g .. "Transition~Rate", lx + lw, y, SW, 22, { Style = "Text" })
   Label("Style", lx + lw + SW + 12, y + 3, 40, 18, { align = "Right" })
   Place(p .. "Transition Style", g .. "Transition~Style", lx + lw + SW + 56, y, 120, 22, { Style = "ComboBox" })
@@ -113,11 +113,11 @@ if meIndex then
   local rx = M + contentW - 300
   y = top
   Button(p .. "Cut", g .. "Transition~Cut", "CUT", rx, y, 90, 56, C.Atlantic, { FontSize = 14 })
-  Button(p .. "Auto", g .. "Transition~Auto", "AUTO", rx, y + 64, 90, 56, C.Amber, { FontSize = 14 })
+  Button(p .. "Auto", g .. "Transition~Auto", "AUTO", rx, y + 64, 90, 56, C.TallyRed, { FontSize = 14 })
   Label("In Transition", rx - 4, y + 128, 80, 16, { size = 10, color = C.Mid })
   Place(p .. "In Transition", g .. "Transition~In Transition", rx + 76, y + 128, 14, 14, { Color = C.Amber })
   Place(p .. "T-Bar", g .. "Transition~T-Bar", rx + 110, y, 44, 150, { Style = "Fader", Color = C.Atlantic })
-  Button(p .. "Fade to Black", g .. "Fade to Black~Fade to Black", "FTB", rx + 190, y, 90, 56, C.Amber, { FontSize = 14 })
+  Button(p .. "Fade to Black", g .. "Fade to Black~Fade to Black", "FTB", rx + 190, y, 90, 56, C.TallyRed, { FontSize = 14 })
   Label("FTB rate", rx + 190, y + 64, 90, 16, { size = 10, color = C.Mid })
   Place(p .. "Fade to Black Rate", g .. "Fade to Black~Rate", rx + 190, y + 80, 90, 22, { Style = "Text" })
 

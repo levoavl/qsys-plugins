@@ -25,6 +25,9 @@ LevoBrand = {
     AmberSoft = { 255, 219, 150 },  -- amber at reduced intensity, e.g. fading states (derived)
     Line      = { 214, 214, 210 },  -- hairlines, frames (derived from Porcelain)
     Haze      = { 172, 196, 222 },  -- secondary text on Atlantic (derived)
+    -- functional colours, not part of the CI: broadcast tally convention
+    TallyRed   = { 214, 40, 40 },   -- program / on air
+    TallyGreen = { 40, 160, 70 },   -- preview
   },
 
   HeaderHeight = 40,

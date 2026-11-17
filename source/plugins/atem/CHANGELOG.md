@@ -15,3 +15,7 @@ Format: [Keep a Changelog](https://keepachangelog.com), versioning: `major.minor
   Cut, Auto, T-bar, Fade to Black with rate, transition style and rate, preview
   transition, next transition (background / keys), keyers on air.
 - Source names from the switcher as outputs; optional device names as button legends.
+- Preview bus above program, tally colours (preview green, program red), source order as in
+  ATEM Software Control (inputs first).
+- Rates as `s:ff` at the switcher's frame rate, like ATEM Software Control.
+- Reconnect countdown in the status text.

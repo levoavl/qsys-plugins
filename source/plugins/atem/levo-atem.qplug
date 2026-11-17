@@ -60,6 +60,9 @@ LevoBrand = {
     AmberSoft = { 255, 219, 150 },  -- amber at reduced intensity, e.g. fading states (derived)
     Line      = { 214, 214, 210 },  -- hairlines, frames (derived from Porcelain)
     Haze      = { 172, 196, 222 },  -- secondary text on Atlantic (derived)
+    -- functional colours, not part of the CI: broadcast tally convention
+    TallyRed   = { 214, 40, 40 },   -- program / on air
+    TallyGreen = { 40, 160, 70 },   -- preview
   },
 
   HeaderHeight = 40,
@@ -446,6 +449,34 @@ T.Avail = { Auxiliary = 1, Multiviewer = 2, SuperSourceArt = 4, SuperSourceBox =
 
 T.TransitionStyles = { "Mix", "Dip", "Wipe", "DVE", "Stinger" }
 
+-- Frames per second per ATEM video mode (VidM), as used for rates ("s:ff").
+-- Interlaced modes count frames, 23.98/29.97/59.94 count like 24/30/60.
+T.ModeFps = {
+  [0] = 30, 25, 30, 25, 50, 60, 25, 30, 24, 24, 25, 30, 50, 60,
+  24, 24, 25, 30, 50, 60, 24, 24, 25, 30, 50, 60, 30, 60,
+}
+
+-- 25 frames at 25 fps -> "1:00"
+function T.FormatRate(frames, fps)
+  fps = fps or 25
+  return ("%d:%02d"):format(frames // fps, frames % fps)
+end
+
+-- "1:00" -> 25 (at 25 fps); a plain number is taken as frames. nil if invalid.
+function T.ParseRate(text, fps)
+  fps = fps or 25
+  text = tostring(text or ""):gsub("%s", "")
+  local s, f = text:match("^(%d+)[:%.,](%d+)$")
+  local frames
+  if s then
+    frames = tonumber(s) * fps + tonumber(f)
+  else
+    frames = tonumber(text:match("^(%d+)$") or "")
+  end
+  if not frames or frames < 1 or frames > 250 then return nil end
+  return math.floor(frames)
+end
+
 function T.ModelNames()
   local names = {}
   for _, m in ipairs(AtemModels) do names[#names + 1] = m.Name end
@@ -594,6 +625,25 @@ function T.SourceKey(id)
   return "Source " .. id, tostring(id)
 end
 
+-- Order like ATEM Software Control: external inputs first, then Black, Bars,
+-- colours, media players ... (stable: keeps the given order inside both groups).
+-- portOf(id) returns the internal port type of a source.
+function T.SortSources(ids, portOf)
+  local inputs, rest = {}, {}
+  for _, id in ipairs(ids) do
+    if portOf(id) == T.Port.External then inputs[#inputs + 1] = id else rest[#rest + 1] = id end
+  end
+  for _, id in ipairs(rest) do inputs[#inputs + 1] = id end
+  return inputs
+end
+
+local function TopoPort(topo)
+  return function(id)
+    local s = topo.SourceById[id]
+    return s and s[2]
+  end
+end
+
 -- Sources that get a button on the M/E buses. Mode: "All Sources" | "Inputs Only" | "None"
 local ME_BUTTON_PORTS = {
   [T.Port.External] = true, [T.Port.Black] = true, [T.Port.ColorBars] = true,
@@ -613,7 +663,7 @@ function T.MEButtonSources(topo, me, mode)
       end
     end
   end
-  return ids
+  return T.SortSources(ids, TopoPort(topo))
 end
 
 -- All sources that can go on an M/E bus (combo boxes)
@@ -622,7 +672,7 @@ function T.MESources(topo, me)
   for _, s in ipairs(topo.Sources) do
     if s[4] & bit ~= 0 then ids[#ids + 1] = s[1] end
   end
-  return ids
+  return T.SortSources(ids, TopoPort(topo))
 end
 
 -- Union of all button sources over all M/Es, in source order (for the name list)
@@ -634,7 +684,7 @@ function T.ButtonSourceUnion(topo, mode)
   for _, s in ipairs(topo.Sources) do
     if seen[s[1]] then ids[#ids + 1] = s[1] end
   end
-  return ids
+  return T.SortSources(ids, TopoPort(topo))
 end
 
 function T.ButtonMode(props)
@@ -793,10 +843,10 @@ for me = 1, topo.MEs do
   Float(p .. "T-Bar")
   Led(p .. "In Transition")
   Toggle(p .. "Fade to Black")     -- lit while black / fading
-  Int(p .. "Fade to Black Rate", 1, 250)
+  TextIn(p .. "Fade to Black Rate")   -- "s:ff" like ATEM Software Control
   TextIn(p .. "Transition Style")  -- combo box
   for _, style in ipairs(AtemTopology.TransitionStyles) do Toggle(p .. "Style " .. style) end
-  Int(p .. "Transition Rate", 1, 250)
+  TextIn(p .. "Transition Rate")      -- "s:ff"
   Toggle(p .. "Preview Transition")
   Toggle(p .. "Next Background")
   for k = 1, topo.USKs do
@@ -884,8 +934,8 @@ if meIndex then
       y = y + rows * (BH + GAP) + 8
     end
   end
-  Bus("Program", C.Amber)
-  Bus("Preview", C.Atlantic)
+  Bus("Preview", C.TallyGreen)
+  Bus("Program", C.TallyRed)
 
   -- Transition area: settings on the left, Cut / Auto / T-bar / FTB on the right
   y = Section("Transition", M, y, contentW)
@@ -909,11 +959,11 @@ if meIndex then
     Label("Key On Air", lx, y + 6, lw - 8, 18, { align = "Right" })
     for k = 1, topo.USKs do
       Button(p .. "Key " .. k .. " On Air", g .. "Keyers~Key " .. k .. " On Air", "ON AIR",
-        lx + lw + k * (SW + GAP), y, SW, 30, C.Amber, { FontSize = 10 })
+        lx + lw + k * (SW + GAP), y, SW, 30, C.TallyRed, { FontSize = 10 })
     end
     y = y + 36
   end
-  Label("Rate (frames)", lx, y + 3, lw - 8, 18, { align = "Right" })
+  Label("Rate", lx, y + 3, lw - 8, 18, { align = "Right" })
   Place(p .. "Transition Rate", g .. "Transition~Rate", lx + lw, y, SW, 22, { Style = "Text" })
   Label("Style", lx + lw + SW + 12, y + 3, 40, 18, { align = "Right" })
   Place(p .. "Transition Style", g .. "Transition~Style", lx + lw + SW + 56, y, 120, 22, { Style = "ComboBox" })
@@ -927,11 +977,11 @@ if meIndex then
   local rx = M + contentW - 300
   y = top
   Button(p .. "Cut", g .. "Transition~Cut", "CUT", rx, y, 90, 56, C.Atlantic, { FontSize = 14 })
-  Button(p .. "Auto", g .. "Transition~Auto", "AUTO", rx, y + 64, 90, 56, C.Amber, { FontSize = 14 })
+  Button(p .. "Auto", g .. "Transition~Auto", "AUTO", rx, y + 64, 90, 56, C.TallyRed, { FontSize = 14 })
   Label("In Transition", rx - 4, y + 128, 80, 16, { size = 10, color = C.Mid })
   Place(p .. "In Transition", g .. "Transition~In Transition", rx + 76, y + 128, 14, 14, { Color = C.Amber })
   Place(p .. "T-Bar", g .. "Transition~T-Bar", rx + 110, y, 44, 150, { Style = "Fader", Color = C.Atlantic })
-  Button(p .. "Fade to Black", g .. "Fade to Black~Fade to Black", "FTB", rx + 190, y, 90, 56, C.Amber, { FontSize = 14 })
+  Button(p .. "Fade to Black", g .. "Fade to Black~Fade to Black", "FTB", rx + 190, y, 90, 56, C.TallyRed, { FontSize = 14 })
   Label("FTB rate", rx + 190, y + 64, 90, 16, { size = 10, color = C.Mid })
   Place(p .. "Fade to Black Rate", g .. "Fade to Black~Rate", rx + 190, y + 80, 90, 22, { Style = "Text" })
 
@@ -1422,6 +1472,11 @@ D["_MeC"] = function(st, d)
   return "device"
 end
 
+D["VidM"] = function(st, d)
+  st.videoMode = P.U8(d, 0)
+  return "video"
+end
+
 D["InPr"] = function(st, d)
   local id = P.U16(d, 0)
   local inp = st.inputs[id]
@@ -1578,11 +1633,6 @@ local function SetBool(name, b)
   if c and c.Boolean ~= b then c.Boolean = b end
 end
 
-local function SetValue(name, v)
-  local c = Controls[name]
-  if c and c.Value ~= v then c.Value = v end
-end
-
 local function SetPosition(name, p)
   local c = Controls[name]
   if not c then return end
@@ -1647,7 +1697,7 @@ local function MESourceList(me)
     for _, id in ipairs(St.inputOrder) do
       if St.inputs[id].me & bit ~= 0 then ids[#ids + 1] = id end
     end
-    return ids
+    return AtemTopology.SortSources(ids, function(id) return St.inputs[id].port end)
   end
   return AtemTopology.MESources(Topo, me)
 end
@@ -1693,6 +1743,11 @@ end
 ---------------------------------------------------------------------------
 local TBarTouched = {}   -- [me] = time of the last user move
 
+-- frame rate for "s:ff" rates; 25 until the switcher reports its video mode
+local function Fps()
+  return St.videoMode and AtemTopology.ModeFps[St.videoMode] or 25
+end
+
 local function RenderME(me)
   local m = St.me[me]
   local p = "ME" .. me .. " "
@@ -1730,14 +1785,14 @@ local function RenderME(me)
     SetPosition(p .. "T-Bar", m.inTransition and m.handle / 10000 or 0)
   end
   SetBool(p .. "Fade to Black", m.ftbBlack or m.ftbInTransition)
-  if m.ftbRate > 0 then SetValue(p .. "Fade to Black Rate", m.ftbRate) end
+  if m.ftbRate > 0 then SetString(p .. "Fade to Black Rate", AtemTopology.FormatRate(m.ftbRate, Fps())) end
 
   for i, style in ipairs(AtemTopology.TransitionStyles) do
     SetBool(p .. "Style " .. style, m.nextStyle == i - 1)
   end
   SetString(p .. "Transition Style", AtemTopology.TransitionStyles[m.nextStyle + 1] or "")
   local rate = m.rates[m.nextStyle]
-  if rate and rate > 0 then SetValue(p .. "Transition Rate", rate) end
+  SetString(p .. "Transition Rate", (rate and rate > 0) and AtemTopology.FormatRate(rate, Fps()) or "")
   SetBool(p .. "Preview Transition", m.previewTransition)
   SetBool(p .. "Next Background", m.nextSelection & 1 ~= 0)
   for k = 1, Topo.USKs do
@@ -1828,10 +1883,11 @@ local function ScheduleRetry(reason)
   Conn.attempt = Conn.attempt + 1
   local delay = BACKOFF[math.min(Conn.attempt, #BACKOFF)]
   Conn.retryAt = Now + delay
+  Conn.retryReason = reason or "Not connected"
   Ready = false
   SetPhase("waiting")
   RenderAll()
-  SetStatus(STATUS.Missing, ("%s - retry in %ds"):format(reason or "Not connected", delay))
+  SetStatus(STATUS.Missing, ("%s - retry in %ds"):format(Conn.retryReason, delay))
   Log(1, ("%s, retry in %ds"):format(reason or "Disconnected", delay))
 end
 
@@ -1875,6 +1931,8 @@ local function OnCommand(name, data)
     Dirty.names = true
   elseif key == "device" then
     if Ready then RenderDevice() end
+  elseif key == "video" then
+    for i = 1, Topo.MEs do Dirty.me[i] = true end
   elseif key == "init" then
     OnInitDone()
   end
@@ -1967,11 +2025,15 @@ AtemRuntime = { Timer = MainTimer, Udp = Udp, Session = Session, Conn = Conn }
 
 MainTimer.EventHandler = function()
   Now = Now + TICK
-  if Conn.phase == "waiting" and Conn.retryAt and Now >= Conn.retryAt then
-    Conn.reconnects = Conn.reconnects + 1
-    SetString("Reconnects", tostring(Conn.reconnects))
-    Connect()
-    return
+  if Conn.phase == "waiting" and Conn.retryAt then
+    if Now >= Conn.retryAt then
+      Conn.reconnects = Conn.reconnects + 1
+      SetString("Reconnects", tostring(Conn.reconnects))
+      Connect()
+      return
+    end
+    -- count down in the status text
+    SetString("Status", ("%s - retry in %ds"):format(Conn.retryReason, math.ceil(Conn.retryAt - Now - 1e-6)))
   end
   Session:Tick(Now)
   if Ready then
@@ -2034,7 +2096,13 @@ for me = 1, Topo.MEs do
     AfterInput(me)
   end
   Controls[p .. "Fade to Black Rate"].EventHandler = function(c)
-    Send(Cmd.FadeToBlackRate(me, c.Value), ("M/E %d FTB rate %d"):format(me, c.Value), "ftbrate" .. me)
+    local frames = AtemTopology.ParseRate(c.String, Fps())
+    if frames then
+      Send(Cmd.FadeToBlackRate(me, frames), ("M/E %d FTB rate %s (%d frames)"):format(me, c.String, frames), "ftbrate" .. me)
+    else
+      Log(1, ("M/E %d: invalid FTB rate '%s' (use s:ff, e.g. 1:00)"):format(me, c.String))
+    end
+    AfterInput(me)
   end
 
   local function SetStyle(index)
@@ -2053,13 +2121,17 @@ for me = 1, Topo.MEs do
   Controls[p .. "Transition Rate"].EventHandler = function(c)
     local m = St.me[me]
     local style = m and m.nextStyle or 0
-    local cmd = Cmd.TransitionRate(me, style, c.Value)
+    local frames = AtemTopology.ParseRate(c.String, Fps())
+    local cmd = frames and Cmd.TransitionRate(me, style, frames)
     if cmd then
-      Send(cmd, ("M/E %d %s rate %d"):format(me, AtemTopology.TransitionStyles[style + 1], c.Value), "rate" .. me)
+      Send(cmd, ("M/E %d %s rate %s (%d frames)"):format(me, AtemTopology.TransitionStyles[style + 1], c.String, frames),
+        "rate" .. me)
+    elseif not frames then
+      Log(1, ("M/E %d: invalid rate '%s' (use s:ff, e.g. 1:00)"):format(me, c.String))
     else
       Log(1, ("M/E %d: %s has no rate"):format(me, AtemTopology.TransitionStyles[style + 1] or "?"))
-      AfterInput(me)
     end
+    AfterInput(me)
   end
   Controls[p .. "Preview Transition"].EventHandler = function()
     local m = St.me[me]
