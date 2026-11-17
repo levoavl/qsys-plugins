@@ -22,6 +22,12 @@ function S.New()
     dsk = {},             -- [n] = { onAir, inTransition, isAuto, tie, rate, fill, key }
     aux = {},             -- [n] = source id
     ss = {},              -- [n] = { boxes = { [b] = { enabled, source } } }
+    mp = {},              -- [n] = { sourceType (1 still, 2 clip), still, clip, playing, loop, atBeginning }
+    stills = {},          -- [index] = { used, name }  (1-based)
+    clips = {},           -- [index] = { used, name }
+    colors = {},          -- [n] = { hue 0-3599, sat 0-1000, luma 0-1000 }
+    macros = {},          -- [index] = { used, name }
+    macroRun = { running = false, waiting = false, loop = false, index = nil },
     initDone = false,
   }
 end
@@ -218,6 +224,64 @@ D["SSBP"] = function(st, d)
   return "ss"
 end
 
+local function MP(st, i)
+  local m = st.mp[i]
+  if not m then
+    m = { sourceType = 1, still = 0, clip = 0, playing = false, loop = false, atBeginning = true }
+    st.mp[i] = m
+  end
+  return m
+end
+
+D["MPCE"] = function(st, d)
+  local m = MP(st, P.U8(d, 0) + 1)
+  m.sourceType = P.U8(d, 1)
+  m.still = P.U8(d, 2) + 1
+  m.clip = P.U8(d, 3) + 1
+  return "mp"
+end
+
+D["RCPS"] = function(st, d)
+  local m = MP(st, P.U8(d, 0) + 1)
+  m.playing = P.U8(d, 1) == 1
+  m.loop = P.U8(d, 2) == 1
+  m.atBeginning = P.U8(d, 3) == 1
+  return "mp"
+end
+
+D["MPfe"] = function(st, d)
+  if P.U8(d, 0) ~= 0 then return nil end   -- bank 0 = stills
+  st.stills[P.U16(d, 2) + 1] = { used = P.U8(d, 4) == 1, name = P.Str(d, 24, P.U8(d, 23)) }
+  return "pool"
+end
+
+D["MPCS"] = function(st, d)
+  st.clips[P.U8(d, 0) + 1] = { used = P.U8(d, 1) == 1, name = P.Str(d, 2, 64) }
+  return "pool"
+end
+
+D["ColV"] = function(st, d)
+  st.colors[P.U8(d, 0) + 1] = { hue = P.U16(d, 2), sat = P.U16(d, 4), luma = P.U16(d, 6) }
+  return "color"
+end
+
+D["MPrp"] = function(st, d)
+  local nameLen = P.U16(d, 4)
+  st.macros[P.U16(d, 0) + 1] = { used = P.U8(d, 2) ~= 0, name = nameLen > 0 and P.Str(d, 8, nameLen) or "" }
+  return "macro"
+end
+
+D["MRPr"] = function(st, d)
+  local flags = P.U8(d, 0)
+  local r = st.macroRun
+  r.running = flags & 1 ~= 0
+  r.waiting = flags & 2 ~= 0
+  r.loop = P.U8(d, 1) ~= 0
+  local index = P.U16(d, 2)
+  r.index = (index ~= 0xFFFF) and index + 1 or nil
+  return "macro"
+end
+
 D["InCm"] = function(st, d)
   st.initDone = true
   return "init"
@@ -233,7 +297,7 @@ function S.Apply(st, name, data)
   local ok, key = pcall(fn, st, data)
   if not ok then return "error", key end
   local index = nil
-  if key == "me" or key == "dsk" or key == "aux" then
+  if key == "me" or key == "dsk" or key == "aux" or key == "mp" then
     index = P.U8(data, 0) + 1
   elseif key == "ss" then
     index = V80(st) and P.U8(data, 0) + 1 or 1
@@ -290,6 +354,25 @@ function Cmd.SuperSourceBox(st, ss, box, enabled, source)
   end
   return C("CSBP", W16(flag) .. W8(box - 1) .. W8(enabled and 1 or 0) .. W16(source or 0) .. P.Pad(18))
 end
+
+-- Media players (mp, still, clip: 1-based)
+function Cmd.MediaStill(mp, still) return C("MPSS", W8(1 | 2) .. W8(mp - 1) .. W8(1) .. W8(still - 1) .. P.Pad(4)) end
+function Cmd.MediaClip(mp, clip) return C("MPSS", W8(1 | 4) .. W8(mp - 1) .. W8(2) .. "\0" .. W8(clip - 1) .. P.Pad(3)) end
+function Cmd.MediaPlay(mp, playing) return C("SCPS", W8(1) .. W8(mp - 1) .. W8(playing and 1 or 0) .. P.Pad(5)) end
+function Cmd.MediaLoop(mp, loop) return C("SCPS", W8(2) .. W8(mp - 1) .. "\0" .. W8(loop and 1 or 0) .. P.Pad(4)) end
+function Cmd.MediaRewind(mp) return C("SCPS", W8(4) .. W8(mp - 1) .. "\0\0" .. W8(1) .. P.Pad(3)) end
+
+-- Colour generator n: hue 0-3599, saturation / luma 0-1000; nil = unchanged
+function Cmd.Color(n, hue, sat, luma)
+  local flag = (hue and 1 or 0) | (sat and 2 or 0) | (luma and 4 or 0)
+  return C("CClV", W8(flag) .. W8(n - 1) .. W16(hue or 0) .. W16(sat or 0) .. W16(luma or 0))
+end
+
+-- Macros (index 1-based)
+function Cmd.MacroRun(index) return C("MAct", W16(index - 1) .. W8(0) .. "\0") end
+function Cmd.MacroStop() return C("MAct", W16(0xFFFF) .. W8(1) .. "\0") end
+function Cmd.MacroContinue() return C("MAct", W16(0xFFFF) .. W8(4) .. "\0") end
+function Cmd.MacroLoop(loop) return C("MRCP", W8(1) .. W8(loop and 1 or 0) .. "\0\0") end
 
 -- Transition rate of a style (0 Mix, 1 Dip, 2 Wipe, 3 DVE); nil for styles without rate
 function Cmd.TransitionRate(me, style, rate)

@@ -289,6 +289,14 @@ function T.AuxMode(props, topo)
   return "None"
 end
 
+function T.StillButtons(topo, props)
+  return math.max(0, math.min(topo.Stills, math.floor(tonumber(PropValue(props, "Still Buttons", 20)) or 0)))
+end
+
+function T.MacroButtons(topo, props)
+  return math.max(0, math.min(topo.Macros, math.floor(tonumber(PropValue(props, "Macro Buttons", 20)) or 0)))
+end
+
 function T.KeyerSetup(props) return PropValue(props, "Keyer Setup Page", false) == true end
 function T.SuperSourcePage(props) return PropValue(props, "SuperSource Page", false) == true end
 
@@ -348,6 +356,8 @@ function T.Pages(topo, props)
       end
     end
   end
+  if topo.MediaPlayers > 0 then pages[#pages + 1] = "Media" end
+  if topo.Macros > 0 then pages[#pages + 1] = "Macros" end
   for ss = 1, T.SuperSourceCount(topo, props) do
     pages[#pages + 1] = topo.SuperSources > 1 and ("SuperSource " .. ss) or "SuperSource"
   end

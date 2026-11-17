@@ -9,8 +9,8 @@ Part of [levo AVL Q-SYS Plugins](../README.md).
 
 > [!NOTE]
 > Work in progress (0.x). Done: connection, M/E functions, upstream / downstream keyers,
-> aux outputs, SuperSource boxes. Media, colour generators, macros, audio, streaming and
-> recording follow.
+> aux outputs, SuperSource boxes, media players, colour generators, macros. Audio,
+> streaming and recording follow.
 
 ## Tested on
 
@@ -35,6 +35,8 @@ simultaneous control connections – close unused software panels if the connect
 | Custom … | | | Counts for the *Custom* model (only shown for Custom) |
 | Source Buttons | All Sources / Inputs Only / None | All Sources | Buttons per source on the program / preview buses and the SuperSource boxes. The combo boxes always list every source. |
 | Aux Buttons | Auto / All Sources / Inputs Only / None | Auto | Buttons per source on every aux output. *Auto*: all sources up to 8 aux, inputs only up to 24 aux, none above (Constellation 4K Plus: 48 aux). |
+| Still Buttons | 0–96 | 20 | Buttons per media player for the first n stills (the combo lists all) |
+| Macro Buttons | 0–100 | 20 | Buttons for the first n macros (the combo lists all used macros) |
 | Keyer Setup Page | on / off | off | Page *Keyers*: fill / key source and type of the upstream keyers, fill / key source of the DSKs |
 | SuperSource Page | on / off | off | Page *SuperSource*: box enable and source |
 
@@ -55,8 +57,8 @@ Each name sits directly under the first button grid that contains the source (un
 program buttons on page M/E 1; sources that only exist on aux, e.g. clean feeds, on the
 Aux page). On a UCI the same name control can be placed as often as needed.
 
-Pages: `M/E n` · `Keyers` · `Aux` (`Aux 1-8`, `Aux 9-16` … above 8 aux) · `SuperSource` ·
-`Setup` · `About` – depending on the model.
+Pages: `M/E n` · `Keyers` · `Aux` (`Aux 1-8`, `Aux 9-16` … above 8 aux) · `Media` · `Macros` ·
+`SuperSource` · `Setup` · `About` – depending on the model and properties.
 
 ### M/E n (page `M/E n`, controls `MEn …`)
 
@@ -111,6 +113,34 @@ On Air and Next Key are on the M/E page (see above).
 | Enable | Toggle | in/out | Box on / off |
 | Source | Combo box | in/out | Box source |
 | *source* | Toggle | in/out | One button per source |
+
+### Media players (`MPn …`, page Media)
+
+| Control | Type | Pin | |
+|---|---|---|---|
+| Source | Combo box | in/out | Still or clip, e.g. `Still 3: logo.png` |
+| Still i | Toggle | in/out | Lit when the player shows still i |
+| Clip i, Play, Loop, Rewind | Toggle / Trigger | in/out | Only on models with clips |
+| Still i Name, Clip i Name | Text | out | File / clip names from the media pool (under the buttons of player 1) |
+
+### Colour generators (`Color n …`, page Media)
+
+| Control | Type | Pin | |
+|---|---|---|---|
+| Hue | Integer 0–359° | in/out | |
+| Saturation, Luma | 0–100 % | in/out | |
+
+### Macros (page Macros)
+
+| Control | Type | Pin | |
+|---|---|---|---|
+| Macro i | Toggle | in/out | Runs macro i, lit while it runs. Pressing it again stops it. |
+| Macro i Name | Text | out | |
+| Macro + Macro Run | Combo box + Trigger | in | Run any used macro by name |
+| Macro Stop, Macro Continue | Trigger | in | Continue = after a user wait |
+| Macro Loop | Toggle | in/out | |
+| Macro Running, Macro Waiting | LED | out | |
+| Macro Running Name | Text | out | |
 
 ### Setup
 

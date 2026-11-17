@@ -253,6 +253,94 @@ elseif auxFirst then
   end
   H = y + M
 
+elseif CurrentPage == "Media" then
+  local stills = AtemTopology.StillButtons(topo, props)
+  local cols = math.min(10, math.max(1, stills))
+  local contentW = math.max(cols * (BW + GAP) - GAP, 760)
+  W = M * 2 + contentW
+  -- buttons with the names (from the switcher) directly under each row
+  local function ButtonRows(count, x, ry, name, pretty, legend, nameCtl)
+    local rows = math.ceil(count / cols)
+    for i = 1, count do
+      local col, row = (i - 1) % cols, (i - 1) // cols
+      local bx, by = x + col * (BW + GAP), ry + row * (BH + NAME_H + 6)
+      Button(name(i), pretty(i), legend(i), bx, by, BW, BH, C.Amber)
+      if nameCtl then
+        Place(nameCtl(i), "Media Pool~" .. nameCtl(i), bx, by + BH + 1, BW, NAME_H,
+          { Style = "Text", Color = C.Porcelain, StrokeWidth = 0, FontSize = 9, TextColor = C.Mid, HTextAlign = "Center" })
+      end
+    end
+    return rows * (BH + NAME_H + 6)
+  end
+  for mp = 1, topo.MediaPlayers do
+    local p, g = "MP" .. mp .. " ", "Media Player " .. mp .. "~"
+    y = Section("Media Player " .. mp, M, y, contentW)
+    Label("Source", M + contentW - 330, y - 28, 120, 20, { align = "Right", color = C.Mid })
+    Place(p .. "Source", g .. "Source", M + contentW - 200, y - 28, 200, 20, { Style = "ComboBox" })
+    if stills > 0 then
+      y = y + ButtonRows(stills, M, y,
+        function(i) return p .. "Still " .. i end, function(i) return g .. "Still " .. i end,
+        function(i) return tostring(i) end,
+        mp == 1 and function(i) return "Still " .. i .. " Name" end or nil) + 2
+    end
+    if topo.Clips > 0 then
+      Label("Clips", M, y + 10, 50, 18, { color = C.Mid })
+      y = y + ButtonRows(topo.Clips, M + 56, y,
+        function(i) return p .. "Clip " .. i end, function(i) return g .. "Clip " .. i end,
+        function(i) return "CLIP " .. i end,
+        mp == 1 and function(i) return "Clip " .. i .. " Name" end or nil)
+      local tx = M + 56 + topo.Clips * (BW + GAP) + 24
+      local ty = y - (BH + NAME_H + 6)
+      Button(p .. "Play", g .. "Play", "PLAY", tx, ty, BW, BH, C.TallyGreen, { FontSize = 10 })
+      Button(p .. "Loop", g .. "Loop", "LOOP", tx + BW + GAP, ty, BW, BH, C.Amber, { FontSize = 10 })
+      Button(p .. "Rewind", g .. "Rewind", "REWIND", tx + 2 * (BW + GAP), ty, BW, BH, C.Atlantic, { FontSize = 10 })
+    end
+    y = y + 4
+  end
+
+  y = Section("Color Generators", M, y, contentW)
+  for n = 1, 2 do
+    local p, g = "Color " .. n .. " ", "Color " .. n .. "~"
+    Label("Color " .. n, M, y + 2, 70, 18, { style = "Bold" })
+    local x = M + 80
+    for _, part in ipairs({ "Hue", "Saturation", "Luma" }) do
+      Label(part, x, y + 2, 70, 18, { align = "Right", size = 10, color = C.Mid })
+      Place(p .. part, g .. part, x + 76, y, 120, 22, { Style = "Fader", Color = C.Atlantic })
+      x = x + 210
+    end
+    y = y + 30
+  end
+  H = y + M
+
+elseif CurrentPage == "Macros" then
+  local macros = AtemTopology.MacroButtons(topo, props)
+  local MW, cols = 72, 10
+  local contentW = math.max(cols * (MW + GAP) - GAP, 760)
+  W = M * 2 + contentW
+  y = Section("Macros", M, y, contentW)
+  Label("Macro", M, y + 3, 50, 18, { color = C.Mid })
+  Place("Macro", "Macros~Macro", M + 54, y, 220, 22, { Style = "ComboBox" })
+  Button("Macro Run", "Macros~Run", "RUN", M + 284, y - 4, 64, 30, C.TallyGreen, { FontSize = 10 })
+  Button("Macro Stop", "Macros~Stop", "STOP", M + 352, y - 4, 64, 30, C.TallyRed, { FontSize = 10 })
+  Button("Macro Continue", "Macros~Continue", "CONTINUE", M + 420, y - 4, 80, 30, C.Atlantic, { FontSize = 10 })
+  Button("Macro Loop", "Macros~Loop", "LOOP", M + 504, y - 4, 64, 30, C.Amber, { FontSize = 10 })
+  y = y + 34
+  Label("Running", M, y + 1, 50, 16, { size = 10, color = C.Mid })
+  Place("Macro Running", "Macros~Running", M + 54, y + 2, 14, 14, { Color = C.TallyGreen })
+  Label("Waiting", M + 76, y + 1, 50, 16, { size = 10, color = C.Mid })
+  Place("Macro Waiting", "Macros~Waiting", M + 128, y + 2, 14, 14, { Color = C.Amber })
+  Place("Macro Running Name", "Macros~Running Name", M + 150, y, 300, 18, FLAT)
+  y = y + 28
+  for i = 1, macros do
+    local col, row = (i - 1) % cols, (i - 1) // cols
+    local bx, by = M + col * (MW + GAP), y + row * (BH + NAME_H + 6)
+    Button("Macro " .. i, "Macros~Macro " .. i, tostring(i), bx, by, MW, BH, C.TallyGreen)
+    Place("Macro " .. i .. " Name", "Macros~Macro " .. i .. " Name", bx, by + BH + 1, MW, NAME_H,
+      { Style = "Text", Color = C.Porcelain, StrokeWidth = 0, FontSize = 9, TextColor = C.Mid, HTextAlign = "Center" })
+  end
+  y = y + math.ceil(macros / cols) * (BH + NAME_H + 6)
+  H = y + M
+
 elseif ssIndex then
   local ss = ssIndex
   local ids = AtemTopology.BoxButtonSources(topo, mode)

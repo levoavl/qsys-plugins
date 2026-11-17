@@ -90,6 +90,47 @@ for aux = 1, topo.Aux do
   end
 end
 
+-- Media players
+local stills = AtemTopology.StillButtons(topo, props)
+for i = 1, stills do TextOut("Still " .. i .. " Name") end
+for i = 1, topo.Clips do TextOut("Clip " .. i .. " Name") end
+for mp = 1, topo.MediaPlayers do
+  local p = "MP" .. mp .. " "
+  TextIn(p .. "Source")            -- combo box: still / clip
+  for i = 1, stills do Toggle(p .. "Still " .. i) end
+  if topo.Clips > 0 then
+    for i = 1, topo.Clips do Toggle(p .. "Clip " .. i) end
+    Toggle(p .. "Play")
+    Toggle(p .. "Loop")
+    Trigger(p .. "Rewind")
+  end
+end
+
+-- Colour generators (always 2)
+local function Percent(name)
+  Add({ Name = name, ControlType = "Knob", ControlUnit = "Percent", Min = 0, Max = 100, PinStyle = "Both" })
+end
+for n = 1, 2 do
+  Add({ Name = "Color " .. n .. " Hue", ControlType = "Knob", ControlUnit = "Integer", Min = 0, Max = 359, PinStyle = "Both" })
+  Percent("Color " .. n .. " Saturation")
+  Percent("Color " .. n .. " Luma")
+end
+
+-- Macros
+local macros = AtemTopology.MacroButtons(topo, props)
+for i = 1, macros do
+  Toggle("Macro " .. i)            -- runs the macro, lit while it runs
+  TextOut("Macro " .. i .. " Name")
+end
+TextIn("Macro")                    -- combo box: macro by name
+Trigger("Macro Run")
+Trigger("Macro Stop")
+Trigger("Macro Continue")
+Toggle("Macro Loop")
+Led("Macro Running")
+Led("Macro Waiting")
+TextOut("Macro Running Name")
+
 -- SuperSource boxes
 local boxIds = AtemTopology.BoxButtonSources(topo, mode)
 for ss = 1, AtemTopology.SuperSourceCount(topo, props) do

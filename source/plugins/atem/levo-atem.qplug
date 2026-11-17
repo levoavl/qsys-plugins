@@ -13,8 +13,8 @@
 
 PluginInfo = {
   Name         = "levo AVL~ATEM Switcher",  -- "Folder~Name" in the Q-SYS schematic library
-  Version      = "0.2",
-  BuildVersion = "0.2",  -- versions are major.minor, see source/README.md
+  Version      = "0.3",
+  BuildVersion = "0.3",  -- versions are major.minor, see source/README.md
   Id           = "540f6f58-c34c-4c96-b2cc-1430d6b79789",
   Author       = "levo AVL | Elias Jenny",
   Description  = "Control Blackmagic ATEM switchers (all models, multi M/E) with feedback: "
@@ -717,6 +717,14 @@ function T.AuxMode(props, topo)
   return "None"
 end
 
+function T.StillButtons(topo, props)
+  return math.max(0, math.min(topo.Stills, math.floor(tonumber(PropValue(props, "Still Buttons", 20)) or 0)))
+end
+
+function T.MacroButtons(topo, props)
+  return math.max(0, math.min(topo.Macros, math.floor(tonumber(PropValue(props, "Macro Buttons", 20)) or 0)))
+end
+
 function T.KeyerSetup(props) return PropValue(props, "Keyer Setup Page", false) == true end
 function T.SuperSourcePage(props) return PropValue(props, "SuperSource Page", false) == true end
 
@@ -776,6 +784,8 @@ function T.Pages(topo, props)
       end
     end
   end
+  if topo.MediaPlayers > 0 then pages[#pages + 1] = "Media" end
+  if topo.Macros > 0 then pages[#pages + 1] = "Macros" end
   for ss = 1, T.SuperSourceCount(topo, props) do
     pages[#pages + 1] = topo.SuperSources > 1 and ("SuperSource " .. ss) or "SuperSource"
   end
@@ -849,6 +859,9 @@ table.insert(props, {
   Choices = { "Auto", "All Sources", "Inputs Only", "None" },
   Value = "Auto",
 })
+-- Buttons per still (per media player) and per macro; the combo boxes list all
+table.insert(props, { Name = "Still Buttons", Type = "integer", Min = 0, Max = 96, Value = 20 })
+table.insert(props, { Name = "Macro Buttons", Type = "integer", Min = 0, Max = 100, Value = 20 })
 -- Setup pages: fill / key sources and key type of the keyers, SuperSource boxes.
 -- Off by default: the plugin is a remote control, details stay in ATEM Software Control.
 table.insert(props, { Name = "Keyer Setup Page", Type = "boolean", Value = false })
@@ -988,6 +1001,47 @@ for aux = 1, topo.Aux do
     Toggle("Aux " .. aux .. " " .. AtemTopology.SourceKey(id))
   end
 end
+
+-- Media players
+local stills = AtemTopology.StillButtons(topo, props)
+for i = 1, stills do TextOut("Still " .. i .. " Name") end
+for i = 1, topo.Clips do TextOut("Clip " .. i .. " Name") end
+for mp = 1, topo.MediaPlayers do
+  local p = "MP" .. mp .. " "
+  TextIn(p .. "Source")            -- combo box: still / clip
+  for i = 1, stills do Toggle(p .. "Still " .. i) end
+  if topo.Clips > 0 then
+    for i = 1, topo.Clips do Toggle(p .. "Clip " .. i) end
+    Toggle(p .. "Play")
+    Toggle(p .. "Loop")
+    Trigger(p .. "Rewind")
+  end
+end
+
+-- Colour generators (always 2)
+local function Percent(name)
+  Add({ Name = name, ControlType = "Knob", ControlUnit = "Percent", Min = 0, Max = 100, PinStyle = "Both" })
+end
+for n = 1, 2 do
+  Add({ Name = "Color " .. n .. " Hue", ControlType = "Knob", ControlUnit = "Integer", Min = 0, Max = 359, PinStyle = "Both" })
+  Percent("Color " .. n .. " Saturation")
+  Percent("Color " .. n .. " Luma")
+end
+
+-- Macros
+local macros = AtemTopology.MacroButtons(topo, props)
+for i = 1, macros do
+  Toggle("Macro " .. i)            -- runs the macro, lit while it runs
+  TextOut("Macro " .. i .. " Name")
+end
+TextIn("Macro")                    -- combo box: macro by name
+Trigger("Macro Run")
+Trigger("Macro Stop")
+Trigger("Macro Continue")
+Toggle("Macro Loop")
+Led("Macro Running")
+Led("Macro Waiting")
+TextOut("Macro Running Name")
 
 -- SuperSource boxes
 local boxIds = AtemTopology.BoxButtonSources(topo, mode)
@@ -1260,6 +1314,94 @@ elseif auxFirst then
       y = y + NameGrid("aux" .. aux, ids, M, y) + 6
     end
   end
+  H = y + M
+
+elseif CurrentPage == "Media" then
+  local stills = AtemTopology.StillButtons(topo, props)
+  local cols = math.min(10, math.max(1, stills))
+  local contentW = math.max(cols * (BW + GAP) - GAP, 760)
+  W = M * 2 + contentW
+  -- buttons with the names (from the switcher) directly under each row
+  local function ButtonRows(count, x, ry, name, pretty, legend, nameCtl)
+    local rows = math.ceil(count / cols)
+    for i = 1, count do
+      local col, row = (i - 1) % cols, (i - 1) // cols
+      local bx, by = x + col * (BW + GAP), ry + row * (BH + NAME_H + 6)
+      Button(name(i), pretty(i), legend(i), bx, by, BW, BH, C.Amber)
+      if nameCtl then
+        Place(nameCtl(i), "Media Pool~" .. nameCtl(i), bx, by + BH + 1, BW, NAME_H,
+          { Style = "Text", Color = C.Porcelain, StrokeWidth = 0, FontSize = 9, TextColor = C.Mid, HTextAlign = "Center" })
+      end
+    end
+    return rows * (BH + NAME_H + 6)
+  end
+  for mp = 1, topo.MediaPlayers do
+    local p, g = "MP" .. mp .. " ", "Media Player " .. mp .. "~"
+    y = Section("Media Player " .. mp, M, y, contentW)
+    Label("Source", M + contentW - 330, y - 28, 120, 20, { align = "Right", color = C.Mid })
+    Place(p .. "Source", g .. "Source", M + contentW - 200, y - 28, 200, 20, { Style = "ComboBox" })
+    if stills > 0 then
+      y = y + ButtonRows(stills, M, y,
+        function(i) return p .. "Still " .. i end, function(i) return g .. "Still " .. i end,
+        function(i) return tostring(i) end,
+        mp == 1 and function(i) return "Still " .. i .. " Name" end or nil) + 2
+    end
+    if topo.Clips > 0 then
+      Label("Clips", M, y + 10, 50, 18, { color = C.Mid })
+      y = y + ButtonRows(topo.Clips, M + 56, y,
+        function(i) return p .. "Clip " .. i end, function(i) return g .. "Clip " .. i end,
+        function(i) return "CLIP " .. i end,
+        mp == 1 and function(i) return "Clip " .. i .. " Name" end or nil)
+      local tx = M + 56 + topo.Clips * (BW + GAP) + 24
+      local ty = y - (BH + NAME_H + 6)
+      Button(p .. "Play", g .. "Play", "PLAY", tx, ty, BW, BH, C.TallyGreen, { FontSize = 10 })
+      Button(p .. "Loop", g .. "Loop", "LOOP", tx + BW + GAP, ty, BW, BH, C.Amber, { FontSize = 10 })
+      Button(p .. "Rewind", g .. "Rewind", "REWIND", tx + 2 * (BW + GAP), ty, BW, BH, C.Atlantic, { FontSize = 10 })
+    end
+    y = y + 4
+  end
+
+  y = Section("Color Generators", M, y, contentW)
+  for n = 1, 2 do
+    local p, g = "Color " .. n .. " ", "Color " .. n .. "~"
+    Label("Color " .. n, M, y + 2, 70, 18, { style = "Bold" })
+    local x = M + 80
+    for _, part in ipairs({ "Hue", "Saturation", "Luma" }) do
+      Label(part, x, y + 2, 70, 18, { align = "Right", size = 10, color = C.Mid })
+      Place(p .. part, g .. part, x + 76, y, 120, 22, { Style = "Fader", Color = C.Atlantic })
+      x = x + 210
+    end
+    y = y + 30
+  end
+  H = y + M
+
+elseif CurrentPage == "Macros" then
+  local macros = AtemTopology.MacroButtons(topo, props)
+  local MW, cols = 72, 10
+  local contentW = math.max(cols * (MW + GAP) - GAP, 760)
+  W = M * 2 + contentW
+  y = Section("Macros", M, y, contentW)
+  Label("Macro", M, y + 3, 50, 18, { color = C.Mid })
+  Place("Macro", "Macros~Macro", M + 54, y, 220, 22, { Style = "ComboBox" })
+  Button("Macro Run", "Macros~Run", "RUN", M + 284, y - 4, 64, 30, C.TallyGreen, { FontSize = 10 })
+  Button("Macro Stop", "Macros~Stop", "STOP", M + 352, y - 4, 64, 30, C.TallyRed, { FontSize = 10 })
+  Button("Macro Continue", "Macros~Continue", "CONTINUE", M + 420, y - 4, 80, 30, C.Atlantic, { FontSize = 10 })
+  Button("Macro Loop", "Macros~Loop", "LOOP", M + 504, y - 4, 64, 30, C.Amber, { FontSize = 10 })
+  y = y + 34
+  Label("Running", M, y + 1, 50, 16, { size = 10, color = C.Mid })
+  Place("Macro Running", "Macros~Running", M + 54, y + 2, 14, 14, { Color = C.TallyGreen })
+  Label("Waiting", M + 76, y + 1, 50, 16, { size = 10, color = C.Mid })
+  Place("Macro Waiting", "Macros~Waiting", M + 128, y + 2, 14, 14, { Color = C.Amber })
+  Place("Macro Running Name", "Macros~Running Name", M + 150, y, 300, 18, FLAT)
+  y = y + 28
+  for i = 1, macros do
+    local col, row = (i - 1) % cols, (i - 1) // cols
+    local bx, by = M + col * (MW + GAP), y + row * (BH + NAME_H + 6)
+    Button("Macro " .. i, "Macros~Macro " .. i, tostring(i), bx, by, MW, BH, C.TallyGreen)
+    Place("Macro " .. i .. " Name", "Macros~Macro " .. i .. " Name", bx, by + BH + 1, MW, NAME_H,
+      { Style = "Text", Color = C.Porcelain, StrokeWidth = 0, FontSize = 9, TextColor = C.Mid, HTextAlign = "Center" })
+  end
+  y = y + math.ceil(macros / cols) * (BH + NAME_H + 6)
   H = y + M
 
 elseif ssIndex then
@@ -1704,6 +1846,12 @@ function S.New()
     dsk = {},             -- [n] = { onAir, inTransition, isAuto, tie, rate, fill, key }
     aux = {},             -- [n] = source id
     ss = {},              -- [n] = { boxes = { [b] = { enabled, source } } }
+    mp = {},              -- [n] = { sourceType (1 still, 2 clip), still, clip, playing, loop, atBeginning }
+    stills = {},          -- [index] = { used, name }  (1-based)
+    clips = {},           -- [index] = { used, name }
+    colors = {},          -- [n] = { hue 0-3599, sat 0-1000, luma 0-1000 }
+    macros = {},          -- [index] = { used, name }
+    macroRun = { running = false, waiting = false, loop = false, index = nil },
     initDone = false,
   }
 end
@@ -1900,6 +2048,64 @@ D["SSBP"] = function(st, d)
   return "ss"
 end
 
+local function MP(st, i)
+  local m = st.mp[i]
+  if not m then
+    m = { sourceType = 1, still = 0, clip = 0, playing = false, loop = false, atBeginning = true }
+    st.mp[i] = m
+  end
+  return m
+end
+
+D["MPCE"] = function(st, d)
+  local m = MP(st, P.U8(d, 0) + 1)
+  m.sourceType = P.U8(d, 1)
+  m.still = P.U8(d, 2) + 1
+  m.clip = P.U8(d, 3) + 1
+  return "mp"
+end
+
+D["RCPS"] = function(st, d)
+  local m = MP(st, P.U8(d, 0) + 1)
+  m.playing = P.U8(d, 1) == 1
+  m.loop = P.U8(d, 2) == 1
+  m.atBeginning = P.U8(d, 3) == 1
+  return "mp"
+end
+
+D["MPfe"] = function(st, d)
+  if P.U8(d, 0) ~= 0 then return nil end   -- bank 0 = stills
+  st.stills[P.U16(d, 2) + 1] = { used = P.U8(d, 4) == 1, name = P.Str(d, 24, P.U8(d, 23)) }
+  return "pool"
+end
+
+D["MPCS"] = function(st, d)
+  st.clips[P.U8(d, 0) + 1] = { used = P.U8(d, 1) == 1, name = P.Str(d, 2, 64) }
+  return "pool"
+end
+
+D["ColV"] = function(st, d)
+  st.colors[P.U8(d, 0) + 1] = { hue = P.U16(d, 2), sat = P.U16(d, 4), luma = P.U16(d, 6) }
+  return "color"
+end
+
+D["MPrp"] = function(st, d)
+  local nameLen = P.U16(d, 4)
+  st.macros[P.U16(d, 0) + 1] = { used = P.U8(d, 2) ~= 0, name = nameLen > 0 and P.Str(d, 8, nameLen) or "" }
+  return "macro"
+end
+
+D["MRPr"] = function(st, d)
+  local flags = P.U8(d, 0)
+  local r = st.macroRun
+  r.running = flags & 1 ~= 0
+  r.waiting = flags & 2 ~= 0
+  r.loop = P.U8(d, 1) ~= 0
+  local index = P.U16(d, 2)
+  r.index = (index ~= 0xFFFF) and index + 1 or nil
+  return "macro"
+end
+
 D["InCm"] = function(st, d)
   st.initDone = true
   return "init"
@@ -1915,7 +2121,7 @@ function S.Apply(st, name, data)
   local ok, key = pcall(fn, st, data)
   if not ok then return "error", key end
   local index = nil
-  if key == "me" or key == "dsk" or key == "aux" then
+  if key == "me" or key == "dsk" or key == "aux" or key == "mp" then
     index = P.U8(data, 0) + 1
   elseif key == "ss" then
     index = V80(st) and P.U8(data, 0) + 1 or 1
@@ -1972,6 +2178,25 @@ function Cmd.SuperSourceBox(st, ss, box, enabled, source)
   end
   return C("CSBP", W16(flag) .. W8(box - 1) .. W8(enabled and 1 or 0) .. W16(source or 0) .. P.Pad(18))
 end
+
+-- Media players (mp, still, clip: 1-based)
+function Cmd.MediaStill(mp, still) return C("MPSS", W8(1 | 2) .. W8(mp - 1) .. W8(1) .. W8(still - 1) .. P.Pad(4)) end
+function Cmd.MediaClip(mp, clip) return C("MPSS", W8(1 | 4) .. W8(mp - 1) .. W8(2) .. "\0" .. W8(clip - 1) .. P.Pad(3)) end
+function Cmd.MediaPlay(mp, playing) return C("SCPS", W8(1) .. W8(mp - 1) .. W8(playing and 1 or 0) .. P.Pad(5)) end
+function Cmd.MediaLoop(mp, loop) return C("SCPS", W8(2) .. W8(mp - 1) .. "\0" .. W8(loop and 1 or 0) .. P.Pad(4)) end
+function Cmd.MediaRewind(mp) return C("SCPS", W8(4) .. W8(mp - 1) .. "\0\0" .. W8(1) .. P.Pad(3)) end
+
+-- Colour generator n: hue 0-3599, saturation / luma 0-1000; nil = unchanged
+function Cmd.Color(n, hue, sat, luma)
+  local flag = (hue and 1 or 0) | (sat and 2 or 0) | (luma and 4 or 0)
+  return C("CClV", W8(flag) .. W8(n - 1) .. W16(hue or 0) .. W16(sat or 0) .. W16(luma or 0))
+end
+
+-- Macros (index 1-based)
+function Cmd.MacroRun(index) return C("MAct", W16(index - 1) .. W8(0) .. "\0") end
+function Cmd.MacroStop() return C("MAct", W16(0xFFFF) .. W8(1) .. "\0") end
+function Cmd.MacroContinue() return C("MAct", W16(0xFFFF) .. W8(4) .. "\0") end
+function Cmd.MacroLoop(loop) return C("MRCP", W8(1) .. W8(loop and 1 or 0) .. "\0\0") end
 
 -- Transition rate of a style (0 Mix, 1 Dip, 2 Wipe, 3 DVE); nil for styles without rate
 function Cmd.TransitionRate(me, style, rate)
@@ -2269,7 +2494,107 @@ local function RenderSS(ss)
   end
 end
 
-local Dirty = { me = {}, dsk = {}, aux = {}, ss = {}, names = false }
+-- Media pool, colour generators, macros
+local Stills = AtemTopology.StillButtons(Topo, Properties)
+local MacroCount = AtemTopology.MacroButtons(Topo, Properties)
+local MediaIds = {}      -- [mp] = { [combo name] = { kind, index } }
+local MacroIds = {}      -- [combo name] = index
+local ColorTouched = {}  -- [n] = time of the last user move
+local COLOR_HOLD = 0.5
+
+local function StillName(i)
+  local s = St.stills[i]
+  return (s and s.used) and s.name or ""
+end
+
+local function ClipName(i)
+  local c = St.clips[i]
+  return (c and c.used) and c.name or ""
+end
+
+local function MediaChoice(kind, i)
+  local name = kind == 1 and StillName(i) or ClipName(i)
+  return ("%s %d%s"):format(kind == 1 and "Still" or "Clip", i, name ~= "" and (": " .. name) or "")
+end
+
+local function RenderPool()
+  for i = 1, Stills do SetString("Still " .. i .. " Name", Ready and StillName(i) or "") end
+  for i = 1, Topo.Clips do SetString("Clip " .. i .. " Name", Ready and ClipName(i) or "") end
+  -- combo: every still / clip slot (unused ones too, so the list does not shift)
+  local names, ids = {}, {}
+  for i = 1, Topo.Stills do
+    local n = MediaChoice(1, i)
+    names[#names + 1], ids[n] = n, { 1, i }
+  end
+  for i = 1, Topo.Clips do
+    local n = MediaChoice(2, i)
+    names[#names + 1], ids[n] = n, { 2, i }
+  end
+  for mp = 1, Topo.MediaPlayers do
+    MediaIds[mp] = ids
+    SetChoices("MP" .. mp .. " Source", names)
+  end
+end
+
+local function RenderMP(mp)
+  local m = Ready and St.mp[mp] or {}
+  local p = "MP" .. mp .. " "
+  for i = 1, Stills do SetBool(p .. "Still " .. i, m.sourceType == 1 and m.still == i) end
+  for i = 1, Topo.Clips do SetBool(p .. "Clip " .. i, m.sourceType == 2 and m.clip == i) end
+  SetBool(p .. "Play", m.playing == true)
+  SetBool(p .. "Loop", m.loop == true)
+  local text = ""
+  if m.sourceType == 1 and m.still then text = MediaChoice(1, m.still)
+  elseif m.sourceType == 2 and m.clip then text = MediaChoice(2, m.clip) end
+  SetString(p .. "Source", text)
+end
+
+local function RenderColor(n)
+  if ColorTouched[n] then return end
+  local c = Ready and St.colors[n]
+  if not c then return end
+  local p = "Color " .. n .. " "
+  local function set(name, v)
+    local ctl = Controls[name]
+    if ctl and math.abs(ctl.Value - v) > 0.05 then ctl.Value = v end
+  end
+  set(p .. "Hue", math.floor(c.hue / 10 + 0.5))
+  set(p .. "Saturation", c.sat / 10)
+  set(p .. "Luma", c.luma / 10)
+end
+
+local function RenderMacros()
+  local names, ids = {}, {}
+  for i = 1, Topo.Macros do
+    local m = St.macros[i]
+    if Ready and m and m.used then
+      local n = ("%d: %s"):format(i, m.name ~= "" and m.name or "(no name)")
+      names[#names + 1], ids[n] = n, i
+    end
+  end
+  MacroIds = ids
+  SetChoices("Macro", names)
+  local r = St.macroRun
+  for i = 1, MacroCount do
+    local m = St.macros[i]
+    SetString("Macro " .. i .. " Name", (Ready and m and m.used) and m.name or "")
+    SetBool("Macro " .. i, Ready and r.running and r.index == i or false)
+  end
+  SetBool("Macro Running", Ready and r.running or false)
+  SetBool("Macro Waiting", Ready and r.waiting or false)
+  SetBool("Macro Loop", Ready and r.loop or false)
+  local running = ""
+  if Ready and r.running and r.index then
+    local m = St.macros[r.index]
+    running = ("%d: %s"):format(r.index, m and m.name or "")
+  end
+  SetString("Macro Running Name", running)
+end
+
+local Dirty = { me = {}, dsk = {}, aux = {}, ss = {}, mp = {}, color = {}, names = false, pool = false, macro = false }
+local function NewDirty()
+  return { me = {}, dsk = {}, aux = {}, ss = {}, mp = {}, color = {}, names = false, pool = false, macro = false }
+end
 
 local function RenderAll()
   BuildCombos()
@@ -2278,7 +2603,11 @@ local function RenderAll()
   for n = 1, Topo.DSKs do RenderDSK(n) end
   for aux = 1, Topo.Aux do RenderAux(aux) end
   for ss = 1, SSCount do RenderSS(ss) end
-  Dirty = { me = {}, dsk = {}, aux = {}, ss = {}, names = false }
+  RenderPool()
+  for mp = 1, Topo.MediaPlayers do RenderMP(mp) end
+  for n = 1, 2 do RenderColor(n) end
+  RenderMacros()
+  Dirty = NewDirty()
 end
 
 local function RenderDirty()
@@ -2290,7 +2619,14 @@ local function RenderDirty()
   for n in pairs(Dirty.dsk) do if n <= Topo.DSKs then RenderDSK(n) end end
   for aux in pairs(Dirty.aux) do if aux <= Topo.Aux then RenderAux(aux) end end
   for ss in pairs(Dirty.ss) do if ss <= SSCount then RenderSS(ss) end end
-  Dirty = { me = {}, dsk = {}, aux = {}, ss = {}, names = false }
+  if Dirty.pool then
+    RenderPool()
+    for mp = 1, Topo.MediaPlayers do Dirty.mp[mp] = true end
+  end
+  for mp in pairs(Dirty.mp) do if mp <= Topo.MediaPlayers then RenderMP(mp) end end
+  for n in pairs(Dirty.color) do RenderColor(n) end
+  if Dirty.macro then RenderMacros() end
+  Dirty = NewDirty()
 end
 
 ---------------------------------------------------------------------------
@@ -2408,8 +2744,12 @@ local function OnCommand(name, data)
     return
   end
   if DebugLevel >= 2 and Ready then Log(2, ("< %s %s"):format(name, AtemProtocol.Hex(data, 24))) end
-  if key == "me" or key == "dsk" or key == "aux" or key == "ss" then
+  if key == "me" or key == "dsk" or key == "aux" or key == "ss" or key == "mp" then
     if me then Dirty[key][me] = true end
+  elseif key == "color" then
+    Dirty.color[AtemProtocol.U8(data, 0) + 1] = true
+  elseif key == "pool" or key == "macro" then
+    Dirty[key] = true
   elseif key == "input" then
     Dirty.names = true
   elseif key == "device" then
@@ -2524,6 +2864,12 @@ MainTimer.EventHandler = function()
     if Now - t > TBAR_HOLD then
       TBarTouched[me] = nil
       Dirty.me[me] = true
+    end
+  end
+  for n, t in pairs(ColorTouched) do
+    if Now - t > COLOR_HOLD then
+      ColorTouched[n] = nil
+      Dirty.color[n] = true
     end
   end
   if Ready then RenderDirty() end
@@ -2728,6 +3074,87 @@ for aux = 1, Topo.Aux do
     end
     RenderAux(aux)
   end
+end
+
+-- Media players
+for mp = 1, Topo.MediaPlayers do
+  local p = "MP" .. mp .. " "
+  for i = 1, Stills do
+    Controls[p .. "Still " .. i].EventHandler = function()
+      Send(Cmd.MediaStill(mp, i), ("MP %d still %d"):format(mp, i))
+      RenderMP(mp)
+    end
+  end
+  for i = 1, Topo.Clips do
+    Controls[p .. "Clip " .. i].EventHandler = function()
+      Send(Cmd.MediaClip(mp, i), ("MP %d clip %d"):format(mp, i))
+      RenderMP(mp)
+    end
+  end
+  if Topo.Clips > 0 then
+    Controls[p .. "Play"].EventHandler = function()
+      local m = St.mp[mp] or {}
+      Send(Cmd.MediaPlay(mp, not m.playing), ("MP %d %s"):format(mp, m.playing and "stop" or "play"))
+      RenderMP(mp)
+    end
+    Controls[p .. "Loop"].EventHandler = function()
+      local m = St.mp[mp] or {}
+      Send(Cmd.MediaLoop(mp, not m.loop), ("MP %d loop %s"):format(mp, m.loop and "off" or "on"))
+      RenderMP(mp)
+    end
+    Controls[p .. "Rewind"].EventHandler = function()
+      Send(Cmd.MediaRewind(mp), ("MP %d rewind"):format(mp))
+    end
+  end
+  Controls[p .. "Source"].EventHandler = function(c)
+    local item = MediaIds[mp] and MediaIds[mp][c.String]
+    if item then
+      local make = item[1] == 1 and Cmd.MediaStill or Cmd.MediaClip
+      Send(make(mp, item[2]), ("MP %d: %s"):format(mp, c.String))
+    end
+    RenderMP(mp)
+  end
+end
+
+-- Colour generators: moves are merged while dragging
+for n = 1, 2 do
+  local p = "Color " .. n .. " "
+  local function Changed(what)
+    ColorTouched[n] = Now
+    local hue = math.floor(Controls[p .. "Hue"].Value * 10 + 0.5)
+    local sat = math.floor(Controls[p .. "Saturation"].Value * 10 + 0.5)
+    local luma = math.floor(Controls[p .. "Luma"].Value * 10 + 0.5)
+    local cmd = Cmd.Color(n, what == "Hue" and hue or nil, what == "Saturation" and sat or nil, what == "Luma" and luma or nil)
+    Send(cmd, ("Color %d %s"):format(n, what), "color" .. n .. what)
+  end
+  for _, part in ipairs({ "Hue", "Saturation", "Luma" }) do
+    Controls[p .. part].EventHandler = function() Changed(part) end
+  end
+end
+
+-- Macros
+local function RunMacro(i, what)
+  local r = St.macroRun
+  if r.running and r.index == i then
+    Send(Cmd.MacroStop(), "Macro stop")
+  else
+    Send(Cmd.MacroRun(i), "Macro run " .. what)
+  end
+  RenderMacros()
+end
+for i = 1, MacroCount do
+  Controls["Macro " .. i].EventHandler = function() RunMacro(i, tostring(i)) end
+end
+Controls["Macro Run"].EventHandler = function()
+  local i = MacroIds[Controls["Macro"].String]
+  if i then RunMacro(i, Controls["Macro"].String) else Log(1, "Macro run: no macro selected") end
+end
+Controls["Macro"].EventHandler = function() end
+Controls["Macro Stop"].EventHandler = function() Send(Cmd.MacroStop(), "Macro stop") end
+Controls["Macro Continue"].EventHandler = function() Send(Cmd.MacroContinue(), "Macro continue") end
+Controls["Macro Loop"].EventHandler = function()
+  Send(Cmd.MacroLoop(not St.macroRun.loop), "Macro loop " .. (St.macroRun.loop and "off" or "on"))
+  RenderMacros()
 end
 
 -- SuperSource boxes

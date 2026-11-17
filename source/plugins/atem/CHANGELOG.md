@@ -5,7 +5,7 @@ Format: [Keep a Changelog](https://keepachangelog.com), versioning: `major.minor
 
 ## [Unreleased]
 
-Development versions: 0.1 connection + M/E, 0.2 keyers, aux, SuperSource.
+Development versions: 0.1 connection + M/E, 0.2 keyers, aux, SuperSource, 0.3 media, colours, macros.
 
 ### Added
 - Model property with all ATEM models (generated from the Companion model table) and a
@@ -30,3 +30,8 @@ Development versions: 0.1 connection + M/E, 0.2 keyers, aux, SuperSource.
 - Keyer setup (now with key type) and SuperSource on optional pages, off by default.
 - "Aux Buttons" = Auto: button count follows the switcher size.
 - T-bar behaves like a hardware T-bar (no drop after Auto, direction flips).
+- Media players: still / clip selection (buttons + combo with media pool names), clip
+  play / loop / rewind.
+- Colour generators: hue, saturation, luma.
+- Macros: run / stop buttons with names and running state, combo + run, stop, continue,
+  loop, running / waiting LEDs.

@@ -146,6 +146,7 @@ class FakeAtem:
         self.preview = {m: 2 for m in range(mes)}
         self.next = {}
         self.boxes = {}
+        self.colors = {}
         self.video_mode = 10   # 1080p25
 
     # -------- packets to the plugin
@@ -210,6 +211,20 @@ class FakeAtem:
             c.append(cmd("AuxS", bytes([aux, 0]) + struct.pack(">H", 10010)))
         for box in range(4):
             c.append(cmd("SSBP", bytes([0, box, 1 if box == 0 else 0, 0]) + struct.pack(">H", box + 1) + bytes(18)))
+        for mp in range(2):
+            c += [cmd("MPCE", bytes([mp, 1, mp, 0])), cmd("RCPS", bytes([mp, 0, 0, 1, 0, 0, 0, 0]))]
+        for i in range(20):
+            name = f"still{i + 1}.png".encode() if i < 3 else b""
+            c.append(cmd("MPfe", bytes([0, 0]) + struct.pack(">H", i) + bytes([1 if i < 3 else 0]) + bytes(18)
+                         + bytes([len(name)]) + name + bytes((4 - (24 + len(name)) % 4) % 4)))
+        for n in range(2):
+            c.append(cmd("ColV", bytes([n, 0]) + struct.pack(">HHH", 1200, 500, 1000)))
+        for i in range(100):
+            name = b"Intro" if i == 0 else (b"Outro" if i == 4 else b"")
+            used = 1 if name else 0
+            c.append(cmd("MPrp", struct.pack(">H", i) + bytes([used, 0]) + struct.pack(">HH", len(name), 0)
+                         + name + bytes((4 - len(name) % 4) % 4)))
+        c.append(cmd("MRPr", bytes([0, 0]) + struct.pack(">H", 0xFFFF)))
         c.append(cmd("InCm", b"\x01\0\0\0"))
         return c
 
@@ -289,6 +304,23 @@ class FakeAtem:
                     if flag & 2:
                         box[1] = struct.unpack(">H", d[6:8])[0]
                     feedback.append(cmd("SSBP", bytes([d[2], d[3], box[0], 0]) + struct.pack(">H", box[1]) + bytes(18)))
+                elif name == "MPSS":
+                    mp = d[1]
+                    feedback.append(cmd("MPCE", bytes([mp, d[2], d[3], d[4]])))
+                elif name == "MAct":
+                    idx = struct.unpack(">H", d[0:2])[0]
+                    if d[2] == 0:
+                        feedback.append(cmd("MRPr", bytes([1, 0]) + struct.pack(">H", idx)))
+                    elif d[2] == 1:
+                        feedback.append(cmd("MRPr", bytes([0, 0]) + struct.pack(">H", 0xFFFF)))
+                elif name == "CClV":
+                    n = d[1]
+                    old = self.colors.get(n, [1200, 500, 1000])
+                    for bit, k in ((1, 0), (2, 1), (4, 2)):
+                        if d[0] & bit:
+                            old[k] = struct.unpack(">H", d[2 + 2 * k:4 + 2 * k])[0]
+                    self.colors[n] = old
+                    feedback.append(cmd("ColV", bytes([n, 0]) + struct.pack(">HHH", *old)))
                 elif name == "CTTp":
                     me = d[1]
                     style, sel = self.next.get(me, (0, 1))
@@ -502,7 +534,7 @@ def test_block2():
     print("test_block2 (DSK, keyer sources, aux, SuperSource)")
     h0 = Harness()
     pages = [h0._s(x) for x in h0.g.PageList(h0.g.Properties).values()]
-    check(pages == ["M/E 1", "Aux", "Setup", "About"], f"default pages: {pages}")
+    check(pages == ["M/E 1", "Aux", "Media", "Macros", "Setup", "About"], f"default pages: {pages}")
     check(h0.g.Controls[b"ME1 Key 1 Fill"] is None and h0.g.Controls[b"SS1 Box 1 Enable"] is None,
           "keyer / SuperSource setup off by default")
     h = Harness({"Keyer Setup Page": True, "SuperSource Page": True})
@@ -562,6 +594,60 @@ def test_block2():
     h.tick()
     check(h.b("SS1 Box 2 Enable") and h.b("SS1 Box 4 Bars"), "box feedback")
     return h
+
+
+def test_block3():
+    print("test_block3 (media, colour generators, macros)")
+    h = Harness()
+    h.connect()
+    a = h.atem
+    a.take()
+    check(h.b("MP1 Still 1") and h.b("MP2 Still 2") and not h.b("MP1 Still 2"), "media player still feedback")
+    check(h.s("Still 2 Name") == "still2.png" and h.s("Still 5 Name") == "", "still names")
+    check(h.s("MP1 Source") == "Still 1: still1.png", "media combo")
+    check(h.ctl("Color 1 Hue").Value == 120 and h.ctl("Color 1 Saturation").Value == 50, "colour feedback")
+    check(h.s("Macro 1 Name") == "Intro" and h.s("Macro 5 Name") == "Outro", "macro names")
+    choices = [h._s(x) for x in h.ctl("Macro").Choices.values()]
+    check(choices == ["1: Intro", "5: Outro"], f"macro combo lists used macros: {choices}")
+
+    h.user("MP2 Still 3")
+    pk = a.take()
+    check(pk[0]["cmds"] == [("MPSS", bytes([3, 1, 1, 2, 0, 0, 0, 0]))], "MP2 -> still 3")
+    a.handle(pk)
+    h.tick()
+    check(h.b("MP2 Still 3") and h.s("MP2 Source") == "Still 3: still3.png", "still feedback")
+    h.user("MP1 Source", "String", b"Still 2: still2.png")
+    pk = a.take()
+    check(pk[0]["cmds"] == [("MPSS", bytes([3, 0, 1, 1, 0, 0, 0, 0]))], "combo -> still 2")
+    a.handle(pk)
+
+    h.user("Macro 5")
+    pk = a.take()
+    check(pk[0]["cmds"] == [("MAct", bytes([0, 4, 0, 0]))], "run macro 5")
+    a.handle(pk)
+    h.tick()
+    check(h.b("Macro 5") and h.b("Macro Running") and h.s("Macro Running Name") == "5: Outro", "macro running")
+    h.user("Macro 5")
+    pk = a.take()
+    check(pk[0]["cmds"] == [("MAct", bytes([0xFF, 0xFF, 1, 0]))], "pressing the running macro stops it")
+    a.handle(pk)
+    h.tick()
+    check(not h.b("Macro 5") and not h.b("Macro Running"), "macro stopped")
+    h.user("Macro", "String", b"1: Intro")
+    h.user("Macro Run")
+    pk = a.take()
+    check(pk[0]["cmds"] == [("MAct", bytes([0, 0, 0, 0]))], "combo + run")
+    a.handle(pk)
+
+    for v in (10, 20, 30):
+        h.user("Color 2 Luma", "Value", v)
+    pk = a.take()
+    check(pk[-1]["cmds"][-1] == ("CClV", bytes([4, 1, 0, 0, 0, 0]) + struct.pack(">H", 300)), "colour 2 luma 30 %")
+    a.handle(pk)
+    h.tick(2)
+    check(h.ctl("Color 2 Luma").Value == 30, "no jump while dragging")
+    h.tick(40)
+    check(h.ctl("Color 2 Luma").Value == 30 and h.ctl("Color 2 Hue").Value == 120, "feedback after hold")
 
 
 def test_tbar():
@@ -751,6 +837,7 @@ def main():
     test_commands()
     test_block2()
     test_tbar()
+    test_block3()
     test_resend()
     test_timeout_and_reconnect()
     test_no_device()
