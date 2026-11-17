@@ -28,6 +28,10 @@ function S.New()
     colors = {},          -- [n] = { hue 0-3599, sat 0-1000, luma 0-1000 }
     macros = {},          -- [index] = { used, name }
     macroRun = { running = false, waiting = false, loop = false, index = nil },
+    audio = {},           -- [input id] = { level dB, mix 0 Off / 1 On / 2 AFV, source (Fairlight, 8 raw bytes) }
+    audioMaster = {},     -- { level dB, ftb }
+    stream = { status = 0, duration = "" },
+    record = { status = 0, duration = "", remaining = nil, iso = false },
     initDone = false,
   }
 end
@@ -282,6 +286,65 @@ D["MRPr"] = function(st, d)
   return "macro"
 end
 
+-- Audio: Fairlight (mix options 1 Off, 2 On, 4 AFV; gains in 1/100 dB)
+local FAIRLIGHT_MIX = { [1] = 0, [2] = 1, [4] = 2 }
+S.FAIRLIGHT_MIX_OUT = { [0] = 1, 2, 4 }
+
+D["FASP"] = function(st, d)
+  local id = P.U16(d, 0)
+  local a = st.audio[id] or {}
+  st.audio[id] = a
+  local source = d:sub(9, 16)
+  -- an input can have several sources (split stereo); control the first one
+  if a.source and a.source ~= source then return nil end
+  a.source = source
+  a.level = P.S32(d, 44) / 100
+  a.mix = FAIRLIGHT_MIX[P.U8(d, 49)] or 0
+  return "audio"
+end
+
+D["FAMP"] = function(st, d)
+  st.audioMaster.level = P.S32(d, 12) / 100
+  st.audioMaster.ftb = P.U8(d, 16) > 0
+  return "audio"
+end
+
+-- Audio: classic mixer (gain as 16 bit linear, 32768 = 0 dB)
+local function ClassicDb(v)
+  if v <= 0 then return -math.huge end
+  return math.log(v / 32768, 10) * 20
+end
+S.ClassicDb = ClassicDb
+
+D["AMIP"] = function(st, d)
+  local id = P.U16(d, 0)
+  local a = st.audio[id] or {}
+  st.audio[id] = a
+  a.mix = P.U8(d, 8)
+  a.level = ClassicDb(P.U16(d, 10))
+  return "audio"
+end
+
+D["AMMO"] = function(st, d)
+  st.audioMaster.level = ClassicDb(P.U16(d, 0))
+  st.audioMaster.ftb = P.U8(d, 4) == 1
+  return "audio"
+end
+
+-- Streaming / recording
+D["StRS"] = function(st, d) st.stream.status = P.U16(d, 0) return "stream" end
+local function Timecode(d)
+  return ("%02d:%02d:%02d"):format(P.U8(d, 0), P.U8(d, 1), P.U8(d, 2))
+end
+D["SRST"] = function(st, d) st.stream.duration = Timecode(d) return "stream" end
+D["RTMS"] = function(st, d)
+  st.record.status = P.U16(d, 0)
+  if #d > 4 then st.record.remaining = P.U32(d, 4) end
+  return "stream"
+end
+D["RTMR"] = function(st, d) st.record.duration = Timecode(d) return "stream" end
+D["ISOi"] = function(st, d) st.record.iso = P.U8(d, 0) > 0 return "stream" end
+
 D["InCm"] = function(st, d)
   st.initDone = true
   return "init"
@@ -372,6 +435,40 @@ end
 function Cmd.MacroRun(index) return C("MAct", W16(index - 1) .. W8(0) .. "\0") end
 function Cmd.MacroStop() return C("MAct", W16(0xFFFF) .. W8(1) .. "\0") end
 function Cmd.MacroLoop(loop) return C("MRCP", W8(1) .. W8(loop and 1 or 0) .. "\0\0") end
+
+-- Audio (Fairlight): level in dB, mix 0 Off / 1 On / 2 AFV
+function Cmd.FairlightInput(id, source, level, mix)
+  local flag = (level and 128 or 0) | (mix and 256 or 0)
+  return C("CFSP", W16(flag) .. W16(id) .. P.Pad(4) .. source .. P.Pad(24)
+    .. P.W32(math.floor((level or 0) * 100 + 0.5)) .. W8(mix and S.FAIRLIGHT_MIX_OUT[mix] or 0) .. P.Pad(3))
+end
+function Cmd.FairlightMaster(level, ftb)
+  local flag = (level and 8 or 0) | (ftb ~= nil and 16 or 0)
+  return C("CFMP", W8(flag) .. P.Pad(11) .. P.W32(math.floor((level or 0) * 100 + 0.5))
+    .. W8(ftb and 1 or 0) .. P.Pad(3))
+end
+
+-- Audio (classic mixer)
+local function ClassicGain(db)
+  if db <= -60 then return 0 end
+  return math.min(65381, math.floor(10 ^ (db / 20) * 32768))
+end
+function Cmd.ClassicInput(id, level, mix)
+  local flag = (mix and 1 or 0) | (level and 2 or 0)
+  return C("CAMI", W8(flag) .. "\0" .. W16(id) .. W8(mix or 0) .. "\0" .. W16(level and ClassicGain(level) or 0)
+    .. P.Pad(4))
+end
+function Cmd.ClassicMaster(level, ftb)
+  local flag = (level and 1 or 0) | (ftb ~= nil and 4 or 0)
+  return C("CAMM", W8(flag) .. "\0" .. W16(level and ClassicGain(level) or 0) .. "\0\0" .. W8(ftb and 1 or 0) .. "\0")
+end
+
+-- Streaming / recording
+function Cmd.Stream(on) return C("StrR", W8(on and 1 or 0) .. "\0\0\0") end
+function Cmd.StreamDuration() return C("SRDR", "") end
+function Cmd.Record(on) return C("RcTM", W8(on and 1 or 0) .. "\0\0\0") end
+function Cmd.RecordDuration() return C("RMDR", "") end
+function Cmd.RecordISO(on) return C("ISOi", W8(on and 1 or 0) .. "\0\0\0") end
 
 -- Transition rate of a style (0 Mix, 1 Dip, 2 Wipe, 3 DVE); nil for styles without rate
 function Cmd.TransitionRate(me, style, rate)

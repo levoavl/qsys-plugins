@@ -5,7 +5,8 @@ Format: [Keep a Changelog](https://keepachangelog.com), versioning: `major.minor
 
 ## [Unreleased]
 
-Development versions: 0.1 connection + M/E, 0.2 keyers, aux, SuperSource, 0.3 media, colours, macros.
+Development versions: 0.1 connection + M/E, 0.2 keyers, aux, SuperSource, 0.3 media, colours, macros,
+0.4 audio, streaming, recording.
 
 ### Added
 - Model property with all ATEM models (generated from the Companion model table) and a
@@ -35,3 +36,7 @@ Development versions: 0.1 connection + M/E, 0.2 keyers, aux, SuperSource, 0.3 me
 - Colour generators: hue, saturation, luma.
 - Macros: run / stop buttons with names and running state, combo + run, stop, loop,
   running LED. (Continue after a user wait is not supported yet.)
+- Audio (Fairlight and classic mixer): level, On / AFV / Mute per input, master level,
+  master follow FTB; property "Audio".
+- Streaming and recording: start / stop with status, duration, remaining recording time,
+  ISO recording.

@@ -37,6 +37,11 @@ table.insert(props, {
 -- Buttons per still (per media player) and per macro; the combo boxes list all
 table.insert(props, { Name = "Still Buttons", Type = "integer", Min = 0, Max = 96, Value = 20 })
 table.insert(props, { Name = "Macro Buttons", Type = "integer", Min = 0, Max = 100, Value = 20 })
+-- Audio mixer page (Fairlight or classic, depending on the model). MADI channels
+-- (Constellation) only with "On incl. MADI" - that can be 64 extra strips.
+table.insert(props, {
+  Name = "Audio", Type = "enum", Choices = { "On", "On incl. MADI", "Off" }, Value = "On",
+})
 -- Setup pages: fill / key sources and key type of the keyers, SuperSource boxes.
 -- Off by default: the plugin is a remote control, details stay in ATEM Software Control.
 table.insert(props, { Name = "Keyer Setup Page", Type = "boolean", Value = false })

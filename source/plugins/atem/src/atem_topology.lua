@@ -342,6 +342,43 @@ function T.NamePlacement(topo, props)
   return owner, all
 end
 
+---------------------------------------------------------------------------
+-- Audio
+---------------------------------------------------------------------------
+-- Stable name part for an audio input ("Audio Mic 1 Level")
+function T.AudioKey(id)
+  if id < 1000 then return "Input " .. id end
+  if id > 1000 and id < 1100 then return "XLR " .. (id - 1000) end
+  if id > 1100 and id < 1200 then return "AES " .. (id - 1100) end
+  if id > 1200 and id < 1300 then return "RCA " .. (id - 1200) end
+  if id > 1300 and id < 1400 then return "Mic " .. (id - 1300) end
+  if id > 1400 and id < 1500 then return "TRS " .. (id - 1400) end
+  if id > 1500 and id < 1600 then return "MADI " .. (id - 1500) end
+  if id > 2000 and id < 2050 then return "MP" .. (id - 2000) end
+  if id == 2051 then return "USB" end
+  return "Audio " .. id
+end
+
+-- Audio inputs with a channel strip ({} when audio is off)
+function T.AudioInputs(topo, props)
+  local mode = PropValue(props, "Audio", "On")
+  local ids = {}
+  if mode == "Off" or topo.Audio == "None" then return ids end
+  for _, a in ipairs(topo.AudioInputs) do
+    local id = a[1]
+    if mode == "On incl. MADI" or not (id > 1500 and id < 1600) then ids[#ids + 1] = id end
+  end
+  return ids
+end
+
+-- Fader range in dB
+function T.AudioRange(topo)
+  if topo.Audio == "Classic" then return -60, 6 end
+  return -100, 10
+end
+
+T.MixOptions = { "Off", "On", "AFV" }
+
 -- Pages of the plugin
 function T.Pages(topo, props)
   local pages = {}
@@ -356,6 +393,8 @@ function T.Pages(topo, props)
       end
     end
   end
+  if #T.AudioInputs(topo, props) > 0 then pages[#pages + 1] = "Audio" end
+  if topo.Streaming or topo.Recording then pages[#pages + 1] = "Stream & Record" end
   if topo.MediaPlayers > 0 then pages[#pages + 1] = "Media" end
   if topo.Macros > 0 then pages[#pages + 1] = "Macros" end
   for ss = 1, T.SuperSourceCount(topo, props) do

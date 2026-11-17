@@ -129,6 +129,39 @@ Toggle("Macro Loop")
 Led("Macro Running")
 TextOut("Macro Running Name")
 
+-- Audio mixer
+local audio = AtemTopology.AudioInputs(topo, props)
+if #audio > 0 then
+  local min, max = AtemTopology.AudioRange(topo)
+  local function Level(name)
+    Add({ Name = name, ControlType = "Knob", ControlUnit = "dB", Min = min, Max = max, PinStyle = "Both" })
+  end
+  for _, id in ipairs(audio) do
+    local p = "Audio " .. AtemTopology.AudioKey(id) .. " "
+    Level(p .. "Level")
+    Toggle(p .. "On")              -- mix option On
+    Toggle(p .. "AFV")             -- mix option Audio Follow Video
+    Toggle(p .. "Mute")            -- mix option Off, unmute restores On / AFV
+    TextOut(p .. "Name")
+  end
+  Level("Audio Master Level")
+  Toggle("Audio Master Follow FTB")
+end
+
+-- Streaming / recording
+if topo.Streaming then
+  Toggle("Stream")                 -- start / stop, lit while streaming
+  TextOut("Stream Status")
+  TextOut("Stream Duration")
+end
+if topo.Recording then
+  Toggle("Record")
+  TextOut("Record Status")
+  TextOut("Record Duration")
+  TextOut("Record Time Remaining")
+  if topo.RecordISO then Toggle("Record ISO") end
+end
+
 -- SuperSource boxes
 local boxIds = AtemTopology.BoxButtonSources(topo, mode)
 for ss = 1, AtemTopology.SuperSourceCount(topo, props) do

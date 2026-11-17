@@ -147,6 +147,7 @@ class FakeAtem:
         self.next = {}
         self.boxes = {}
         self.colors = {}
+        self.audio = {}
         self.video_mode = 10   # 1080p25
 
     # -------- packets to the plugin
@@ -225,8 +226,26 @@ class FakeAtem:
             c.append(cmd("MPrp", struct.pack(">H", i) + bytes([used, 0]) + struct.pack(">HH", len(name), 0)
                          + name + bytes((4 - len(name) % 4) % 4)))
         c.append(cmd("MRPr", bytes([0, 0]) + struct.pack(">H", 0xFFFF)))
+        for aid in list(range(1, 9)) + [1301, 1302]:
+            c.append(self.fasp(aid))
+            if aid == 1301:   # a second (split) source must be ignored
+                c.append(self.fasp(aid, source=-255, gain=-3000))
+        c.append(cmd("FAMP", bytes(12) + struct.pack(">i", -500) + bytes([1, 0, 0, 0])))
+        c.append(cmd("StRS", struct.pack(">H", 1) + b"\0\0"))
+        c.append(cmd("RTMS", struct.pack(">H", 2) + b"\0\0" + struct.pack(">I", 3725)))
         c.append(cmd("InCm", b"\x01\0\0\0"))
         return c
+
+    def fasp(self, aid, source=-256, gain=None, mix=None):
+        a = self.audio.setdefault(aid, [-1000 if aid < 1000 else 0, 4 if aid < 1000 else 2])
+        if gain is None:
+            gain, mix = a
+        d = bytearray(52)
+        struct.pack_into(">H", d, 0, aid)
+        struct.pack_into(">q", d, 8, source)
+        struct.pack_into(">i", d, 44, gain)
+        d[48], d[49] = 7, mix if mix is not None else 2
+        return cmd("FASP", bytes(d))
 
     def dump(self, shuffle=False, duplicate=False):
         """Send the initial state in several packets."""
@@ -321,6 +340,20 @@ class FakeAtem:
                             old[k] = struct.unpack(">H", d[2 + 2 * k:4 + 2 * k])[0]
                     self.colors[n] = old
                     feedback.append(cmd("ColV", bytes([n, 0]) + struct.pack(">HHH", *old)))
+                elif name == "CFSP":
+                    flag, aid = struct.unpack(">HH", d[0:4])
+                    a = self.audio[aid]
+                    if flag & 128:
+                        a[0] = struct.unpack(">i", d[40:44])[0]
+                    if flag & 256:
+                        a[1] = d[44]
+                    feedback.append(self.fasp(aid, source=struct.unpack(">q", d[8:16])[0]))
+                elif name == "StrR":
+                    feedback.append(cmd("StRS", struct.pack(">H", 4 if d[0] else 1) + b"\0\0"))
+                elif name == "RcTM":
+                    feedback.append(cmd("RTMS", struct.pack(">H", (3 if d[0] else 2)) + b"\0\0" + struct.pack(">I", 3725)))
+                elif name == "SRDR":
+                    feedback.append(cmd("SRST", bytes([0, 1, 5, 0, 0, 0, 0, 0])))
                 elif name == "CTTp":
                     me = d[1]
                     style, sel = self.next.get(me, (0, 1))
@@ -534,7 +567,8 @@ def test_block2():
     print("test_block2 (DSK, keyer sources, aux, SuperSource)")
     h0 = Harness()
     pages = [h0._s(x) for x in h0.g.PageList(h0.g.Properties).values()]
-    check(pages == ["M/E 1", "Aux", "Media", "Macros", "Setup", "About"], f"default pages: {pages}")
+    check(pages == ["M/E 1", "Aux", "Audio", "Stream & Record", "Media", "Macros", "Setup", "About"],
+          f"default pages: {pages}")
     check(h0.g.Controls[b"ME1 Key 1 Fill"] is None and h0.g.Controls[b"SS1 Box 1 Enable"] is None,
           "keyer / SuperSource setup off by default")
     h = Harness({"Keyer Setup Page": True, "SuperSource Page": True})
@@ -649,6 +683,63 @@ def test_block3():
     check(h.ctl("Color 2 Luma").Value == 30, "no jump while dragging")
     h.tick(40)
     check(h.ctl("Color 2 Luma").Value == 30 and h.ctl("Color 2 Hue").Value == 120, "feedback after hold")
+
+
+def test_block4():
+    print("test_block4 (audio, streaming, recording)")
+    h = Harness()
+    h.connect()
+    a = h.atem
+    a.take()
+    check(h.ctl("Audio Input 1 Level").Value == -10 and h.b("Audio Input 1 AFV"), "input level + AFV")
+    check(h.b("Audio Mic 1 On") and h.ctl("Audio Mic 1 Level").Value == 0, "mic on, split source ignored")
+    check(h.s("Audio Input 3 Name") == "Camera 3" and h.s("Audio Mic 2 Name") == "Mic 2", "strip names")
+    check(h.ctl("Audio Master Level").Value == -5 and h.b("Audio Master Follow FTB"), "master")
+    check(h.s("Stream Status") == "Idle" and not h.b("Stream"), "stream idle")
+    check(h.s("Record Status") == "Idle" and h.s("Record Time Remaining") == "1:02:05", "record idle + time remaining")
+
+    h.user("Audio Input 2 Level", "Value", -6.5)
+    pk = a.take()
+    d = pk[0]["cmds"][0][1]
+    check(pk[0]["cmds"][0][0] == "CFSP" and d[0:4] == struct.pack(">HH", 128, 2)
+          and struct.unpack(">q", d[8:16])[0] == -256 and struct.unpack(">i", d[40:44])[0] == -650,
+          "fader -6.5 dB -> CFSP with the input's source")
+    a.handle(pk)
+    h.user("Audio Mic 1 Mute")
+    pk = a.take()
+    d = pk[0]["cmds"][0][1]
+    check(d[0:4] == struct.pack(">HH", 256, 1301) and d[44] == 1, "mute = mix option off")
+    a.handle(pk)
+    h.tick()
+    check(h.b("Audio Mic 1 Mute") and not h.b("Audio Mic 1 On"), "mute feedback")
+    h.user("Audio Mic 1 Mute")
+    pk = a.take()
+    check(pk[0]["cmds"][0][1][44] == 2, "unmute restores On")
+    a.handle(pk)
+    h.user("Audio Input 4 AFV")
+    pk = a.take()
+    check(pk[0]["cmds"][0][1][44] == 1, "AFV pressed while AFV -> off")
+    a.handle(pk)
+    h.user("Audio Master Level", "Value", -12)
+    pk = a.take()
+    check(pk[0]["cmds"] == [("CFMP", bytes([8]) + bytes(11) + struct.pack(">i", -1200) + bytes(4))], "master level")
+    a.handle(pk)
+
+    h.user("Stream")
+    pk = a.take()
+    check(pk[0]["cmds"] == [("StrR", bytes([1, 0, 0, 0]))], "start streaming")
+    a.handle(pk)
+    h.tick()
+    check(h.b("Stream") and h.s("Stream Status") == "Streaming", "streaming")
+    h.tick(60)
+    polls = [c for p in a.take() for c in p["cmds"] if c[0] == "SRDR"]
+    check(polls, "duration requested while streaming")
+    h.user("Record")
+    pk = a.take()
+    check(pk[-1]["cmds"][-1] == ("RcTM", bytes([1, 0, 0, 0])), "start recording")
+    a.handle(pk)
+    h.tick()
+    check(h.b("Record") and h.s("Record Status") == "Recording", "recording")
 
 
 def test_tbar():
@@ -839,6 +930,7 @@ def main():
     test_block2()
     test_tbar()
     test_block3()
+    test_block4()
     test_resend()
     test_timeout_and_reconnect()
     test_no_device()

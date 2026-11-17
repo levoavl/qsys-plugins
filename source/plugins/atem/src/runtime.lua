@@ -379,10 +379,99 @@ local function RenderMacros()
   SetString("Macro Running Name", running)
 end
 
-local Dirty = { me = {}, dsk = {}, aux = {}, ss = {}, mp = {}, color = {}, names = false, pool = false, macro = false }
-local function NewDirty()
-  return { me = {}, dsk = {}, aux = {}, ss = {}, mp = {}, color = {}, names = false, pool = false, macro = false }
+-- Audio
+local AudioIds = AtemTopology.AudioInputs(Topo, Properties)
+local AudioMin, AudioMax = AtemTopology.AudioRange(Topo)
+local Fairlight = Topo.Audio == "Fairlight"
+local AudioTouched = {}   -- [id or "master"] = time of the last user move
+local AUDIO_HOLD = 0.5
+local LastMix = {}        -- [id] = mix option before mute (1 On / 2 AFV)
+
+local function AudioPrefix(id) return "Audio " .. AtemTopology.AudioKey(id) .. " " end
+
+local function AudioName(id)
+  if id < 1000 then return LongName(id) end
+  return AtemTopology.AudioKey(id)
 end
+
+local function SetLevel(name, db, touchKey)
+  if AudioTouched[touchKey] then return end
+  local c = Controls[name]
+  if not c or db == nil then return end
+  db = math.max(AudioMin, math.min(AudioMax, db))
+  if math.abs(c.Value - db) > 0.05 then c.Value = db end
+end
+
+local function RenderAudio()
+  for _, id in ipairs(AudioIds) do
+    local a = Ready and St.audio[id] or {}
+    local p = AudioPrefix(id)
+    SetLevel(p .. "Level", a.level, id)
+    SetBool(p .. "On", a.mix == 1)
+    SetBool(p .. "AFV", a.mix == 2)
+    SetBool(p .. "Mute", a.mix == 0)
+    SetString(p .. "Name", Ready and AudioName(id) or AtemTopology.AudioKey(id))
+    if a.mix and a.mix > 0 then LastMix[id] = a.mix end
+  end
+  if #AudioIds > 0 then
+    local m = Ready and St.audioMaster or {}
+    SetLevel("Audio Master Level", m.level, "master")
+    SetBool("Audio Master Follow FTB", m.ftb == true)
+  end
+end
+
+-- Streaming / recording
+local function StreamState(status)
+  if status & 32 ~= 0 then return "Stopping" end
+  if status & 4 ~= 0 then return "Streaming" end
+  if status & 2 ~= 0 then return "Connecting" end
+  if status & 16 ~= 0 then return "Error: invalid state" end
+  if status & 0x8000 ~= 0 then return "Error" end
+  return "Idle"
+end
+
+local function RecordState(status)
+  local text
+  if status & 128 ~= 0 then text = "Stopping"
+  elseif status & 1 ~= 0 then text = "Recording"
+  else text = "Idle" end
+  if status & 2 == 0 then
+    if status & 4 ~= 0 then text = text .. " - media full"
+    elseif status & 8 ~= 0 then text = text .. " - media error"
+    elseif status & 16 ~= 0 then text = text .. " - media unformatted"
+    elseif status & 32 ~= 0 then text = text .. " - dropping frames"
+    elseif status & 0x8000 ~= 0 then text = text .. " - error"
+    else text = text .. " - no media" end
+  end
+  return text
+end
+
+local function Streaming() return St.stream.status & 4 ~= 0 end
+local function Recording() return St.record.status & 1 ~= 0 end
+
+local function RenderStream()
+  if Topo.Streaming then
+    SetBool("Stream", Ready and (Streaming() or St.stream.status & 2 ~= 0) or false)
+    SetString("Stream Status", Ready and StreamState(St.stream.status) or "")
+    SetString("Stream Duration", Ready and St.stream.duration or "")
+  end
+  if Topo.Recording then
+    SetBool("Record", Ready and Recording() or false)
+    SetString("Record Status", Ready and RecordState(St.record.status) or "")
+    SetString("Record Duration", Ready and St.record.duration or "")
+    local rem = St.record.remaining
+    SetString("Record Time Remaining", (Ready and rem and rem >= 0)
+      and ("%d:%02d:%02d"):format(rem // 3600, rem % 3600 // 60, rem % 60) or "")
+    if Topo.RecordISO then SetBool("Record ISO", Ready and St.record.iso or false) end
+  end
+end
+
+local Dirty
+local function NewDirty()
+  return { me = {}, dsk = {}, aux = {}, ss = {}, mp = {}, color = {}, names = false, pool = false, macro = false,
+    audio = false, stream = false }
+end
+Dirty = NewDirty()
 
 local function RenderAll()
   BuildCombos()
@@ -395,6 +484,8 @@ local function RenderAll()
   for mp = 1, Topo.MediaPlayers do RenderMP(mp) end
   for n = 1, 2 do RenderColor(n) end
   RenderMacros()
+  RenderAudio()
+  RenderStream()
   Dirty = NewDirty()
 end
 
@@ -414,6 +505,8 @@ local function RenderDirty()
   for mp in pairs(Dirty.mp) do if mp <= Topo.MediaPlayers then RenderMP(mp) end end
   for n in pairs(Dirty.color) do RenderColor(n) end
   if Dirty.macro then RenderMacros() end
+  if Dirty.audio then RenderAudio() end
+  if Dirty.stream then RenderStream() end
   Dirty = NewDirty()
 end
 
@@ -536,7 +629,7 @@ local function OnCommand(name, data)
     if me then Dirty[key][me] = true end
   elseif key == "color" then
     Dirty.color[AtemProtocol.U8(data, 0) + 1] = true
-  elseif key == "pool" or key == "macro" then
+  elseif key == "pool" or key == "macro" or key == "audio" or key == "stream" then
     Dirty[key] = true
   elseif key == "input" then
     Dirty.names = true
@@ -630,6 +723,7 @@ end
 -- Main timer
 ---------------------------------------------------------------------------
 local MainTimer = Timer.New()
+local LastDurationPoll = 0
 -- Keep long-lived objects reachable from a global. Objects only held by locals
 -- can be garbage collected on the Core and silently stop working.
 AtemRuntime = { Timer = MainTimer, Udp = Udp, Session = Session, Conn = Conn }
@@ -653,6 +747,18 @@ MainTimer.EventHandler = function()
       TBarTouched[me] = nil
       Dirty.me[me] = true
     end
+  end
+  for k, t in pairs(AudioTouched) do
+    if Now - t > AUDIO_HOLD then
+      AudioTouched[k] = nil
+      Dirty.audio = true
+    end
+  end
+  -- the switcher reports stream / record durations on request
+  if Ready and Now - LastDurationPoll >= 1 then
+    LastDurationPoll = Now
+    if Topo.Streaming and Streaming() then Session:Queue(Cmd.StreamDuration(), "srdr") end
+    if Topo.Recording and Recording() then Session:Queue(Cmd.RecordDuration(), "rmdr") end
   end
   for n, t in pairs(ColorTouched) do
     if Now - t > COLOR_HOLD then
@@ -942,6 +1048,81 @@ Controls["Macro Stop"].EventHandler = function() Send(Cmd.MacroStop(), "Macro st
 Controls["Macro Loop"].EventHandler = function()
   Send(Cmd.MacroLoop(not St.macroRun.loop), "Macro loop " .. (St.macroRun.loop and "off" or "on"))
   RenderMacros()
+end
+
+-- Audio
+local function SendAudio(id, level, mix, what)
+  local a = St.audio[id] or {}
+  local cmd
+  if Fairlight then
+    if not a.source then
+      Log(1, ("Audio %s: no Fairlight source known yet"):format(AtemTopology.AudioKey(id)))
+      return
+    end
+    cmd = Cmd.FairlightInput(id, a.source, level, mix)
+  else
+    cmd = Cmd.ClassicInput(id, level, mix)
+  end
+  Send(cmd, ("Audio %s %s"):format(AtemTopology.AudioKey(id), what), level and ("audio" .. id) or nil)
+end
+
+for _, id in ipairs(AudioIds) do
+  local p = AudioPrefix(id)
+  Controls[p .. "Level"].EventHandler = function(c)
+    AudioTouched[id] = Now
+    SendAudio(id, c.Value, nil, ("level %.1f dB"):format(c.Value))
+  end
+  local function Mix(option, what)
+    SendAudio(id, nil, option, what)
+    RenderAudio()
+  end
+  Controls[p .. "On"].EventHandler = function()
+    local a = St.audio[id] or {}
+    if a.mix == 1 then Mix(0, "off") else Mix(1, "on") end
+  end
+  Controls[p .. "AFV"].EventHandler = function()
+    local a = St.audio[id] or {}
+    if a.mix == 2 then Mix(0, "off") else Mix(2, "AFV") end
+  end
+  Controls[p .. "Mute"].EventHandler = function()
+    local a = St.audio[id] or {}
+    if a.mix == 0 then Mix(LastMix[id] or 1, "unmute") else Mix(0, "mute") end
+  end
+end
+if #AudioIds > 0 then
+  Controls["Audio Master Level"].EventHandler = function(c)
+    AudioTouched.master = Now
+    local cmd = Fairlight and Cmd.FairlightMaster(c.Value, nil) or Cmd.ClassicMaster(c.Value, nil)
+    Send(cmd, ("Audio master level %.1f dB"):format(c.Value), "audiomaster")
+  end
+  Controls["Audio Master Follow FTB"].EventHandler = function()
+    local on = not St.audioMaster.ftb
+    local cmd = Fairlight and Cmd.FairlightMaster(nil, on) or Cmd.ClassicMaster(nil, on)
+    Send(cmd, "Audio master follow FTB " .. (on and "on" or "off"))
+    RenderAudio()
+  end
+end
+
+-- Streaming / recording
+if Topo.Streaming then
+  Controls["Stream"].EventHandler = function()
+    local on = not (Streaming() or St.stream.status & 2 ~= 0)
+    Send(Cmd.Stream(on), on and "Start streaming" or "Stop streaming")
+    RenderStream()
+  end
+end
+if Topo.Recording then
+  Controls["Record"].EventHandler = function()
+    local on = not Recording()
+    Send(Cmd.Record(on), on and "Start recording" or "Stop recording")
+    RenderStream()
+  end
+  if Topo.RecordISO then
+    Controls["Record ISO"].EventHandler = function()
+      Send(Cmd.RecordISO(not St.record.iso), "Record ISO " .. (St.record.iso and "off" or "on"))
+      RenderStream()
+    end
+  end
 end
 
 -- SuperSource boxes

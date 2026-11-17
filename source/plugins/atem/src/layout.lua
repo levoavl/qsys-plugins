@@ -253,6 +253,70 @@ elseif auxFirst then
   end
   H = y + M
 
+elseif CurrentPage == "Audio" then
+  local audio = AtemTopology.AudioInputs(topo, props)
+  local SW, PER_ROW = 70, 12
+  local strips = #audio + 1   -- + master
+  local cols = math.min(PER_ROW, strips)
+  local contentW = math.max(cols * (SW + GAP) - GAP, 760)
+  W = M * 2 + contentW
+  y = Section("Audio Mixer (" .. topo.Audio .. ")", M, y, contentW)
+  local STRIP_H = 18 + 4 + 3 * 30 + 4 + 170 + 10
+  local function Strip(i, title, p, g, master)
+    local col, row = (i - 1) % PER_ROW, (i - 1) // PER_ROW
+    local x, sy = M + col * (SW + GAP), y + row * STRIP_H
+    if master then
+      Label(title, x, sy, SW, 18, { style = "Bold", align = "Center" })
+      Button("Audio Master Follow FTB", "Audio~Master~Follow FTB", "FTB", x + 5, sy + 22, SW - 10, 26, C.Amber,
+        { FontSize = 10 })
+    else
+      Place(p .. "Name", g .. "Name", x, sy, SW, 18,
+        { Style = "Text", Color = C.Porcelain, StrokeWidth = 0, FontSize = 10, TextColor = C.Onyx, HTextAlign = "Center" })
+      Button(p .. "On", g .. "On", "ON", x + 5, sy + 22, SW - 10, 26, C.TallyRed, { FontSize = 10 })
+      Button(p .. "AFV", g .. "AFV", "AFV", x + 5, sy + 52, SW - 10, 26, C.Amber, { FontSize = 10 })
+      Button(p .. "Mute", g .. "Mute", "MUTE", x + 5, sy + 82, SW - 10, 26, C.Atlantic, { FontSize = 10 })
+    end
+    Place(p .. "Level", g .. "Level", x + (SW - 40) // 2, sy + 116, 40, 170, { Style = "Fader", Color = C.Atlantic })
+  end
+  for i, id in ipairs(audio) do
+    local key = AtemTopology.AudioKey(id)
+    Strip(i, key, "Audio " .. key .. " ", "Audio~" .. key .. "~")
+  end
+  Strip(strips, "MASTER", "Audio Master ", "Audio~Master~", true)
+  y = y + math.ceil(strips / PER_ROW) * STRIP_H
+  H = y + M
+
+elseif CurrentPage == "Stream & Record" then
+  W = 760
+  local cw = W - 2 * M
+  local function Row(label, name, pretty, w)
+    Label(label, M + 140, y + 1, 110, 20, { align = "Right", color = C.Mid })
+    Place(name, pretty, M + 256, y, w, 22, FLAT)
+    y = y + 28
+  end
+  if topo.Streaming then
+    y = Section("Streaming", M, y, cw)
+    Button("Stream", "Streaming~Stream", "STREAM", M, y, 120, 56, C.TallyRed, { FontSize = 13 })
+    Row("Status", "Stream Status", "Streaming~Status", 300)
+    Row("Duration", "Stream Duration", "Streaming~Duration", 120)
+    y = y + 10
+  end
+  if topo.Recording then
+    y = Section("Recording", M, y, cw)
+    Button("Record", "Recording~Record", "RECORD", M, y, 120, 56, C.TallyRed, { FontSize = 13 })
+    Row("Status", "Record Status", "Recording~Status", 300)
+    Row("Duration", "Record Duration", "Recording~Duration", 120)
+    Row("Time remaining", "Record Time Remaining", "Recording~Time Remaining", 120)
+    if topo.RecordISO then
+      Button("Record ISO", "Recording~Record ISO", "ISO", M, y, 120, 30, C.Amber, { FontSize = 11 })
+      Label("Record all inputs (ISO)", M + 130, y + 6, 300, 18, { color = C.Mid })
+      y = y + 36
+    end
+  end
+  Label("Stream key, server and recording disk are set up in ATEM Software Control.", M, y + 4, cw, 16,
+    { size = 10, color = C.Mid })
+  H = y + 28 + M
+
 elseif CurrentPage == "Media" then
   local stills = AtemTopology.StillButtons(topo, props)
   local cols = math.min(10, math.max(1, stills))

@@ -9,8 +9,8 @@ Part of [levo AVL Q-SYS Plugins](../README.md).
 
 > [!NOTE]
 > Work in progress (0.x). Done: connection, M/E functions, upstream / downstream keyers,
-> aux outputs, SuperSource boxes, media players, colour generators, macros. Audio,
-> streaming and recording follow.
+> aux outputs, SuperSource boxes, media players, colour generators, macros, audio,
+> streaming and recording.
 
 ## Tested on
 
@@ -37,6 +37,7 @@ simultaneous control connections – close unused software panels if the connect
 | Aux Buttons | Auto / All Sources / Inputs Only / None | Auto | Buttons per source on every aux output. *Auto*: all sources up to 8 aux, inputs only up to 24 aux, none above (Constellation 4K Plus: 48 aux). |
 | Still Buttons | 0–96 | 20 | Buttons per media player for the first n stills (the combo lists all) |
 | Macro Buttons | 0–100 | 20 | Buttons for the first n macros (the combo lists all used macros) |
+| Audio | On / On incl. MADI / Off | On | Audio mixer page. MADI channels (Constellation) only with *On incl. MADI*. |
 | Keyer Setup Page | on / off | off | Page *Keyers*: fill / key source and type of the upstream keyers, fill / key source of the DSKs |
 | SuperSource Page | on / off | off | Page *SuperSource*: box enable and source |
 
@@ -57,7 +58,8 @@ Each name sits directly under the first button grid that contains the source (un
 program buttons on page M/E 1; sources that only exist on aux, e.g. clean feeds, on the
 Aux page). On a UCI the same name control can be placed as often as needed.
 
-Pages: `M/E n` · `Keyers` · `Aux` (`Aux 1-8`, `Aux 9-16` … above 8 aux) · `Media` · `Macros` ·
+Pages: `M/E n` · `Keyers` · `Aux` (`Aux 1-8`, `Aux 9-16` … above 8 aux) · `Audio` ·
+`Stream & Record` · `Media` · `Macros` ·
 `SuperSource` · `Setup` · `About` – depending on the model and properties.
 
 ### M/E n (page `M/E n`, controls `MEn …`)
@@ -113,6 +115,37 @@ On Air and Next Key are on the M/E page (see above).
 | Enable | Toggle | in/out | Box on / off |
 | Source | Combo box | in/out | Box source |
 | *source* | Toggle | in/out | One button per source |
+
+### Audio (`Audio <input> …`, page Audio)
+
+Fairlight (ATEM Mini series, Television Studio, Constellation) or the classic audio mixer
+(older Production Studio / Broadcast models), depending on the model. Inputs: `Input n`
+(video inputs, embedded audio), `Mic 1/2`, `XLR n`, `RCA 1`, `MADI n` …
+
+| Control | Type | Pin | |
+|---|---|---|---|
+| Level | Fader dB | in/out | Fairlight −100 … +10 dB, classic −60 … +6 dB |
+| On, AFV | Toggle | in/out | Mix option On / Audio Follow Video; pressing the active one switches the input off |
+| Mute | Toggle | in/out | Mix option Off; unmute restores On or AFV |
+| Name | Text | out | Video input name or `Mic 1` … |
+| Audio Master Level | Fader dB | in/out | |
+| Audio Master Follow FTB | Toggle | in/out | Audio fades with Fade to Black |
+
+Split stereo inputs (dual mono) are controlled through their first channel. EQ, dynamics,
+delay and meters stay in ATEM Software Control.
+
+### Streaming / recording (page Stream & Record, on models that support it)
+
+| Control | Type | Pin | |
+|---|---|---|---|
+| Stream | Toggle | in/out | Start / stop, lit while connecting or streaming |
+| Stream Status, Stream Duration | Text | out | Idle / Connecting / Streaming / Stopping, `hh:mm:ss` |
+| Record | Toggle | in/out | Start / stop, lit while recording |
+| Record Status | Text | out | incl. media problems (no media, full, unformatted …) |
+| Record Duration, Record Time Remaining | Text | out | |
+| Record ISO | Toggle | in/out | Record all inputs (ISO models) |
+
+Stream key, server and recording disk are set up in ATEM Software Control.
 
 ### Media players (`MPn …`, page Media)
 
