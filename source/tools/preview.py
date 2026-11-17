@@ -196,7 +196,7 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     for name, layout, graphics in pages:
         img = render(name, layout, graphics, controls, demo, a.scale)
-        f = out / f"{a.plugin}-{name.lower()}.png"
+        f = out / f"{a.plugin}-{name.lower().replace('/', '').replace(' ', '-')}.png"
         img.save(f)
         print(f"  {f}  {img.size[0]}x{img.size[1]}")
 
