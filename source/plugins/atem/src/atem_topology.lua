@@ -20,6 +20,7 @@ T.Port = {
 T.Avail = { Auxiliary = 1, Multiviewer = 2, SuperSourceArt = 4, SuperSourceBox = 8, KeySource = 16 }
 
 T.TransitionStyles = { "Mix", "Dip", "Wipe", "DVE", "Stinger" }
+T.KeyTypes = { "Luma", "Chroma", "Pattern", "DVE" }   -- index - 1 = protocol value
 
 -- Frames per second per ATEM video mode (VidM), as used for rates ("s:ff").
 -- Interlaced modes count frames, 23.98/29.97/59.94 count like 24/30/60.
@@ -280,14 +281,26 @@ end
 T.BOXES = 4   -- boxes per SuperSource
 T.AUX_PER_PAGE = 8
 
-function T.AuxMode(props)
-  return PropValue(props, "Aux Buttons", "All Sources")
+function T.AuxMode(props, topo)
+  local mode = PropValue(props, "Aux Buttons", "Auto")
+  if mode ~= "Auto" then return mode end
+  if topo.Aux <= 8 then return "All Sources" end
+  if topo.Aux <= 24 then return "Inputs Only" end
+  return "None"
+end
+
+function T.KeyerSetup(props) return PropValue(props, "Keyer Setup Page", false) == true end
+function T.SuperSourcePage(props) return PropValue(props, "SuperSource Page", false) == true end
+
+-- SuperSources with controls (0 when the SuperSource page is off)
+function T.SuperSourceCount(topo, props)
+  return T.SuperSourcePage(props) and topo.SuperSources or 0
 end
 
 -- All button grids in page order. A source name is placed under the first grid
 -- that contains the source (a control can only be placed once in the layout).
 function T.Grids(topo, props)
-  local mode, auxMode = T.ButtonMode(props), T.AuxMode(props)
+  local mode, auxMode = T.ButtonMode(props), T.AuxMode(props, topo)
   local grids = {}
   for me = 1, topo.MEs do
     grids[#grids + 1] = { key = "me" .. me, ids = T.MEButtonSources(topo, me, mode) }
@@ -296,7 +309,7 @@ function T.Grids(topo, props)
     grids[#grids + 1] = { key = "aux" .. aux, ids = T.AuxButtonSources(topo, aux, auxMode) }
   end
   local boxIds = T.BoxButtonSources(topo, mode)
-  for ss = 1, topo.SuperSources do
+  for ss = 1, T.SuperSourceCount(topo, props) do
     for box = 1, T.BOXES do
       grids[#grids + 1] = { key = "ss" .. ss .. "." .. box, ids = boxIds }
     end
@@ -322,10 +335,10 @@ function T.NamePlacement(topo, props)
 end
 
 -- Pages of the plugin
-function T.Pages(topo)
+function T.Pages(topo, props)
   local pages = {}
   for me = 1, topo.MEs do pages[#pages + 1] = "M/E " .. me end
-  if topo.USKs > 0 or topo.DSKs > 0 then pages[#pages + 1] = "Keyers" end
+  if T.KeyerSetup(props) and (topo.USKs > 0 or topo.DSKs > 0) then pages[#pages + 1] = "Keyers" end
   if topo.Aux > 0 then
     if topo.Aux <= T.AUX_PER_PAGE then
       pages[#pages + 1] = "Aux"
@@ -335,7 +348,7 @@ function T.Pages(topo)
       end
     end
   end
-  for ss = 1, topo.SuperSources do
+  for ss = 1, T.SuperSourceCount(topo, props) do
     pages[#pages + 1] = topo.SuperSources > 1 and ("SuperSource " .. ss) or "SuperSource"
   end
   pages[#pages + 1] = "Setup"

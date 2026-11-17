@@ -59,9 +59,11 @@ for me = 1, topo.MEs do
   for k = 1, topo.USKs do
     Toggle(p .. "Next Key " .. k)
     Toggle(p .. "Key " .. k .. " On Air")
-    TextIn(p .. "Key " .. k .. " Fill")   -- combo box
-    TextIn(p .. "Key " .. k .. " Key")    -- combo box (key / cut source)
-    TextOut(p .. "Key " .. k .. " Type")
+    if AtemTopology.KeyerSetup(props) then
+      TextIn(p .. "Key " .. k .. " Fill")   -- combo box
+      TextIn(p .. "Key " .. k .. " Key")    -- combo box (key / cut source)
+      TextIn(p .. "Key " .. k .. " Type")   -- combo box: Luma / Chroma / Pattern / DVE
+    end
   end
 end
 
@@ -73,12 +75,14 @@ for n = 1, topo.DSKs do
   Toggle(p .. "Auto")              -- lit while the DSK mixes
   Led(p .. "In Transition")
   TextIn(p .. "Rate")              -- "s:ff"
-  TextIn(p .. "Fill")              -- combo box
-  TextIn(p .. "Key")               -- combo box
+  if AtemTopology.KeyerSetup(props) then
+    TextIn(p .. "Fill")            -- combo box
+    TextIn(p .. "Key")             -- combo box
+  end
 end
 
 -- Aux outputs
-local auxMode = AtemTopology.AuxMode(props)
+local auxMode = AtemTopology.AuxMode(props, topo)
 for aux = 1, topo.Aux do
   TextIn("Aux " .. aux)            -- combo box
   for _, id in ipairs(AtemTopology.AuxButtonSources(topo, aux, auxMode)) do
@@ -88,7 +92,7 @@ end
 
 -- SuperSource boxes
 local boxIds = AtemTopology.BoxButtonSources(topo, mode)
-for ss = 1, topo.SuperSources do
+for ss = 1, AtemTopology.SuperSourceCount(topo, props) do
   for box = 1, AtemTopology.BOXES do
     local p = "SS" .. ss .. " Box " .. box .. " "
     Toggle(p .. "Enable")

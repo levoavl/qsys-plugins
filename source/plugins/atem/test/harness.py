@@ -500,7 +500,12 @@ def test_commands():
 
 def test_block2():
     print("test_block2 (DSK, keyer sources, aux, SuperSource)")
-    h = Harness()
+    h0 = Harness()
+    pages = [h0._s(x) for x in h0.g.PageList(h0.g.Properties).values()]
+    check(pages == ["M/E 1", "Aux", "Setup", "About"], f"default pages: {pages}")
+    check(h0.g.Controls[b"ME1 Key 1 Fill"] is None and h0.g.Controls[b"SS1 Box 1 Enable"] is None,
+          "keyer / SuperSource setup off by default")
+    h = Harness({"Keyer Setup Page": True, "SuperSource Page": True})
     h.connect()
     a = h.atem
     a.take()
@@ -541,6 +546,9 @@ def test_block2():
     h.user("ME1 Key 2 Fill", "String", b"Color Bars")
     pk = a.take()
     check(pk[0]["cmds"] == [("CKeF", bytes([0, 1]) + struct.pack(">H", 1000))], "USK fill source")
+    h.user("ME1 Key 3 Type", "String", b"Chroma")
+    pk = a.take()
+    check(pk[0]["cmds"] == [("CKTp", bytes([1, 0, 2, 1, 0, 0, 0, 0]))], "USK type chroma")
 
     h.user("SS1 Box 2 Enable")
     pk = a.take()
@@ -554,6 +562,45 @@ def test_block2():
     h.tick()
     check(h.b("SS1 Box 2 Enable") and h.b("SS1 Box 4 Bars"), "box feedback")
     return h
+
+
+def test_tbar():
+    print("test_tbar")
+    h = Harness()
+    h.connect()
+    a = h.atem
+
+    def trps(inside, handle):
+        a.feed(a.packet([cmd("TrPs", bytes([0, 1 if inside else 0, 10, 0]) + struct.pack(">H", handle) + b"\0\0")]))
+        h.tick(30)   # past the T-bar hold time
+
+    for v in (2000, 6000, 9600):
+        trps(True, v)
+    check(abs(h.ctl("ME1 T-Bar").Position - 0.96) < 0.01, "auto: fader follows up")
+    trps(False, 0)
+    check(h.ctl("ME1 T-Bar").Position == 1, "after auto the fader stays at the top")
+    trps(True, 3000)
+    check(abs(h.ctl("ME1 T-Bar").Position - 0.7) < 0.01, "next transition moves the fader down")
+    trps(True, 9800)
+    trps(False, 0)
+    check(h.ctl("ME1 T-Bar").Position == 0, "and it stays at the bottom")
+    a.take()
+    h.user("ME1 T-Bar", "Position", 0.25)
+    pk = a.take()
+    a.handle(pk)
+    last = pk[-1]["cmds"][-1]
+    check(last == ("CTPs", bytes([0, 0]) + struct.pack(">H", 2500)), "from the bottom: position = progress")
+    trps(True, 2500)
+    trps(True, 9900)
+    trps(False, 0)
+    h.user("ME1 T-Bar", "Position", 0.75)
+    pk = a.take()
+    a.handle(pk)
+    last = pk[-1]["cmds"][-1]
+    check(last == ("CTPs", bytes([0, 0]) + struct.pack(">H", 2500)), "from the top: moving down = progress")
+    trps(True, 1000)
+    trps(False, 0)   # pulled back -> no flip
+    check(h.ctl("ME1 T-Bar").Position == 1, f"aborted transition does not flip ({h.ctl('ME1 T-Bar').Position})")
 
 
 def test_resend():
@@ -703,6 +750,7 @@ def main():
     test_connect()
     test_commands()
     test_block2()
+    test_tbar()
     test_resend()
     test_timeout_and_reconnect()
     test_no_device()

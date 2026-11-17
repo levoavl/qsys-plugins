@@ -28,11 +28,16 @@ table.insert(props, {
 table.insert(props, {
   -- Buttons per source on every aux output (combo boxes always list every source).
   -- Large switchers: up to 48 aux x 100 sources - use "Inputs Only" or "None" there.
+  -- Auto: All Sources up to 8 aux, Inputs Only up to 24 aux, None above.
   Name = "Aux Buttons",
   Type = "enum",
-  Choices = { "All Sources", "Inputs Only", "None" },
-  Value = "All Sources",
+  Choices = { "Auto", "All Sources", "Inputs Only", "None" },
+  Value = "Auto",
 })
+-- Setup pages: fill / key sources and key type of the keyers, SuperSource boxes.
+-- Off by default: the plugin is a remote control, details stay in ATEM Software Control.
+table.insert(props, { Name = "Keyer Setup Page", Type = "boolean", Value = false })
+table.insert(props, { Name = "SuperSource Page", Type = "boolean", Value = false })
 table.insert(props, {
   -- "Device Names" writes the switcher's short source names as button legends.
   -- That overrides any legend set on UCI copies of the buttons, hence off by default.

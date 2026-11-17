@@ -34,7 +34,12 @@ simultaneous control connections – close unused software panels if the connect
 | Model | all ATEM models, Custom | ATEM Mini Extreme | Decides which M/Es, keyers and sources the plugin has |
 | Custom … | | | Counts for the *Custom* model (only shown for Custom) |
 | Source Buttons | All Sources / Inputs Only / None | All Sources | Buttons per source on the program / preview buses and the SuperSource boxes. The combo boxes always list every source. |
-| Aux Buttons | All Sources / Inputs Only / None | All Sources | Buttons per source on every aux output. On large switchers (Constellation: up to 48 aux) use *Inputs Only* or *None* – *All Sources* there means several thousand buttons. |
+| Aux Buttons | Auto / All Sources / Inputs Only / None | Auto | Buttons per source on every aux output. *Auto*: all sources up to 8 aux, inputs only up to 24 aux, none above (Constellation 4K Plus: 48 aux). |
+| Keyer Setup Page | on / off | off | Page *Keyers*: fill / key source and type of the upstream keyers, fill / key source of the DSKs |
+| SuperSource Page | on / off | off | Page *SuperSource*: box enable and source |
+
+The plugin is meant as a remote control for operation. Setup details (keyer settings,
+SuperSource layout …) stay in ATEM Software Control – the two setup pages are optional.
 | Button Legends | Default Names / Device Names | Default Names | *Device Names* writes the switcher's short source names (e.g. `CAM1`) as button legends. This overrides legends set on UCI copies of the buttons. |
 | Debug Print | None / Basic / Verbose | None | Basic: connection and user actions. Verbose: all protocol traffic. |
 
@@ -46,8 +51,8 @@ the status turns *Compromised* and names the switcher found.
 Source names in control names are fixed (`Input 1`, `Bars`, `Color 1`, `MP1`,
 `SuperSource`, `ME2 PGM` …) and do not change when sources are renamed on the switcher.
 The names set on the switcher are available as `Name <source>` and in the combo boxes.
-Each name sits directly under the first button grid that contains the source (between
-preview and program on page M/E 1; sources that only exist on aux, e.g. clean feeds, on the
+Each name sits directly under the first button grid that contains the source (under the
+program buttons on page M/E 1; sources that only exist on aux, e.g. clean feeds, on the
 Aux page). On a UCI the same name control can be placed as often as needed.
 
 Pages: `M/E n` · `Keyers` · `Aux` (`Aux 1-8`, `Aux 9-16` … above 8 aux) · `SuperSource` ·
@@ -61,7 +66,7 @@ Pages: `M/E n` · `Keyers` · `Aux` (`Aux 1-8`, `Aux 9-16` … above 8 aux) · `
 | Preview *source* / Program *source* | Toggle | in/out | One button per source, lit when selected (preview green, program red). Order as in ATEM Software Control: inputs, then Black, Bars, colours, media players … |
 | Cut | Trigger | in | |
 | Auto | Toggle | in/out | Starts the transition, lit while it runs |
-| T-Bar | Fader 0–1 | in/out | Manual transition. Feedback shows the position while a transition runs. |
+| T-Bar | Fader 0–1 | in/out | Manual transition. Behaves like a hardware T-bar: it stays at the end it reached (also after Auto) and the next transition runs in the other direction. |
 | In Transition | LED | out | |
 | Fade to Black | Toggle | in/out | Starts FTB, lit while black or fading |
 | Fade to Black Rate | Text `s:ff` | in/out | Like ATEM Software Control: `1:00` = 1 s at the switcher's frame rate. A plain number is taken as frames. |
@@ -72,7 +77,7 @@ Pages: `M/E n` · `Keyers` · `Aux` (`Aux 1-8`, `Aux 9-16` … above 8 aux) · `
 | Next Background, Next Key k | Toggle | in/out | Elements of the next transition. At least one stays selected. |
 | Key k On Air | Toggle | in/out | Upstream keyer on air |
 
-### Downstream keyers (`DSK n …`, page M/E 1 and Keyers)
+### Downstream keyers (`DSK n …`, page M/E 1; Fill / Key with Keyer Setup Page)
 
 | Control | Type | Pin | |
 |---|---|---|---|
@@ -83,12 +88,12 @@ Pages: `M/E n` · `Keyers` · `Aux` (`Aux 1-8`, `Aux 9-16` … above 8 aux) · `
 | Rate | Text `s:ff` | in/out | |
 | Fill, Key | Combo box | in/out | Fill and key (cut) source |
 
-### Upstream keyers (`MEn Key k …`, page Keyers)
+### Upstream keyers (`MEn Key k …`, page Keyers – property Keyer Setup Page)
 
 | Control | Type | Pin | |
 |---|---|---|---|
 | Fill, Key | Combo box | in/out | Fill and key (cut) source |
-| Type | Text | out | Luma / Chroma / Pattern / DVE |
+| Type | Combo box | in/out | Luma / Chroma / Pattern / DVE |
 
 On Air and Next Key are on the M/E page (see above).
 
@@ -99,7 +104,7 @@ On Air and Next Key are on the M/E page (see above).
 | Aux n | Combo box | in/out | Every source the switcher allows on that aux (incl. clean feeds, program / preview, multiview …) |
 | Aux n *source* | Toggle | in/out | Buttons for inputs, Black, Bars, colours, media players, SuperSource, clean feeds, M/E program / preview |
 
-### SuperSource (`SSn Box b …`, page SuperSource)
+### SuperSource (`SSn Box b …`, page SuperSource – property SuperSource Page)
 
 | Control | Type | Pin | |
 |---|---|---|---|

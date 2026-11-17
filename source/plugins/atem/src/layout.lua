@@ -120,9 +120,8 @@ if meIndex then
     end
   end
   Bus("Preview", C.TallyGreen)
-  y = y + NameGrid("me" .. me, ids, M, y)
   Bus("Program", C.TallyRed)
-  y = y + 4
+  y = y + NameGrid("me" .. me, ids, M, y) + 4
 
   -- Transition area: settings on the left, Cut / Auto / T-bar / FTB on the right
   y = Section("Transition", M, y, contentW)
@@ -207,7 +206,7 @@ elseif CurrentPage == "Keyers" then
     for k = 1, topo.USKs do
       local q = p .. "Key " .. k .. " "
       Label("Key " .. k, M, y + 2, 60, 18, { style = "Bold" })
-      Place(q .. "Type", g .. "Keyers~Key " .. k .. " Type", M + 70, y, 90, 22, FLAT)
+      Place(q .. "Type", g .. "Keyers~Key " .. k .. " Type", M + 70, y, 90, 22, { Style = "ComboBox" })
       Place(q .. "Fill", g .. "Keyers~Key " .. k .. " Fill", M + 170, y, 200, 22, { Style = "ComboBox" })
       Place(q .. "Key", g .. "Keyers~Key " .. k .. " Key", M + 390, y, 200, 22, { Style = "ComboBox" })
       y = y + 28
@@ -231,7 +230,7 @@ elseif CurrentPage == "Keyers" then
   H = y + M
 
 elseif auxFirst then
-  local auxMode = AtemTopology.AuxMode(props)
+  local auxMode = AtemTopology.AuxMode(props, topo)
   local widest = 0
   for aux = auxFirst, auxLast do
     widest = math.max(widest, GridWidth(#AtemTopology.AuxButtonSources(topo, aux, auxMode)))

@@ -13,8 +13,8 @@
 
 PluginInfo = {
   Name         = "levo AVL~ATEM Switcher",  -- "Folder~Name" in the Q-SYS schematic library
-  Version      = "0.1",
-  BuildVersion = "0.1",  -- versions are major.minor, see source/README.md
+  Version      = "0.2",
+  BuildVersion = "0.2",  -- versions are major.minor, see source/README.md
   Id           = "540f6f58-c34c-4c96-b2cc-1430d6b79789",
   Author       = "levo AVL | Elias Jenny",
   Description  = "Control Blackmagic ATEM switchers (all models, multi M/E) with feedback: "
@@ -448,6 +448,7 @@ T.Port = {
 T.Avail = { Auxiliary = 1, Multiviewer = 2, SuperSourceArt = 4, SuperSourceBox = 8, KeySource = 16 }
 
 T.TransitionStyles = { "Mix", "Dip", "Wipe", "DVE", "Stinger" }
+T.KeyTypes = { "Luma", "Chroma", "Pattern", "DVE" }   -- index - 1 = protocol value
 
 -- Frames per second per ATEM video mode (VidM), as used for rates ("s:ff").
 -- Interlaced modes count frames, 23.98/29.97/59.94 count like 24/30/60.
@@ -708,14 +709,26 @@ end
 T.BOXES = 4   -- boxes per SuperSource
 T.AUX_PER_PAGE = 8
 
-function T.AuxMode(props)
-  return PropValue(props, "Aux Buttons", "All Sources")
+function T.AuxMode(props, topo)
+  local mode = PropValue(props, "Aux Buttons", "Auto")
+  if mode ~= "Auto" then return mode end
+  if topo.Aux <= 8 then return "All Sources" end
+  if topo.Aux <= 24 then return "Inputs Only" end
+  return "None"
+end
+
+function T.KeyerSetup(props) return PropValue(props, "Keyer Setup Page", false) == true end
+function T.SuperSourcePage(props) return PropValue(props, "SuperSource Page", false) == true end
+
+-- SuperSources with controls (0 when the SuperSource page is off)
+function T.SuperSourceCount(topo, props)
+  return T.SuperSourcePage(props) and topo.SuperSources or 0
 end
 
 -- All button grids in page order. A source name is placed under the first grid
 -- that contains the source (a control can only be placed once in the layout).
 function T.Grids(topo, props)
-  local mode, auxMode = T.ButtonMode(props), T.AuxMode(props)
+  local mode, auxMode = T.ButtonMode(props), T.AuxMode(props, topo)
   local grids = {}
   for me = 1, topo.MEs do
     grids[#grids + 1] = { key = "me" .. me, ids = T.MEButtonSources(topo, me, mode) }
@@ -724,7 +737,7 @@ function T.Grids(topo, props)
     grids[#grids + 1] = { key = "aux" .. aux, ids = T.AuxButtonSources(topo, aux, auxMode) }
   end
   local boxIds = T.BoxButtonSources(topo, mode)
-  for ss = 1, topo.SuperSources do
+  for ss = 1, T.SuperSourceCount(topo, props) do
     for box = 1, T.BOXES do
       grids[#grids + 1] = { key = "ss" .. ss .. "." .. box, ids = boxIds }
     end
@@ -750,10 +763,10 @@ function T.NamePlacement(topo, props)
 end
 
 -- Pages of the plugin
-function T.Pages(topo)
+function T.Pages(topo, props)
   local pages = {}
   for me = 1, topo.MEs do pages[#pages + 1] = "M/E " .. me end
-  if topo.USKs > 0 or topo.DSKs > 0 then pages[#pages + 1] = "Keyers" end
+  if T.KeyerSetup(props) and (topo.USKs > 0 or topo.DSKs > 0) then pages[#pages + 1] = "Keyers" end
   if topo.Aux > 0 then
     if topo.Aux <= T.AUX_PER_PAGE then
       pages[#pages + 1] = "Aux"
@@ -763,7 +776,7 @@ function T.Pages(topo)
       end
     end
   end
-  for ss = 1, topo.SuperSources do
+  for ss = 1, T.SuperSourceCount(topo, props) do
     pages[#pages + 1] = topo.SuperSources > 1 and ("SuperSource " .. ss) or "SuperSource"
   end
   pages[#pages + 1] = "Setup"
@@ -777,7 +790,7 @@ end
 -- <<< atem_topology.lua
 
 function PageList(props)
-  return AtemTopology.Pages(AtemTopology.Resolve(props))
+  return AtemTopology.Pages(AtemTopology.Resolve(props), props)
 end
 
 function GetColor(props)
@@ -830,11 +843,16 @@ table.insert(props, {
 table.insert(props, {
   -- Buttons per source on every aux output (combo boxes always list every source).
   -- Large switchers: up to 48 aux x 100 sources - use "Inputs Only" or "None" there.
+  -- Auto: All Sources up to 8 aux, Inputs Only up to 24 aux, None above.
   Name = "Aux Buttons",
   Type = "enum",
-  Choices = { "All Sources", "Inputs Only", "None" },
-  Value = "All Sources",
+  Choices = { "Auto", "All Sources", "Inputs Only", "None" },
+  Value = "Auto",
 })
+-- Setup pages: fill / key sources and key type of the keyers, SuperSource boxes.
+-- Off by default: the plugin is a remote control, details stay in ATEM Software Control.
+table.insert(props, { Name = "Keyer Setup Page", Type = "boolean", Value = false })
+table.insert(props, { Name = "SuperSource Page", Type = "boolean", Value = false })
 table.insert(props, {
   -- "Device Names" writes the switcher's short source names as button legends.
   -- That overrides any legend set on UCI copies of the buttons, hence off by default.
@@ -940,9 +958,11 @@ for me = 1, topo.MEs do
   for k = 1, topo.USKs do
     Toggle(p .. "Next Key " .. k)
     Toggle(p .. "Key " .. k .. " On Air")
-    TextIn(p .. "Key " .. k .. " Fill")   -- combo box
-    TextIn(p .. "Key " .. k .. " Key")    -- combo box (key / cut source)
-    TextOut(p .. "Key " .. k .. " Type")
+    if AtemTopology.KeyerSetup(props) then
+      TextIn(p .. "Key " .. k .. " Fill")   -- combo box
+      TextIn(p .. "Key " .. k .. " Key")    -- combo box (key / cut source)
+      TextIn(p .. "Key " .. k .. " Type")   -- combo box: Luma / Chroma / Pattern / DVE
+    end
   end
 end
 
@@ -954,12 +974,14 @@ for n = 1, topo.DSKs do
   Toggle(p .. "Auto")              -- lit while the DSK mixes
   Led(p .. "In Transition")
   TextIn(p .. "Rate")              -- "s:ff"
-  TextIn(p .. "Fill")              -- combo box
-  TextIn(p .. "Key")               -- combo box
+  if AtemTopology.KeyerSetup(props) then
+    TextIn(p .. "Fill")            -- combo box
+    TextIn(p .. "Key")             -- combo box
+  end
 end
 
 -- Aux outputs
-local auxMode = AtemTopology.AuxMode(props)
+local auxMode = AtemTopology.AuxMode(props, topo)
 for aux = 1, topo.Aux do
   TextIn("Aux " .. aux)            -- combo box
   for _, id in ipairs(AtemTopology.AuxButtonSources(topo, aux, auxMode)) do
@@ -969,7 +991,7 @@ end
 
 -- SuperSource boxes
 local boxIds = AtemTopology.BoxButtonSources(topo, mode)
-for ss = 1, topo.SuperSources do
+for ss = 1, AtemTopology.SuperSourceCount(topo, props) do
   for box = 1, AtemTopology.BOXES do
     local p = "SS" .. ss .. " Box " .. box .. " "
     Toggle(p .. "Enable")
@@ -1107,9 +1129,8 @@ if meIndex then
     end
   end
   Bus("Preview", C.TallyGreen)
-  y = y + NameGrid("me" .. me, ids, M, y)
   Bus("Program", C.TallyRed)
-  y = y + 4
+  y = y + NameGrid("me" .. me, ids, M, y) + 4
 
   -- Transition area: settings on the left, Cut / Auto / T-bar / FTB on the right
   y = Section("Transition", M, y, contentW)
@@ -1194,7 +1215,7 @@ elseif CurrentPage == "Keyers" then
     for k = 1, topo.USKs do
       local q = p .. "Key " .. k .. " "
       Label("Key " .. k, M, y + 2, 60, 18, { style = "Bold" })
-      Place(q .. "Type", g .. "Keyers~Key " .. k .. " Type", M + 70, y, 90, 22, FLAT)
+      Place(q .. "Type", g .. "Keyers~Key " .. k .. " Type", M + 70, y, 90, 22, { Style = "ComboBox" })
       Place(q .. "Fill", g .. "Keyers~Key " .. k .. " Fill", M + 170, y, 200, 22, { Style = "ComboBox" })
       Place(q .. "Key", g .. "Keyers~Key " .. k .. " Key", M + 390, y, 200, 22, { Style = "ComboBox" })
       y = y + 28
@@ -1218,7 +1239,7 @@ elseif CurrentPage == "Keyers" then
   H = y + M
 
 elseif auxFirst then
-  local auxMode = AtemTopology.AuxMode(props)
+  local auxMode = AtemTopology.AuxMode(props, topo)
   local widest = 0
   for aux = auxFirst, auxLast do
     widest = math.max(widest, GridWidth(#AtemTopology.AuxButtonSources(topo, aux, auxMode)))
@@ -1771,7 +1792,10 @@ end
 
 D["TrPs"] = function(st, d)
   local m = ME(st, P.U8(d, 0) + 1)
+  local was, lastHandle = m.inTransition, m.handle
   m.inTransition = P.U8(d, 1) == 1
+  -- a completed transition (not one pulled back) flips the T-bar direction
+  if was and not m.inTransition and lastHandle > 5000 then m.tbarFlipped = not m.tbarFlipped end
   m.remaining = P.U8(d, 2)
   m.handle = P.U16(d, 4)
   return "me"
@@ -1933,6 +1957,9 @@ end
 
 function Cmd.Aux(aux, source) return C("CAuS", W8(1) .. W8(aux - 1) .. W16(source)) end
 
+function Cmd.KeyType(me, key, keyType)
+  return C("CKTp", W8(1) .. W8(me - 1) .. W8(key - 1) .. W8(keyType) .. P.Pad(4))
+end
 function Cmd.KeyFill(me, key, source) return C("CKeF", W8(me - 1) .. W8(key - 1) .. W16(source)) end
 function Cmd.KeyKey(me, key, source) return C("CKeC", W8(me - 1) .. W8(key - 1) .. W16(source)) end
 
@@ -2026,13 +2053,14 @@ local St = AtemState.New()
 local Ready = false            -- state dump complete
 
 -- Button sources per bus (fixed by the design)
-local AuxMode = AtemTopology.AuxMode(Properties)
+local AuxMode = AtemTopology.AuxMode(Properties, Topo)
+local KeyerSetup = AtemTopology.KeyerSetup(Properties)
+local SSCount = AtemTopology.SuperSourceCount(Topo, Properties)
 local MEButtons, AuxButtons = {}, {}
 for me = 1, Topo.MEs do MEButtons[me] = AtemTopology.MEButtonSources(Topo, me, ButtonMode) end
 for aux = 1, Topo.Aux do AuxButtons[aux] = AtemTopology.AuxButtonSources(Topo, aux, AuxMode) end
 local BoxButtons = AtemTopology.BoxButtonSources(Topo, ButtonMode)
 local _, NameSources = AtemTopology.NamePlacement(Topo, Properties)
-local KeyTypes = { [0] = "Luma", "Chroma", "Pattern", "DVE" }
 
 local function Key(id) return (AtemTopology.SourceKey(id)) end
 
@@ -2059,7 +2087,7 @@ for me = 1, Topo.MEs do
   AddCombo("me" .. me, { "ME" .. me .. " Program", "ME" .. me .. " Preview" },
     function(port, sa, meAvail) return meAvail & bit ~= 0 end)
 end
-do
+if KeyerSetup then
   local keyControls = {}
   for me = 1, Topo.MEs do
     for k = 1, Topo.USKs do
@@ -2078,7 +2106,7 @@ for aux = 1, Topo.Aux do
 end
 do
   local boxControls = {}
-  for ss = 1, Topo.SuperSources do
+  for ss = 1, SSCount do
     for box = 1, AtemTopology.BOXES do boxControls[#boxControls + 1] = "SS" .. ss .. " Box " .. box .. " Source" end
   end
   AddCombo("box", boxControls, function(port, sa) return sa & AtemTopology.Avail.SuperSourceBox ~= 0 end)
@@ -2126,7 +2154,7 @@ local function BuildCombos()
 end
 
 local function ComboName(group, id)
-  if id == nil then return "" end
+  if id == nil or not Combos[group] then return "" end
   return Combos[group].byId[id] or LongName(id)
 end
 
@@ -2146,7 +2174,7 @@ local function RenderNames()
     end
     for me = 1, Topo.MEs do legends({ "ME" .. me .. " Program ", "ME" .. me .. " Preview " }, MEButtons[me]) end
     for aux = 1, Topo.Aux do legends({ "Aux " .. aux .. " " }, AuxButtons[aux]) end
-    for ss = 1, Topo.SuperSources do
+    for ss = 1, SSCount do
       for box = 1, AtemTopology.BOXES do legends({ "SS" .. ss .. " Box " .. box .. " " }, BoxButtons) end
     end
   end
@@ -2160,6 +2188,15 @@ local TBarTouched = {}   -- [me] = time of the last user move
 -- frame rate for "s:ff" rates; 25 until the switcher reports its video mode
 local function Fps()
   return St.videoMode and AtemTopology.ModeFps[St.videoMode] or 25
+end
+
+-- The switcher reports the transition progress (0 -> 10000) and resets it to 0
+-- afterwards. Like a hardware T-bar the fader stays at the end it reached: after
+-- each completed transition the direction flips (state.tbarFlipped).
+local function TBarDisplay(m)
+  local progress = m.inTransition and m.handle / 10000 or 0
+  if m.tbarFlipped then return 1 - progress end
+  return progress
 end
 
 local function RenderME(me)
@@ -2178,8 +2215,8 @@ local function RenderME(me)
 
   SetBool(p .. "Auto", m.inTransition)
   SetBool(p .. "In Transition", m.inTransition)
-  if Now - (TBarTouched[me] or -100) > TBAR_HOLD then
-    SetPosition(p .. "T-Bar", m.inTransition and m.handle / 10000 or 0)
+  if not TBarTouched[me] then
+    SetPosition(p .. "T-Bar", TBarDisplay(m))
   end
   SetBool(p .. "Fade to Black", m.ftbBlack or m.ftbInTransition)
   SetString(p .. "Fade to Black Rate", m.ftbRate > 0 and AtemTopology.FormatRate(m.ftbRate, Fps()) or "")
@@ -2199,7 +2236,7 @@ local function RenderME(me)
     local key = m.keys[k]
     SetString(q .. "Fill", key and ComboName("key", key.fill) or "")
     SetString(q .. "Key", key and ComboName("key", key.key) or "")
-    SetString(q .. "Type", key and (KeyTypes[key.type] or ("Type " .. key.type)) or "")
+    SetString(q .. "Type", key and (AtemTopology.KeyTypes[key.type + 1] or ("Type " .. key.type)) or "")
   end
 end
 
@@ -2240,7 +2277,7 @@ local function RenderAll()
   for me = 1, Topo.MEs do RenderME(me) end
   for n = 1, Topo.DSKs do RenderDSK(n) end
   for aux = 1, Topo.Aux do RenderAux(aux) end
-  for ss = 1, Topo.SuperSources do RenderSS(ss) end
+  for ss = 1, SSCount do RenderSS(ss) end
   Dirty = { me = {}, dsk = {}, aux = {}, ss = {}, names = false }
 end
 
@@ -2252,7 +2289,7 @@ local function RenderDirty()
   for me in pairs(Dirty.me) do if me <= Topo.MEs then RenderME(me) end end
   for n in pairs(Dirty.dsk) do if n <= Topo.DSKs then RenderDSK(n) end end
   for aux in pairs(Dirty.aux) do if aux <= Topo.Aux then RenderAux(aux) end end
-  for ss in pairs(Dirty.ss) do if ss <= Topo.SuperSources then RenderSS(ss) end end
+  for ss in pairs(Dirty.ss) do if ss <= SSCount then RenderSS(ss) end end
   Dirty = { me = {}, dsk = {}, aux = {}, ss = {}, names = false }
 end
 
@@ -2482,6 +2519,13 @@ MainTimer.EventHandler = function()
     SetString("Status", ("%s - retry in %ds"):format(Conn.retryReason, math.ceil(Conn.retryAt - Now - 1e-6)))
   end
   Session:Tick(Now)
+  -- once the T-bar hold time is over, show the switcher's position again
+  for me, t in pairs(TBarTouched) do
+    if Now - t > TBAR_HOLD then
+      TBarTouched[me] = nil
+      Dirty.me[me] = true
+    end
+  end
   if Ready then RenderDirty() end
 end
 
@@ -2525,7 +2569,9 @@ for me = 1, Topo.MEs do
   end
   Controls[p .. "T-Bar"].EventHandler = function(c)
     TBarTouched[me] = Now
-    local pos = math.floor(c.Position * 10000 + 0.5)
+    local m = St.me[me]
+    local position = (m and m.tbarFlipped) and 1 - c.Position or c.Position
+    local pos = math.floor(position * 10000 + 0.5)
     Send(Cmd.TransitionPosition(me, pos), ("M/E %d T-bar %d"):format(me, pos), "tbar" .. me)
   end
   Controls[p .. "Fade to Black"].EventHandler = function()
@@ -2601,9 +2647,17 @@ for me = 1, Topo.MEs do
   end
 end
 
--- Upstream keyer sources
-for me = 1, Topo.MEs do
+-- Upstream keyer sources and type (Keyer Setup page)
+for me = 1, KeyerSetup and Topo.MEs or 0 do
   for k = 1, Topo.USKs do
+    Controls["ME" .. me .. " Key " .. k .. " Type"].EventHandler = function(c)
+      for i, t in ipairs(AtemTopology.KeyTypes) do
+        if t == c.String then
+          Send(Cmd.KeyType(me, k, i - 1), ("M/E %d Key %d type %s"):format(me, k, t))
+        end
+      end
+      RenderME(me)
+    end
     local q = "ME" .. me .. " Key " .. k .. " "
     for _, part in ipairs({ "Fill", "Key" }) do
       Controls[q .. part].EventHandler = function(c)
@@ -2645,7 +2699,7 @@ for n = 1, Topo.DSKs do
     end
     RenderDSK(n)
   end
-  for _, part in ipairs({ "Fill", "Key" }) do
+  for _, part in ipairs(KeyerSetup and { "Fill", "Key" } or {}) do
     Controls[p .. part].EventHandler = function(c)
       local id = ComboId("key", c.String)
       if id then
@@ -2677,7 +2731,7 @@ for aux = 1, Topo.Aux do
 end
 
 -- SuperSource boxes
-for ss = 1, Topo.SuperSources do
+for ss = 1, SSCount do
   for box = 1, AtemTopology.BOXES do
     local p = "SS" .. ss .. " Box " .. box .. " "
     local function B()
@@ -2721,6 +2775,9 @@ SetString("Reconnects", "0")
 SetError("")
 for me = 1, Topo.MEs do
   SetChoices("ME" .. me .. " Transition Style", AtemTopology.TransitionStyles)
+  for k = 1, KeyerSetup and Topo.USKs or 0 do
+    SetChoices("ME" .. me .. " Key " .. k .. " Type", AtemTopology.KeyTypes)
+  end
 end
 RenderAll()
 Log(1, ("Started, build %s - model %s, %d M/E"):format(PluginInfo.BuildVersion, Topo.Name, Topo.MEs))

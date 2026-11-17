@@ -5,6 +5,8 @@ Format: [Keep a Changelog](https://keepachangelog.com), versioning: `major.minor
 
 ## [Unreleased]
 
+Development versions: 0.1 connection + M/E, 0.2 keyers, aux, SuperSource.
+
 ### Added
 - Model property with all ATEM models (generated from the Companion model table) and a
   Custom model; controls, pins and pages follow the selected model.
@@ -24,4 +26,7 @@ Format: [Keep a Changelog](https://keepachangelog.com), versioning: `major.minor
 - Aux outputs: combo with every aux source plus buttons (property "Aux Buttons"), own
   page(s), 8 aux per page.
 - SuperSource: box enable and source (combo + buttons).
-- Source names from the switcher placed directly under the button grids.
+- Source names from the switcher placed directly under the program buttons / grids.
+- Keyer setup (now with key type) and SuperSource on optional pages, off by default.
+- "Aux Buttons" = Auto: button count follows the switcher size.
+- T-bar behaves like a hardware T-bar (no drop after Auto, direction flips).

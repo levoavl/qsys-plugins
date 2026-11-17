@@ -14,7 +14,7 @@
 --[[ #include "atem_topology.lua" ]]
 
 function PageList(props)
-  return AtemTopology.Pages(AtemTopology.Resolve(props))
+  return AtemTopology.Pages(AtemTopology.Resolve(props), props)
 end
 
 function GetColor(props)

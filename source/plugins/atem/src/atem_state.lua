@@ -110,7 +110,10 @@ end
 
 D["TrPs"] = function(st, d)
   local m = ME(st, P.U8(d, 0) + 1)
+  local was, lastHandle = m.inTransition, m.handle
   m.inTransition = P.U8(d, 1) == 1
+  -- a completed transition (not one pulled back) flips the T-bar direction
+  if was and not m.inTransition and lastHandle > 5000 then m.tbarFlipped = not m.tbarFlipped end
   m.remaining = P.U8(d, 2)
   m.handle = P.U16(d, 4)
   return "me"
@@ -272,6 +275,9 @@ end
 
 function Cmd.Aux(aux, source) return C("CAuS", W8(1) .. W8(aux - 1) .. W16(source)) end
 
+function Cmd.KeyType(me, key, keyType)
+  return C("CKTp", W8(1) .. W8(me - 1) .. W8(key - 1) .. W8(keyType) .. P.Pad(4))
+end
 function Cmd.KeyFill(me, key, source) return C("CKeF", W8(me - 1) .. W8(key - 1) .. W16(source)) end
 function Cmd.KeyKey(me, key, source) return C("CKeC", W8(me - 1) .. W8(key - 1) .. W16(source)) end
 
