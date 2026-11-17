@@ -139,13 +139,14 @@ if #audio > 0 then
   for _, id in ipairs(audio) do
     local p = "Audio " .. AtemTopology.AudioKey(id) .. " "
     Level(p .. "Level")
-    Toggle(p .. "On")              -- mix option On
-    Toggle(p .. "AFV")             -- mix option Audio Follow Video
-    Toggle(p .. "Mute")            -- mix option Off, unmute restores On / AFV
+    Toggle(p .. "On")              -- mix option On (pressed again: Off)
+    if AtemTopology.AudioHasAFV(id) then
+      Toggle(p .. "AFV")           -- mix option Audio Follow Video (pressed again: Off)
+    end
     TextOut(p .. "Name")
   end
   Level("Audio Master Level")
-  Toggle("Audio Master Follow FTB")
+  Toggle("Audio Master AFV")       -- master follows Fade to Black ("AFV" in ATEM Software Control)
 end
 
 -- Streaming / recording

@@ -694,7 +694,9 @@ def test_block4():
     check(h.ctl("Audio Input 1 Level").Value == -10 and h.b("Audio Input 1 AFV"), "input level + AFV")
     check(h.b("Audio Mic 1 On") and h.ctl("Audio Mic 1 Level").Value == 0, "mic on, split source ignored")
     check(h.s("Audio Input 3 Name") == "Camera 3" and h.s("Audio Mic 2 Name") == "Mic 2", "strip names")
-    check(h.ctl("Audio Master Level").Value == -5 and h.b("Audio Master Follow FTB"), "master")
+    check(h.ctl("Audio Master Level").Value == -5 and h.b("Audio Master AFV"), "master (AFV = follow FTB)")
+    check(h.g.Controls[b"Audio Mic 1 AFV"] is None and h.g.Controls[b"Audio Input 1 Mute"] is None,
+          "no AFV on mics, no mute buttons")
     check(h.s("Stream Status") == "Idle" and not h.b("Stream"), "stream idle")
     check(h.s("Record Status") == "Idle" and h.s("Record Time Remaining") == "1:02:05", "record idle + time remaining")
 
@@ -705,16 +707,16 @@ def test_block4():
           and struct.unpack(">q", d[8:16])[0] == -256 and struct.unpack(">i", d[40:44])[0] == -650,
           "fader -6.5 dB -> CFSP with the input's source")
     a.handle(pk)
-    h.user("Audio Mic 1 Mute")
+    h.user("Audio Mic 1 On")
     pk = a.take()
     d = pk[0]["cmds"][0][1]
-    check(d[0:4] == struct.pack(">HH", 256, 1301) and d[44] == 1, "mute = mix option off")
+    check(d[0:4] == struct.pack(">HH", 256, 1301) and d[44] == 1, "On pressed while on -> mix option off")
     a.handle(pk)
     h.tick()
-    check(h.b("Audio Mic 1 Mute") and not h.b("Audio Mic 1 On"), "mute feedback")
-    h.user("Audio Mic 1 Mute")
+    check(not h.b("Audio Mic 1 On"), "off feedback")
+    h.user("Audio Mic 1 On")
     pk = a.take()
-    check(pk[0]["cmds"][0][1][44] == 2, "unmute restores On")
+    check(pk[0]["cmds"][0][1][44] == 2, "On again")
     a.handle(pk)
     h.user("Audio Input 4 AFV")
     pk = a.take()

@@ -43,8 +43,19 @@ position, tap, hold and ½/2× – the beat keeps running through breakdowns.
 
 Tested on Core 24f · Q-SYS Designer 10.1 · with grandMA2 3.9.60.91
 
+### 🎬 ATEM Switcher
+
+Blackmagic ATEM switchers, all models incl. multi-M/E – **with feedback**. Program /
+preview, transitions and T-bar, keyers, aux, media players, macros, Fairlight audio,
+streaming and recording. The plugin adapts to the model chosen in the properties.
+
+<a href="https://github.com/levoavl/qsys-plugins/releases/download/atem-v1.0/levo-atem.qplug"><img src="https://img.shields.io/badge/-%E2%AC%87_Download_v1.0-FFB830?style=for-the-badge" alt="Download ATEM plugin v1.0"></a>
+<a href="ATEM"><img src="https://img.shields.io/badge/-Manual-00468C?style=for-the-badge" alt="ATEM manual"></a>
+
+Tested on ATEM Mini Extreme 10.3 · Q-SYS Designer 10.1
+
 > [!NOTE]
-> **Coming soon:** Blackmagic ATEM (all models incl. multi-M/E) · Resolume Arena · Pharos
+> **Coming soon:** Resolume Arena · Pharos
 
 ## Installation
 

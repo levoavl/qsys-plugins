@@ -13,8 +13,8 @@
 
 PluginInfo = {
   Name         = "levo AVL~ATEM Switcher",  -- "Folder~Name" in the Q-SYS schematic library
-  Version      = "0.4",
-  BuildVersion = "0.4",  -- versions are major.minor, see source/README.md
+  Version      = "1.0",
+  BuildVersion = "1.0",  -- versions are major.minor, see source/README.md
   Id           = "540f6f58-c34c-4c96-b2cc-1430d6b79789",
   Author       = "levo AVL | Elias Jenny",
   Description  = "Control Blackmagic ATEM switchers (all models, multi M/E) with feedback: "
@@ -799,6 +799,12 @@ function T.AudioInputs(topo, props)
   return ids
 end
 
+-- Audio Follow Video exists for inputs with video (embedded audio, media players),
+-- not for analog / digital audio-only inputs (mic, XLR, RCA, MADI ...)
+function T.AudioHasAFV(id)
+  return id < 1000 or (id > 2000 and id < 2050)
+end
+
 -- Fader range in dB
 function T.AudioRange(topo)
   if topo.Audio == "Classic" then return -60, 6 end
@@ -1095,13 +1101,14 @@ if #audio > 0 then
   for _, id in ipairs(audio) do
     local p = "Audio " .. AtemTopology.AudioKey(id) .. " "
     Level(p .. "Level")
-    Toggle(p .. "On")              -- mix option On
-    Toggle(p .. "AFV")             -- mix option Audio Follow Video
-    Toggle(p .. "Mute")            -- mix option Off, unmute restores On / AFV
+    Toggle(p .. "On")              -- mix option On (pressed again: Off)
+    if AtemTopology.AudioHasAFV(id) then
+      Toggle(p .. "AFV")           -- mix option Audio Follow Video (pressed again: Off)
+    end
     TextOut(p .. "Name")
   end
   Level("Audio Master Level")
-  Toggle("Audio Master Follow FTB")
+  Toggle("Audio Master AFV")       -- master follows Fade to Black ("AFV" in ATEM Software Control)
 end
 
 -- Streaming / recording
@@ -1399,26 +1406,27 @@ elseif CurrentPage == "Audio" then
   local contentW = math.max(cols * (SW + GAP) - GAP, 760)
   W = M * 2 + contentW
   y = Section("Audio Mixer (" .. topo.Audio .. ")", M, y, contentW)
-  local STRIP_H = 18 + 4 + 3 * 30 + 4 + 170 + 10
-  local function Strip(i, title, p, g, master)
+  local STRIP_H = 18 + 4 + 2 * 30 + 4 + 170 + 10
+  local function Strip(i, title, p, g, master, hasAfv)
     local col, row = (i - 1) % PER_ROW, (i - 1) // PER_ROW
     local x, sy = M + col * (SW + GAP), y + row * STRIP_H
     if master then
       Label(title, x, sy, SW, 18, { style = "Bold", align = "Center" })
-      Button("Audio Master Follow FTB", "Audio~Master~Follow FTB", "FTB", x + 5, sy + 22, SW - 10, 26, C.Amber,
+      Button("Audio Master AFV", "Audio~Master~AFV", "AFV", x + 5, sy + 22, SW - 10, 26, C.Amber,
         { FontSize = 10 })
     else
       Place(p .. "Name", g .. "Name", x, sy, SW, 18,
         { Style = "Text", Color = C.Porcelain, StrokeWidth = 0, FontSize = 10, TextColor = C.Onyx, HTextAlign = "Center" })
       Button(p .. "On", g .. "On", "ON", x + 5, sy + 22, SW - 10, 26, C.TallyRed, { FontSize = 10 })
-      Button(p .. "AFV", g .. "AFV", "AFV", x + 5, sy + 52, SW - 10, 26, C.Amber, { FontSize = 10 })
-      Button(p .. "Mute", g .. "Mute", "MUTE", x + 5, sy + 82, SW - 10, 26, C.Atlantic, { FontSize = 10 })
+      if hasAfv then
+        Button(p .. "AFV", g .. "AFV", "AFV", x + 5, sy + 52, SW - 10, 26, C.Amber, { FontSize = 10 })
+      end
     end
-    Place(p .. "Level", g .. "Level", x + (SW - 40) // 2, sy + 116, 40, 170, { Style = "Fader", Color = C.Atlantic })
+    Place(p .. "Level", g .. "Level", x + (SW - 40) // 2, sy + 86, 40, 170, { Style = "Fader", Color = C.Atlantic })
   end
   for i, id in ipairs(audio) do
     local key = AtemTopology.AudioKey(id)
-    Strip(i, key, "Audio " .. key .. " ", "Audio~" .. key .. "~")
+    Strip(i, key, "Audio " .. key .. " ", "Audio~" .. key .. "~", false, AtemTopology.AudioHasAFV(id))
   end
   Strip(strips, "MASTER", "Audio Master ", "Audio~Master~", true)
   y = y + math.ceil(strips / PER_ROW) * STRIP_H
@@ -2828,7 +2836,6 @@ local AudioMin, AudioMax = AtemTopology.AudioRange(Topo)
 local Fairlight = Topo.Audio == "Fairlight"
 local AudioTouched = {}   -- [id or "master"] = time of the last user move
 local AUDIO_HOLD = 0.5
-local LastMix = {}        -- [id] = mix option before mute (1 On / 2 AFV)
 
 local function AudioPrefix(id) return "Audio " .. AtemTopology.AudioKey(id) .. " " end
 
@@ -2852,14 +2859,12 @@ local function RenderAudio()
     SetLevel(p .. "Level", a.level, id)
     SetBool(p .. "On", a.mix == 1)
     SetBool(p .. "AFV", a.mix == 2)
-    SetBool(p .. "Mute", a.mix == 0)
     SetString(p .. "Name", Ready and AudioName(id) or AtemTopology.AudioKey(id))
-    if a.mix and a.mix > 0 then LastMix[id] = a.mix end
   end
   if #AudioIds > 0 then
     local m = Ready and St.audioMaster or {}
     SetLevel("Audio Master Level", m.level, "master")
-    SetBool("Audio Master Follow FTB", m.ftb == true)
+    SetBool("Audio Master AFV", m.ftb == true)
   end
 end
 
@@ -3523,13 +3528,11 @@ for _, id in ipairs(AudioIds) do
     local a = St.audio[id] or {}
     if a.mix == 1 then Mix(0, "off") else Mix(1, "on") end
   end
-  Controls[p .. "AFV"].EventHandler = function()
-    local a = St.audio[id] or {}
-    if a.mix == 2 then Mix(0, "off") else Mix(2, "AFV") end
-  end
-  Controls[p .. "Mute"].EventHandler = function()
-    local a = St.audio[id] or {}
-    if a.mix == 0 then Mix(LastMix[id] or 1, "unmute") else Mix(0, "mute") end
+  if AtemTopology.AudioHasAFV(id) then
+    Controls[p .. "AFV"].EventHandler = function()
+      local a = St.audio[id] or {}
+      if a.mix == 2 then Mix(0, "off") else Mix(2, "AFV") end
+    end
   end
 end
 if #AudioIds > 0 then
@@ -3538,10 +3541,10 @@ if #AudioIds > 0 then
     local cmd = Fairlight and Cmd.FairlightMaster(c.Value, nil) or Cmd.ClassicMaster(c.Value, nil)
     Send(cmd, ("Audio master level %.1f dB"):format(c.Value), "audiomaster")
   end
-  Controls["Audio Master Follow FTB"].EventHandler = function()
+  Controls["Audio Master AFV"].EventHandler = function()
     local on = not St.audioMaster.ftb
     local cmd = Fairlight and Cmd.FairlightMaster(nil, on) or Cmd.ClassicMaster(nil, on)
-    Send(cmd, "Audio master follow FTB " .. (on and "on" or "off"))
+    Send(cmd, "Audio master AFV (follow FTB) " .. (on and "on" or "off"))
     RenderAudio()
   end
 end

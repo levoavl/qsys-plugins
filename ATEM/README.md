@@ -7,16 +7,23 @@ its own pin, so it can be dragged onto a UCI and styled freely.
 
 Part of [levo AVL Q-SYS Plugins](../README.md).
 
-> [!NOTE]
-> Work in progress (0.x). Done: connection, M/E functions, upstream / downstream keyers,
-> aux outputs, SuperSource boxes, media players, colour generators, macros, audio,
-> streaming and recording.
+<a href="https://github.com/levoavl/qsys-plugins/releases/download/atem-v1.0/levo-atem.qplug"><img src="https://img.shields.io/badge/-%E2%AC%87_Download_v1.0-FFB830?style=for-the-badge" alt="Download ATEM plugin v1.0"></a>
+<a href="CHANGELOG.md"><img src="https://img.shields.io/badge/-Changelog-00468C?style=for-the-badge" alt="Changelog"></a>
+
+The plugin is a remote control for operation – program / preview, transitions, keyers,
+aux, media, macros, audio, streaming and recording. Setup details (keyer settings,
+SuperSource layout, EQ / dynamics, stream keys …) stay in ATEM Software Control.
 
 ## Tested on
 
 | Switcher | Firmware | Q-SYS | Result |
 |---|---|---|---|
-| ATEM Mini Extreme | 10.3 | Designer 10.1 | ⏳ in test |
+| ATEM Mini Extreme | 10.3 | Designer 10.1 | ✅ M/E, keyers, aux, SuperSource, media, macros, audio, recording |
+
+Multi-M/E switchers (Constellation, 2 M/E …) and the classic audio mixer (older Production
+Studio / Broadcast models) are implemented from the protocol but not yet tested on
+hardware. If you run the plugin on one of them, please open an issue – positive reports
+are just as welcome as bugs.
 
 ## Switcher setup
 
@@ -125,11 +132,11 @@ Fairlight (ATEM Mini series, Television Studio, Constellation) or the classic au
 | Control | Type | Pin | |
 |---|---|---|---|
 | Level | Fader dB | in/out | Fairlight −100 … +10 dB, classic −60 … +6 dB |
-| On, AFV | Toggle | in/out | Mix option On / Audio Follow Video; pressing the active one switches the input off |
-| Mute | Toggle | in/out | Mix option Off; unmute restores On or AFV |
+| On | Toggle | in/out | Mix option On; pressed again: Off |
+| AFV | Toggle | in/out | Audio Follow Video; pressed again: Off. Only inputs with video (embedded audio, media players) – not mic / XLR / RCA / MADI |
 | Name | Text | out | Video input name or `Mic 1` … |
 | Audio Master Level | Fader dB | in/out | |
-| Audio Master Follow FTB | Toggle | in/out | Audio fades with Fade to Black |
+| Audio Master AFV | Toggle | in/out | Master follows Fade to Black ("AFV" on the master in ATEM Software Control) |
 
 Split stereo inputs (dual mono) are controlled through their first channel. EQ, dynamics,
 delay and meters stay in ATEM Software Control.
@@ -195,12 +202,19 @@ sends its complete state (status *Initializing*), then the status turns *OK*. Wh
 switcher stops answering for 5 s, the plugin reconnects with backoff (1 → 30 s). Commands
 are queued and sent in packets of up to 1416 bytes; fast T-bar moves are merged.
 
+## Known limitations
+
+- Continue after a macro user wait is not supported.
+- After a restart / reconnect the plugin cannot know which end a T-bar was left at; it
+  assumes the bottom.
+
 ## Credits
 
 ATEM protocol handling is based on [Sofie ATEM Connection](https://github.com/Sofie-Automation/sofie-atem-connection)
 (MIT License, Copyright (c) 2023 Norsk rikskringkasting AS). The model table is generated
 from the [Bitfocus Companion module bmd-atem](https://github.com/bitfocus/companion-module-bmd-atem)
-(MIT License, Copyright (c) 2018 Bitfocus AS, William Viker & Håkon Nessjøen).
+(MIT License, Copyright (c) 2018 Bitfocus AS, William Viker & Håkon Nessjøen). Their licence
+texts are in this folder (`THIRD_PARTY_LICENSE_*.md`).
 
 ATEM is a trademark of Blackmagic Design. This plugin is not affiliated with or endorsed by
 Blackmagic Design.

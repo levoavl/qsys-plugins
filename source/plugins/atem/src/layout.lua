@@ -261,26 +261,27 @@ elseif CurrentPage == "Audio" then
   local contentW = math.max(cols * (SW + GAP) - GAP, 760)
   W = M * 2 + contentW
   y = Section("Audio Mixer (" .. topo.Audio .. ")", M, y, contentW)
-  local STRIP_H = 18 + 4 + 3 * 30 + 4 + 170 + 10
-  local function Strip(i, title, p, g, master)
+  local STRIP_H = 18 + 4 + 2 * 30 + 4 + 170 + 10
+  local function Strip(i, title, p, g, master, hasAfv)
     local col, row = (i - 1) % PER_ROW, (i - 1) // PER_ROW
     local x, sy = M + col * (SW + GAP), y + row * STRIP_H
     if master then
       Label(title, x, sy, SW, 18, { style = "Bold", align = "Center" })
-      Button("Audio Master Follow FTB", "Audio~Master~Follow FTB", "FTB", x + 5, sy + 22, SW - 10, 26, C.Amber,
+      Button("Audio Master AFV", "Audio~Master~AFV", "AFV", x + 5, sy + 22, SW - 10, 26, C.Amber,
         { FontSize = 10 })
     else
       Place(p .. "Name", g .. "Name", x, sy, SW, 18,
         { Style = "Text", Color = C.Porcelain, StrokeWidth = 0, FontSize = 10, TextColor = C.Onyx, HTextAlign = "Center" })
       Button(p .. "On", g .. "On", "ON", x + 5, sy + 22, SW - 10, 26, C.TallyRed, { FontSize = 10 })
-      Button(p .. "AFV", g .. "AFV", "AFV", x + 5, sy + 52, SW - 10, 26, C.Amber, { FontSize = 10 })
-      Button(p .. "Mute", g .. "Mute", "MUTE", x + 5, sy + 82, SW - 10, 26, C.Atlantic, { FontSize = 10 })
+      if hasAfv then
+        Button(p .. "AFV", g .. "AFV", "AFV", x + 5, sy + 52, SW - 10, 26, C.Amber, { FontSize = 10 })
+      end
     end
-    Place(p .. "Level", g .. "Level", x + (SW - 40) // 2, sy + 116, 40, 170, { Style = "Fader", Color = C.Atlantic })
+    Place(p .. "Level", g .. "Level", x + (SW - 40) // 2, sy + 86, 40, 170, { Style = "Fader", Color = C.Atlantic })
   end
   for i, id in ipairs(audio) do
     local key = AtemTopology.AudioKey(id)
-    Strip(i, key, "Audio " .. key .. " ", "Audio~" .. key .. "~")
+    Strip(i, key, "Audio " .. key .. " ", "Audio~" .. key .. "~", false, AtemTopology.AudioHasAFV(id))
   end
   Strip(strips, "MASTER", "Audio Master ", "Audio~Master~", true)
   y = y + math.ceil(strips / PER_ROW) * STRIP_H

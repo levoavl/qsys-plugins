@@ -385,7 +385,6 @@ local AudioMin, AudioMax = AtemTopology.AudioRange(Topo)
 local Fairlight = Topo.Audio == "Fairlight"
 local AudioTouched = {}   -- [id or "master"] = time of the last user move
 local AUDIO_HOLD = 0.5
-local LastMix = {}        -- [id] = mix option before mute (1 On / 2 AFV)
 
 local function AudioPrefix(id) return "Audio " .. AtemTopology.AudioKey(id) .. " " end
 
@@ -409,14 +408,12 @@ local function RenderAudio()
     SetLevel(p .. "Level", a.level, id)
     SetBool(p .. "On", a.mix == 1)
     SetBool(p .. "AFV", a.mix == 2)
-    SetBool(p .. "Mute", a.mix == 0)
     SetString(p .. "Name", Ready and AudioName(id) or AtemTopology.AudioKey(id))
-    if a.mix and a.mix > 0 then LastMix[id] = a.mix end
   end
   if #AudioIds > 0 then
     local m = Ready and St.audioMaster or {}
     SetLevel("Audio Master Level", m.level, "master")
-    SetBool("Audio Master Follow FTB", m.ftb == true)
+    SetBool("Audio Master AFV", m.ftb == true)
   end
 end
 
@@ -1080,13 +1077,11 @@ for _, id in ipairs(AudioIds) do
     local a = St.audio[id] or {}
     if a.mix == 1 then Mix(0, "off") else Mix(1, "on") end
   end
-  Controls[p .. "AFV"].EventHandler = function()
-    local a = St.audio[id] or {}
-    if a.mix == 2 then Mix(0, "off") else Mix(2, "AFV") end
-  end
-  Controls[p .. "Mute"].EventHandler = function()
-    local a = St.audio[id] or {}
-    if a.mix == 0 then Mix(LastMix[id] or 1, "unmute") else Mix(0, "mute") end
+  if AtemTopology.AudioHasAFV(id) then
+    Controls[p .. "AFV"].EventHandler = function()
+      local a = St.audio[id] or {}
+      if a.mix == 2 then Mix(0, "off") else Mix(2, "AFV") end
+    end
   end
 end
 if #AudioIds > 0 then
@@ -1095,10 +1090,10 @@ if #AudioIds > 0 then
     local cmd = Fairlight and Cmd.FairlightMaster(c.Value, nil) or Cmd.ClassicMaster(c.Value, nil)
     Send(cmd, ("Audio master level %.1f dB"):format(c.Value), "audiomaster")
   end
-  Controls["Audio Master Follow FTB"].EventHandler = function()
+  Controls["Audio Master AFV"].EventHandler = function()
     local on = not St.audioMaster.ftb
     local cmd = Fairlight and Cmd.FairlightMaster(nil, on) or Cmd.ClassicMaster(nil, on)
-    Send(cmd, "Audio master follow FTB " .. (on and "on" or "off"))
+    Send(cmd, "Audio master AFV (follow FTB) " .. (on and "on" or "off"))
     RenderAudio()
   end
 end

@@ -371,6 +371,12 @@ function T.AudioInputs(topo, props)
   return ids
 end
 
+-- Audio Follow Video exists for inputs with video (embedded audio, media players),
+-- not for analog / digital audio-only inputs (mic, XLR, RCA, MADI ...)
+function T.AudioHasAFV(id)
+  return id < 1000 or (id > 2000 and id < 2050)
+end
+
 -- Fader range in dB
 function T.AudioRange(topo)
   if topo.Audio == "Classic" then return -60, 6 end
