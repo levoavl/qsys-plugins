@@ -140,12 +140,16 @@ def dev_stamp() -> str:
     branch = git("rev-parse", "--abbrev-ref", "HEAD") or "?"
     commit = git("rev-parse", "--short=7", "HEAD") or "?"
     dirty = "+" if git("status", "--porcelain", "--", "source") else ""
-    return f"dev {branch} {commit}{dirty} {now:%d.%m. %H:%M}", now.strftime("%y%m%d%H%M")
+    # build number yyDDDHHMM (year, day of year, time): counts up with every build and
+    # stays below 2^31 - Designer parses version parts as 32-bit integers, and the
+    # former yyMMddHHmm (e.g. 2611171320) is too large, so updates were not offered
+    build_no = f"{now:%y}{now.timetuple().tm_yday:03d}{now:%H%M}"
+    return f"dev {branch} {commit}{dirty} {now:%d.%m. %H:%M}", build_no
 
 
 def stamp_source(source: str, stamp: str, build_no: str) -> str:
     """Append Lua that shows the dev stamp without touching the plugin's own code.
-    The version gets the build time as a third part (1.0 -> 1.0.2610281135): Designer
+    The version gets the build time as a third part (1.0 -> 1.0.263011135): Designer
     only offers to update a plugin in a design when the version in the plugin folder is
     newer, so every test build must count up."""
     return source.rstrip() + f"""

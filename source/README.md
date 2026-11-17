@@ -41,9 +41,10 @@ Writes a test copy to `source/.dev-build/` (not committed) that carries a stamp 
 build time. Q-SYS Designer shows it in the schematic block under the plugin name and on the
 About page. File name and plugin Id stay the same, so a new test build simply replaces the
 previous one in the plugin folder and you always see which state you are testing.
-The version gets the build time as a third part (`1.0` → `1.0.2610281135`), because
-Designer only offers to update a plugin in a design when the plugin folder holds a newer
-version. Released files never carry a stamp and keep the two-part version – after testing
+The version gets the build time as a third part, `yyDDDHHMM` (year, day of the year, time:
+`1.0` → `1.0.263011135`), because Designer only offers to update a plugin in a design when
+the plugin folder holds a newer version. The number must stay below 2³¹ – Designer reads
+version parts as 32-bit integers. Released files never carry a stamp and keep the two-part version – after testing
 with dev builds, replace the plugin in the test design once with the released file.
 
 The Advanced Color Picker draws its colours as embedded PNGs. After changing the presets
