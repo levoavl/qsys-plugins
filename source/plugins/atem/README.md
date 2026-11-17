@@ -137,9 +137,9 @@ On Air and Next Key are on the M/E page (see above).
 | Macro i | Toggle | in/out | Runs macro i, lit while it runs. Pressing it again stops it. |
 | Macro i Name | Text | out | |
 | Macro + Macro Run | Combo box + Trigger | in | Run any used macro by name |
-| Macro Stop, Macro Continue | Trigger | in | Continue = after a user wait |
+| Macro Stop | Trigger | in | |
 | Macro Loop | Toggle | in/out | |
-| Macro Running, Macro Waiting | LED | out | |
+| Macro Running | LED | out | |
 | Macro Running Name | Text | out | |
 
 ### Setup

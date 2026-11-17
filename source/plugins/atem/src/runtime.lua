@@ -370,7 +370,6 @@ local function RenderMacros()
     SetBool("Macro " .. i, Ready and r.running and r.index == i or false)
   end
   SetBool("Macro Running", Ready and r.running or false)
-  SetBool("Macro Waiting", Ready and r.waiting or false)
   SetBool("Macro Loop", Ready and r.loop or false)
   local running = ""
   if Ready and r.running and r.index then
@@ -940,7 +939,6 @@ Controls["Macro Run"].EventHandler = function()
 end
 Controls["Macro"].EventHandler = function() end
 Controls["Macro Stop"].EventHandler = function() Send(Cmd.MacroStop(), "Macro stop") end
-Controls["Macro Continue"].EventHandler = function() Send(Cmd.MacroContinue(), "Macro continue") end
 Controls["Macro Loop"].EventHandler = function()
   Send(Cmd.MacroLoop(not St.macroRun.loop), "Macro loop " .. (St.macroRun.loop and "off" or "on"))
   RenderMacros()

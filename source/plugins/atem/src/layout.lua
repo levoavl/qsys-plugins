@@ -322,14 +322,11 @@ elseif CurrentPage == "Macros" then
   Place("Macro", "Macros~Macro", M + 54, y, 220, 22, { Style = "ComboBox" })
   Button("Macro Run", "Macros~Run", "RUN", M + 284, y - 4, 64, 30, C.TallyGreen, { FontSize = 10 })
   Button("Macro Stop", "Macros~Stop", "STOP", M + 352, y - 4, 64, 30, C.TallyRed, { FontSize = 10 })
-  Button("Macro Continue", "Macros~Continue", "CONTINUE", M + 420, y - 4, 80, 30, C.Atlantic, { FontSize = 10 })
-  Button("Macro Loop", "Macros~Loop", "LOOP", M + 504, y - 4, 64, 30, C.Amber, { FontSize = 10 })
+  Button("Macro Loop", "Macros~Loop", "LOOP", M + 420, y - 4, 64, 30, C.Amber, { FontSize = 10 })
   y = y + 34
   Label("Running", M, y + 1, 50, 16, { size = 10, color = C.Mid })
   Place("Macro Running", "Macros~Running", M + 54, y + 2, 14, 14, { Color = C.TallyGreen })
-  Label("Waiting", M + 76, y + 1, 50, 16, { size = 10, color = C.Mid })
-  Place("Macro Waiting", "Macros~Waiting", M + 128, y + 2, 14, 14, { Color = C.Amber })
-  Place("Macro Running Name", "Macros~Running Name", M + 150, y, 300, 18, FLAT)
+  Place("Macro Running Name", "Macros~Running Name", M + 76, y, 300, 18, FLAT)
   y = y + 28
   for i = 1, macros do
     local col, row = (i - 1) % cols, (i - 1) // cols

@@ -125,10 +125,8 @@ end
 TextIn("Macro")                    -- combo box: macro by name
 Trigger("Macro Run")
 Trigger("Macro Stop")
-Trigger("Macro Continue")
 Toggle("Macro Loop")
 Led("Macro Running")
-Led("Macro Waiting")
 TextOut("Macro Running Name")
 
 -- SuperSource boxes

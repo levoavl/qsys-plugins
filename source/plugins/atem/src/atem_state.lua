@@ -371,7 +371,6 @@ end
 -- Macros (index 1-based)
 function Cmd.MacroRun(index) return C("MAct", W16(index - 1) .. W8(0) .. "\0") end
 function Cmd.MacroStop() return C("MAct", W16(0xFFFF) .. W8(1) .. "\0") end
-function Cmd.MacroContinue() return C("MAct", W16(0xFFFF) .. W8(4) .. "\0") end
 function Cmd.MacroLoop(loop) return C("MRCP", W8(1) .. W8(loop and 1 or 0) .. "\0\0") end
 
 -- Transition rate of a style (0 Mix, 1 Dip, 2 Wipe, 3 DVE); nil for styles without rate

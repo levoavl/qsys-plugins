@@ -1037,10 +1037,8 @@ end
 TextIn("Macro")                    -- combo box: macro by name
 Trigger("Macro Run")
 Trigger("Macro Stop")
-Trigger("Macro Continue")
 Toggle("Macro Loop")
 Led("Macro Running")
-Led("Macro Waiting")
 TextOut("Macro Running Name")
 
 -- SuperSource boxes
@@ -1385,14 +1383,11 @@ elseif CurrentPage == "Macros" then
   Place("Macro", "Macros~Macro", M + 54, y, 220, 22, { Style = "ComboBox" })
   Button("Macro Run", "Macros~Run", "RUN", M + 284, y - 4, 64, 30, C.TallyGreen, { FontSize = 10 })
   Button("Macro Stop", "Macros~Stop", "STOP", M + 352, y - 4, 64, 30, C.TallyRed, { FontSize = 10 })
-  Button("Macro Continue", "Macros~Continue", "CONTINUE", M + 420, y - 4, 80, 30, C.Atlantic, { FontSize = 10 })
-  Button("Macro Loop", "Macros~Loop", "LOOP", M + 504, y - 4, 64, 30, C.Amber, { FontSize = 10 })
+  Button("Macro Loop", "Macros~Loop", "LOOP", M + 420, y - 4, 64, 30, C.Amber, { FontSize = 10 })
   y = y + 34
   Label("Running", M, y + 1, 50, 16, { size = 10, color = C.Mid })
   Place("Macro Running", "Macros~Running", M + 54, y + 2, 14, 14, { Color = C.TallyGreen })
-  Label("Waiting", M + 76, y + 1, 50, 16, { size = 10, color = C.Mid })
-  Place("Macro Waiting", "Macros~Waiting", M + 128, y + 2, 14, 14, { Color = C.Amber })
-  Place("Macro Running Name", "Macros~Running Name", M + 150, y, 300, 18, FLAT)
+  Place("Macro Running Name", "Macros~Running Name", M + 76, y, 300, 18, FLAT)
   y = y + 28
   for i = 1, macros do
     local col, row = (i - 1) % cols, (i - 1) // cols
@@ -2195,7 +2190,6 @@ end
 -- Macros (index 1-based)
 function Cmd.MacroRun(index) return C("MAct", W16(index - 1) .. W8(0) .. "\0") end
 function Cmd.MacroStop() return C("MAct", W16(0xFFFF) .. W8(1) .. "\0") end
-function Cmd.MacroContinue() return C("MAct", W16(0xFFFF) .. W8(4) .. "\0") end
 function Cmd.MacroLoop(loop) return C("MRCP", W8(1) .. W8(loop and 1 or 0) .. "\0\0") end
 
 -- Transition rate of a style (0 Mix, 1 Dip, 2 Wipe, 3 DVE); nil for styles without rate
@@ -2581,7 +2575,6 @@ local function RenderMacros()
     SetBool("Macro " .. i, Ready and r.running and r.index == i or false)
   end
   SetBool("Macro Running", Ready and r.running or false)
-  SetBool("Macro Waiting", Ready and r.waiting or false)
   SetBool("Macro Loop", Ready and r.loop or false)
   local running = ""
   if Ready and r.running and r.index then
@@ -3151,7 +3144,6 @@ Controls["Macro Run"].EventHandler = function()
 end
 Controls["Macro"].EventHandler = function() end
 Controls["Macro Stop"].EventHandler = function() Send(Cmd.MacroStop(), "Macro stop") end
-Controls["Macro Continue"].EventHandler = function() Send(Cmd.MacroContinue(), "Macro continue") end
 Controls["Macro Loop"].EventHandler = function()
   Send(Cmd.MacroLoop(not St.macroRun.loop), "Macro loop " .. (St.macroRun.loop and "off" or "on"))
   RenderMacros()

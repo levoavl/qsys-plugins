@@ -33,5 +33,5 @@ Development versions: 0.1 connection + M/E, 0.2 keyers, aux, SuperSource, 0.3 me
 - Media players: still / clip selection (buttons + combo with media pool names), clip
   play / loop / rewind.
 - Colour generators: hue, saturation, luma.
-- Macros: run / stop buttons with names and running state, combo + run, stop, continue,
-  loop, running / waiting LEDs.
+- Macros: run / stop buttons with names and running state, combo + run, stop, loop,
+  running LED. (Continue after a user wait is not supported yet.)

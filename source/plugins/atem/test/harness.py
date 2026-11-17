@@ -627,6 +627,7 @@ def test_block3():
     a.handle(pk)
     h.tick()
     check(h.b("Macro 5") and h.b("Macro Running") and h.s("Macro Running Name") == "5: Outro", "macro running")
+    check(h.g.Controls[b"Macro Continue"] is None, "no continue (not supported yet)")
     h.user("Macro 5")
     pk = a.take()
     check(pk[0]["cmds"] == [("MAct", bytes([0xFF, 0xFF, 1, 0]))], "pressing the running macro stops it")
