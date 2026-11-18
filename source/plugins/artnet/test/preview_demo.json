@@ -1,0 +1,10 @@
+{"U1 Ch 1": {"Value": 255, "Position": 1.0}, "U1 Ch 2": {"Value": 128, "Position": 0.5},
+ "U1 Ch 5": {"Value": 64, "Position": 0.25}, "U1 Ch 11": {"Value": 200, "Position": 0.78},
+ "U1 Target IP": {"String": "10.0.0.50"}, "U1 Net": {"String": "0"}, "U1 SubNet": {"String": "0"},
+ "U1 Universe": {"String": "0"}, "U1 Enable": {"Boolean": true},
+ "U1 Info": {"String": "Unicast 10.0.0.50  ·  Port-Address 0 (0:0:0)  ·  32 ch"},
+ "U2 Target IP": {"String": "10.0.0.51"}, "U2 Net": {"String": "0"}, "U2 SubNet": {"String": "0"},
+ "U2 Universe": {"String": "1"},
+ "U2 Info": {"String": "Output off  ·  Port-Address 1 (0:0:1)"},
+ "Broadcast Address": {"String": "255.255.255.255"},
+ "Status": {"String": "Sending 1 universe(s)"}}
