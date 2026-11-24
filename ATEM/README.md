@@ -193,6 +193,7 @@ Stream key, server and recording disk are set up in ATEM Software Control.
 | Device | Text | out | Product name reported by the switcher |
 | Protocol Version | Text | out | ATEM protocol version (e.g. `2.32`) |
 | Last Error, Reconnects | Text | out | Diagnostics |
+| Lua Memory, Uptime, Internal Errors | Text | out | Health: plugin memory, running time of the main loop (stops if the plugin hangs), caught runtime errors |
 | Name *source* | Text | out | Source names as set on the switcher (placed under the button grids) |
 
 ## Connection behaviour

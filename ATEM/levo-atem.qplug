@@ -13,8 +13,8 @@
 
 PluginInfo = {
   Name         = "levo AVL~ATEM Switcher",  -- "Folder~Name" in the Q-SYS schematic library
-  Version      = "1.0",
-  BuildVersion = "1.0",  -- versions are major.minor, see source/README.md
+  Version      = "1.1",
+  BuildVersion = "1.1",  -- versions are major.minor, see source/README.md
   Id           = "540f6f58-c34c-4c96-b2cc-1430d6b79789",
   Author       = "levo AVL | Elias Jenny",
   Description  = "Control Blackmagic ATEM switchers (all models, multi M/E) with feedback: "
@@ -990,6 +990,9 @@ TextOut("Device")
 TextOut("Protocol Version")
 TextOut("Last Error")
 TextOut("Reconnects")
+TextOut("Lua Memory")
+TextOut("Uptime")
+TextOut("Internal Errors")
 
 -- Source names as reported by the switcher (for UCI labels)
 local _, named = AtemTopology.NamePlacement(topo, props)
@@ -1594,6 +1597,9 @@ elseif CurrentPage == "Setup" then
   Row("Protocol", "Protocol Version", "Setup~Protocol Version", 120, FLAT)
   Row("Last Error", "Last Error", "Debug~Last Error", 560, { Style = "Text" })
   Row("Reconnects", "Reconnects", "Debug~Reconnects", 80, { Style = "Text" })
+  Row("Lua Memory", "Lua Memory", "Debug~Lua Memory", 80, { Style = "Text" })
+  Row("Uptime", "Uptime", "Debug~Uptime", 80, { Style = "Text" })
+  Row("Internal Errors", "Internal Errors", "Debug~Internal Errors", 80, { Style = "Text" })
   y = y + 6
 
   H = y + M
@@ -2500,10 +2506,20 @@ local function SetChoices(name, list)
 end
 
 local STATUS = { OK = 0, Compromised = 1, Fault = 2, NotPresent = 3, Missing = 4, Initializing = 5 }
+-- The Core reads a Status control back with the state in front ("Missing - text"),
+-- so comparing with the read-back never matches. Compare with what we last wrote.
+local LastStatus = {}
 local function SetStatus(value, text)
   local c = Controls.Status
-  if c.Value ~= value then c.Value = value end
-  SetString("Status", text)
+  text = text or ""
+  if LastStatus.value ~= value then
+    c.Value = value
+    LastStatus.value = value
+  end
+  if LastStatus.text ~= text then
+    c.String = text
+    LastStatus.text = text
+  end
 end
 
 local function SetError(text)
@@ -2937,7 +2953,13 @@ local function RenderAll()
   Dirty = NewDirty()
 end
 
+local function IsClean(d)
+  return not (d.names or d.pool or d.macro or d.audio or d.stream or next(d.me) or next(d.dsk)
+    or next(d.aux) or next(d.ss) or next(d.mp) or next(d.color))
+end
+
 local function RenderDirty()
+  if IsClean(Dirty) then return end   -- nothing changed: no new tables every tick
   if Dirty.names then
     RenderAll()
     return
@@ -3110,9 +3132,12 @@ Session = AtemProtocol.NewSession({
   Log = Log,
 })
 
+local OnInternalError -- forward (health section)
+
 Udp.EventHandler = function(_, packet)
-  if packet.Address ~= Conn.ip then return end
-  Session:Receive(packet.Data, Now)
+  if packet.Address ~= Conn.ip or type(packet.Data) ~= "string" then return end
+  local ok, err = pcall(Session.Receive, Session, packet.Data, Now)
+  if not ok then OnInternalError("receive", err) end
 end
 
 local function ValidIp(ip)
@@ -3176,7 +3201,7 @@ local LastDurationPoll = 0
 -- can be garbage collected on the Core and silently stop working.
 AtemRuntime = { Timer = MainTimer, Udp = Udp, Session = Session, Conn = Conn }
 
-MainTimer.EventHandler = function()
+local function MainTick()
   Now = Now + TICK
   if Conn.phase == "waiting" and Conn.retryAt then
     if Now >= Conn.retryAt then
@@ -3185,8 +3210,8 @@ MainTimer.EventHandler = function()
       Connect()
       return
     end
-    -- count down in the status text
-    SetString("Status", ("%s - retry in %ds"):format(Conn.retryReason, math.ceil(Conn.retryAt - Now - 1e-6)))
+    -- count down in the status text (written only when the second changes)
+    SetStatus(STATUS.Missing, ("%s - retry in %ds"):format(Conn.retryReason, math.ceil(Conn.retryAt - Now - 1e-6)))
   end
   Session:Tick(Now)
   -- once the T-bar hold time is over, show the switcher's position again
@@ -3216,6 +3241,105 @@ MainTimer.EventHandler = function()
   end
   if Ready then RenderDirty() end
 end
+
+---------------------------------------------------------------------------
+-- Health: error recovery, main timer watchdog, memory guard
+-- A runtime error inside the main timer must not leave the connection state
+-- machine half-way (e.g. stuck between two reconnect attempts), and the plugin
+-- must never grow without bound on the Core.
+---------------------------------------------------------------------------
+local MEM_LIMIT_KB = 32 * 1024   -- normal use is around 1-3 MB
+local GC_EVERY = 60              -- s, full garbage collection
+local STALL_AFTER = 3            -- s without a main timer tick -> restart it
+
+local Health = { ticks = 0, seenTicks = 0, stalled = 0, seconds = 0, errors = 0, lastError = nil, lastErrorAt = -1e9 }
+local HasGc = type(collectgarbage) == "function"
+local function MemoryKB() return HasGc and collectgarbage("count") or 0 end
+
+-- Errors are always printed (independent of Debug Print), at most once a minute per message
+local function Report(msg)
+  if msg ~= Health.lastError or Health.seconds - Health.lastErrorAt >= 60 then
+    print("[ATEM] " .. msg)
+    Health.lastError, Health.lastErrorAt = msg, Health.seconds
+  end
+end
+
+-- Drop everything the plugin knows about the switcher and connect again
+local function ResetConnection(reason)
+  pcall(function() Session:Close() end)
+  Ready = false
+  St = AtemState.New()
+  Dirty = NewDirty()
+  Conn.unknown = {}
+  for k in pairs(TBarTouched) do TBarTouched[k] = nil end
+  for k in pairs(AudioTouched) do AudioTouched[k] = nil end
+  for k in pairs(ColorTouched) do ColorTouched[k] = nil end
+  local ok, err = pcall(ScheduleRetry, reason)
+  if not ok then
+    -- last resort: plain state, the next tick retries
+    Conn.phase, Conn.retryAt, Conn.retryReason = "waiting", Now + BACKOFF[1], reason
+    Report("Recovery failed: " .. tostring(err))
+  end
+end
+
+OnInternalError = function(where, err)
+  Health.errors = Health.errors + 1
+  local msg = ("Internal error (%s): %s"):format(where, tostring(err))
+  Report(msg)
+  pcall(SetError, msg)
+  ResetConnection("Internal error")
+end
+
+MainTimer.EventHandler = function()
+  Health.ticks = Health.ticks + 1
+  local ok, err = pcall(MainTick)
+  if not ok then OnInternalError("timer", err) end
+end
+
+local function FormatUptime(s)
+  s = math.floor(s)
+  return ("%d:%02d:%02d"):format(s // 3600, s % 3600 // 60, s % 60)
+end
+
+local function HealthTick()
+  Health.seconds = Health.seconds + 1
+  -- main timer watchdog
+  if Health.ticks == Health.seenTicks then
+    Health.stalled = Health.stalled + 1
+    if Health.stalled >= STALL_AFTER then
+      Report("Main timer stalled - restarting it")
+      MainTimer:Stop()
+      MainTimer:Start(TICK)
+      Health.stalled = 0
+    end
+  else
+    Health.stalled = 0
+  end
+  Health.seenTicks = Health.ticks
+  -- memory guard
+  local kb = MemoryKB()
+  if HasGc and (Health.seconds % GC_EVERY == 0 or kb > MEM_LIMIT_KB) then
+    collectgarbage("collect")
+    kb = MemoryKB()
+    if kb > MEM_LIMIT_KB then
+      Report(("Memory limit reached (%.1f MB) - resetting connection"):format(kb / 1024))
+      ResetConnection("Memory limit reached")
+      collectgarbage("collect")
+      kb = MemoryKB()
+    end
+  end
+  -- readouts: Uptime follows the main timer, so it stops when the plugin hangs
+  SetString("Lua Memory", HasGc and ("%.1f MB"):format(kb / 1024) or "n/a")
+  SetString("Uptime", FormatUptime(Now))
+  SetString("Internal Errors", tostring(Health.errors))
+end
+
+local HealthTimer = Timer.New()
+HealthTimer.EventHandler = function()
+  local ok, err = pcall(HealthTick)
+  if not ok then Report("Health check failed: " .. tostring(err)) end
+end
+AtemRuntime.HealthTimer = HealthTimer
 
 ---------------------------------------------------------------------------
 -- User input
@@ -3600,13 +3724,15 @@ end
 
 Controls["IP Address"].EventHandler = function()
   Conn.attempt = 0
-  Connect()
+  local ok, err = pcall(Connect)
+  if not ok then OnInternalError("connect", err) end
 end
 Controls.Reconnect.EventHandler = function()
   Conn.attempt = 0
   Conn.reconnects = Conn.reconnects + 1
   SetString("Reconnects", tostring(Conn.reconnects))
-  Connect()
+  local ok, err = pcall(Connect)
+  if not ok then OnInternalError("connect", err) end
 end
 
 ---------------------------------------------------------------------------
@@ -3623,6 +3749,8 @@ end
 RenderAll()
 Log(1, ("Started, build %s - model %s, %d M/E"):format(PluginInfo.BuildVersion, Topo.Name, Topo.MEs))
 MainTimer:Start(TICK)
-Connect()
+HealthTimer:Start(1)
+local ok, err = pcall(Connect)
+if not ok then OnInternalError("start", err) end
 -- <<< runtime.lua
 end

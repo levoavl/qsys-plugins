@@ -449,6 +449,9 @@ elseif CurrentPage == "Setup" then
   Row("Protocol", "Protocol Version", "Setup~Protocol Version", 120, FLAT)
   Row("Last Error", "Last Error", "Debug~Last Error", 560, { Style = "Text" })
   Row("Reconnects", "Reconnects", "Debug~Reconnects", 80, { Style = "Text" })
+  Row("Lua Memory", "Lua Memory", "Debug~Lua Memory", 80, { Style = "Text" })
+  Row("Uptime", "Uptime", "Debug~Uptime", 80, { Style = "Text" })
+  Row("Internal Errors", "Internal Errors", "Debug~Internal Errors", 80, { Style = "Text" })
   y = y + 6
 
   H = y + M

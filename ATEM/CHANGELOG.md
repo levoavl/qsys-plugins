@@ -5,6 +5,24 @@ Format: [Keep a Changelog](https://keepachangelog.com), versioning: `major.minor
 
 ## [Unreleased]
 
+## [1.1] – 2026-11-25
+
+### Fixed
+- Status text was rewritten every 20 ms while waiting to reconnect: the Core reads a
+  Status control back with the state in front ("Missing - …"), so the plugin never saw
+  its own text. It now compares with what it last wrote (~1 write per second instead of 50).
+- The plugin no longer allocates new bookkeeping tables on every timer tick when nothing changed.
+- A runtime error inside the timer or the UDP handler could stop reconnecting for good
+  (state machine stuck between two attempts). Errors are now caught, printed (regardless of
+  Debug Print), counted and followed by a clean reconnect.
+
+### Added
+- Health readouts on the Setup page: Lua Memory, Uptime (stops if the plugin hangs) and
+  Internal Errors – as text outputs/pins.
+- Watchdog: restarts the main timer if it stops firing.
+- Memory guard: full garbage collection every minute; above 32 MB the plugin drops its
+  switcher state and reconnects instead of growing further.
+
 ## [1.0] – 2026-11-17
 
 First release.

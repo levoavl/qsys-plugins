@@ -28,6 +28,7 @@ TICK = 0.02
 
 MOCKS = r"""
 -- ---------------------------------------------------------------- controls
+STATUS_NAMES = { [0] = "OK", "Compromised", "Fault", "Not Present", "Missing", "Initializing" }
 local function NewControl(def)
   local raw = { Value = 0, Position = 0, String = "", Boolean = false }
   local min, max = def.Min or 0, def.Max or 1
@@ -36,6 +37,8 @@ local function NewControl(def)
   else
     min, max = 0, 1
   end
+  local isStatus = def.IndicatorType == "Status"
+  local writes = 0
   local function setValue(v)
     raw.Value = v
     raw.Position = (max > min) and (v - min) / (max - min) or 0
@@ -45,10 +48,18 @@ local function NewControl(def)
   setValue(min)
   return setmetatable({ _def = def, Legend = "", EventHandler = false, Choices = {} }, {
     __index = function(t, k)
+      if k == "String" and isStatus then
+        -- like the Core: the state is read back in front of the text ("Missing - text")
+        local state = STATUS_NAMES[math.floor(raw.Value)] or "?"
+        return raw.String ~= "" and (state .. " - " .. raw.String) or state
+      end
       if k == "Value" or k == "Position" or k == "String" or k == "Boolean" then return raw[k] end
+      if k == "_writes" then return writes end
+      if k == "_text" then return raw.String end
       return rawget(t, k)
     end,
     __newindex = function(t, k, v)
+      writes = writes + 1
       if k == "Value" then setValue(v)
       elseif k == "Position" then setValue(min + v * (max - min))
       elseif k == "Boolean" then setValue(v and 1 or 0)
@@ -82,15 +93,22 @@ end
 Timers = setmetatable({}, { __mode = "v" })   -- weak like on the Core
 Timer = { New = function()
   local t = { running = false }
-  function t:Start(iv) self.interval = iv; self.running = true end
+  function t:Start(iv) self.interval = iv; self.running = true; self.acc = 0 end
   function t:Stop() self.running = false end
   Timers[#Timers + 1] = t
   return t
 end, CallAfter = function() error("CallAfter not mocked") end }
 
+-- one call = 20 ms; timers with longer intervals fire when their interval is due
 function TickAll()
   for _, t in pairs(Timers) do
-    if t.running and t.EventHandler then t.EventHandler(t) end
+    if t.running and t.EventHandler then
+      t.acc = (t.acc or 0) + 0.02
+      if t.acc >= (t.interval or 0.02) - 1e-9 then
+        t.acc = t.acc - (t.interval or 0.02)
+        t.EventHandler(t)
+      end
+    end
   end
 end
 
@@ -437,7 +455,8 @@ class Harness:
         return bool(self.ctl(name).Boolean)
 
     def status(self):
-        return self.ctl("Status").Value, self.s("Status")
+        c = self.ctl("Status")
+        return c.Value, self._s(c._text)
 
     def sock(self):
         return self.g.AtemRuntime.Udp
@@ -925,6 +944,54 @@ def test_all_models():
     check(True, f"{len(names)} models x 3 button modes: controls + layouts build; largest {worst[1]} with {worst[0]} controls")
 
 
+def test_status_writes():
+    print("test_status_writes (Core reads the Status back with the state in front)")
+    h = Harness()
+    c = h.ctl("Status")
+    h.tick(int(10 / TICK))
+    start = c._writes
+    h.tick(int(30 / TICK))
+    n = c._writes - start
+    check(n < 120, f"Status written {n}x in 30 s without switcher (was 50 per second)")
+    check(h.s("Status").split(" - ")[0] in ("Missing", "Initializing"), f"read-back with state: {h.s('Status')}")
+
+
+def test_health():
+    print("test_health")
+    h = Harness()
+    h.tick(int(3 / TICK))
+    check(h.s("Uptime") == "0:00:03", f"uptime follows the main timer: {h.s('Uptime')}")
+    check(h.s("Lua Memory").endswith(" MB"), f"memory readout: {h.s('Lua Memory')}")
+    # an error in the middle of a reconnect must not freeze the state machine
+    L = h.lua
+    L.execute(b"""
+      local orig = AtemState.New
+      FAIL_ONCE = true
+      AtemState.New = function() if FAIL_ONCE then FAIL_ONCE = false error("test failure") end return orig() end
+    """)
+    before = int(h.s("Reconnects"))
+    h.tick(int(60 / TICK))
+    check(h.s("Internal Errors") == "1", f"error counted: {h.s('Internal Errors')}")
+    check(any("Internal error (timer)" in p for p in h.printed), "error printed without Debug Print")
+    check(int(h.s("Reconnects")) >= before + 3, f"still reconnecting after the error ({before} -> {h.s('Reconnects')})")
+    # main timer stopped from outside -> watchdog restarts it
+    h.g.AtemRuntime.Timer.Stop(h.g.AtemRuntime.Timer)
+    up = h.s("Uptime")
+    h.tick(int(5 / TICK))
+    check(h.g.AtemRuntime.Timer.running and h.s("Uptime") != up, f"watchdog restarted the main timer ({up} -> {h.s('Uptime')})")
+    # connected and idle: memory stays flat
+    h2 = Harness()
+    h2.connect()
+    for _ in range(int(120 / TICK)):
+        h2.tick()
+        if h2.atem.take():
+            pass
+    L2 = h2.lua
+    L2.execute(b"collectgarbage('collect')")
+    kb = L2.eval(b"collectgarbage('count')")
+    check(kb < 4096, f"connected 2 min: {kb / 1024:.1f} MB live")
+
+
 def main():
     random.seed(1)
     test_connect()
@@ -936,6 +1003,8 @@ def main():
     test_resend()
     test_timeout_and_reconnect()
     test_no_device()
+    test_status_writes()
+    test_health()
     test_wrong_model()
     test_legends()
     test_two_me()
