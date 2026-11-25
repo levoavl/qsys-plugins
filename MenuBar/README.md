@@ -76,7 +76,7 @@ Everything else is on the Setup page.
 | Menu Count | 2–12 | 4 | Number of menu items |
 | Orientation | Horizontal / Vertical | Horizontal | |
 | Item Width | 30–1000 | 200 | Button width in px |
-| Item Height | 30–600 | 80 | Button height in px |
+| Item Height | 30–600 | 60 | Button height in px |
 | Debug Print | None / Basic / Verbose | None | Basic: start-up, panels, errors. Verbose: every page / layer call. |
 
 ## Pages
