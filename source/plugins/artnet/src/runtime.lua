@@ -26,6 +26,20 @@ end
 local UniverseCount = Properties["Universe Count"].Value
 local RefreshHz = math.max(1, math.min(44, Properties["Refresh Rate (Hz)"].Value))
 
+-- Clock. Timer.Now() is preferred; if it is not available on this firmware the
+-- send timer's own tick count is used (same approach as the Beat Analyzer).
+local TickInterval = 1 / RefreshHz
+local TickTime = 0
+local ClockSource = "tick counter"
+local function Clock() return TickTime end
+do
+  local ok, v = pcall(function() return Timer.Now() end)
+  if ok and type(v) == "number" then
+    ClockSource = "Timer.Now"
+    Clock = function() return Timer.Now() end
+  end
+end
+
 local Socket = nil        -- UdpSocket once opened
 local SocketError = nil   -- last open error, nil when fine
 local Universes = {}
@@ -103,6 +117,8 @@ local function OpenSocket()
   UpdateStatus()
 end
 
+local SentCount, SendErrors, LastSendError = 0, 0, nil
+
 local function Send(u, now)
   local ip = TargetIp(u)
   if not ArtNet.ValidIp(ip) then return end
@@ -110,9 +126,17 @@ local function Send(u, now)
   local packet = ArtNet.Dmx(u.sequence, PortAddressOf(u), (not Controls.Blackout.Boolean) and u.slots or nil)
   local ok, err = pcall(function() Socket:Send(ip, ArtNet.PORT, packet) end)
   if not ok then
-    Log(1, string.format("U%d send to %s failed: %s", u.index, ip, tostring(err)))
+    SendErrors = SendErrors + 1
+    if LastSendError ~= tostring(err) then
+      LastSendError = tostring(err)
+      Log(1, string.format("U%d send to %s failed: %s", u.index, ip, LastSendError))
+      SetStatus(STATUS.Fault, "Send failed: " .. LastSendError)
+    end
   else
+    SentCount = SentCount + 1
+    if SentCount == 1 then Log(1, string.format("First packet sent: U%d -> %s:%d", u.index, ip, ArtNet.PORT)) end
     Log(2, string.format("U%d -> %s seq %d", u.index, ip, u.sequence))
+    if LastSendError then LastSendError = nil; UpdateStatus() end
   end
   u.dirty, u.lastSent = false, now
 end
@@ -158,7 +182,8 @@ end
 local RetryAt = 0
 local Tick = Timer.New()
 Tick.EventHandler = function()
-  local now = Timer.Now()
+  TickTime = TickTime + TickInterval
+  local now = Clock()
   if not Socket then
     if now >= RetryAt then
       RetryAt = now + SOCKET_RETRY_S
@@ -179,8 +204,9 @@ SetStatus(STATUS.Initializing, "Starting")
 if Controls["Broadcast Address"].String == "" then
   Controls["Broadcast Address"].String = "255.255.255.255"
 end
-Log(1, string.format("Started: %d universe(s), %d Hz, emulation %s, build %s",
-  UniverseCount, RefreshHz, tostring(Emulating), PluginInfo.BuildVersion))
+Log(1, string.format("Started: %d universe(s), %d Hz, emulation %s, clock %s, build %s",
+  UniverseCount, RefreshHz, tostring(Emulating), ClockSource, PluginInfo.BuildVersion))
+-- start the send timer first, so a problem further down can never stop output
+Tick:Start(TickInterval)
 OpenSocket()
-RetryAt = Timer.Now() + SOCKET_RETRY_S
-Tick:Start(1 / RefreshHz)
+RetryAt = Clock() + SOCKET_RETRY_S

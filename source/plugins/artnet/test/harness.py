@@ -105,11 +105,13 @@ end }
 
 
 class Harness:
-    def __init__(self, props=None, emulating=False):
+    def __init__(self, props=None, emulating=False, no_timer_now=False):
         self.lua = LuaRuntime(unpack_returned_tuples=True, encoding="latin-1")
         g = self.lua.globals()
         self.lua.execute(MOCKS)
         self.lua.execute(f"System = {{ IsEmulating = {'true' if emulating else 'false'} }}")
+        if no_timer_now:
+            self.lua.execute("Timer.Now = nil")
         g.Controls = None
         self.lua.execute(SRC)
         # property table keyed by name, like Designer passes it
@@ -252,8 +254,22 @@ def test_emulation():
     check(len(h.sent()) >= 1, "sends after Emulation TX is enabled")
 
 
+def test_no_timer_now():
+    print("firmware without Timer.Now")
+    h = Harness({"Channels U1": 8}, no_timer_now=True)
+    h.set("U1 Target IP", "String", "10.0.0.50")
+    h.set("U1 Enable", "Boolean", True)
+    h.advance(0.2)
+    check(len(h.sent()) >= 1, "sends without Timer.Now")
+    h.clear()
+    h.advance(3.0)
+    n = len(h.sent())
+    check(2 <= n <= 4, f"keep-alive still ~1/s ({n} packets in 3 s)")
+
+
 test_basic()
 test_multi()
+test_no_timer_now()
 test_emulation()
 print("\nall passed" if failures == 0 else f"\n{failures} FAILED")
 sys.exit(1 if failures else 0)
