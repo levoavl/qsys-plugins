@@ -53,10 +53,29 @@ local DEFAULT_COLORS = {
 
 local function Trim(s) return (s:gsub("^%s+", ""):gsub("%s+$", "")) end
 
-local function Color(name)
-  local s = Controls["Color " .. name].String:gsub("%s", "")
-  if s:match("^#%x%x%x%x%x%x$") or s:match("^#%x%x%x$") or s:lower() == "none" then return s end
-  return DEFAULT_COLORS[name]
+-- Colours come from the properties; invalid values fall back to the levo colours
+local COLORS = {}
+for name, default in pairs(DEFAULT_COLORS) do
+  local s = P("Color " .. name):gsub("%s", "")
+  if s:match("^#%x%x%x%x%x%x$") or s:match("^#%x%x%x$") or s:lower() == "none" then
+    COLORS[name] = s
+  else
+    if s ~= "" then print(('[levo] Color %s "%s" is not a hex colour, using %s'):format(name, s, default)) end
+    COLORS[name] = default
+  end
+end
+local function Color(name) return COLORS[name] end
+
+-- Per-item settings from the properties
+local ITEMS = {}
+for i = 1, N do
+  local icon = P(("Menu %d Icon"):format(i))
+  ITEMS[i] = {
+    label  = Trim(P(("Menu %d Label"):format(i))),
+    icon   = icon ~= "(none)" and icon or nil,
+    page   = Trim(P(("Menu %d Page"):format(i))),
+    layers = P(("Menu %d Layers"):format(i)),
+  }
 end
 
 local function Fill(color)
@@ -106,12 +125,14 @@ local function Indicator(i, d)
   local m = IND_MARGIN
   local x, y = VERTICAL and 0 or d, VERTICAL and d or 0
   if IND_STYLE == "Line" then
+    -- the margin keeps the line away from the item edges (sides and outer edge)
+    local r = IND_SIZE / 2
     if VERTICAL then
-      local lx = LINE_END and (IW - IND_SIZE) or 0
-      return RoundRect(lx, y + m, IND_SIZE, IH - 2 * m, IND_SIZE / 2, IND_SIZE / 2, IND_SIZE / 2, IND_SIZE / 2, col)
+      local lx = LINE_END and (IW - IND_SIZE - m) or m
+      return RoundRect(lx, y + m, IND_SIZE, IH - 2 * m, r, r, r, r, col)
     end
-    local ly = LINE_END and (IH - IND_SIZE) or 0
-    return RoundRect(x + m, ly, IW - 2 * m, IND_SIZE, IND_SIZE / 2, IND_SIZE / 2, IND_SIZE / 2, IND_SIZE / 2, col)
+    local ly = LINE_END and (IH - IND_SIZE - m) or m
+    return RoundRect(x + m, ly, IW - 2 * m, IND_SIZE, r, r, r, r, col)
   end
   local w, h = IW - 2 * m, IH - 2 * m
   if w <= 0 or h <= 0 then return "" end
@@ -138,8 +159,7 @@ local function Divider(i)
 end
 
 local function IconSvg(i, cx, top, color, active)
-  local name = Trim(Controls.Icon[i].String)
-  local icon = MenuIcons[name]
+  local icon = ITEMS[i].icon and MenuIcons[ITEMS[i].icon]
   if not icon then return "" end
   local s = ICON_SIZE / 960
   return string.format('<g transform="translate(%.1f,%.1f) scale(%.5f)"><path d="%s" %s/></g>',
@@ -157,11 +177,7 @@ end
 local function Content(i, active)
   local color = active and Color("Active Text") or Color("Text")
   local cx, cy = IW / 2, IH / 2
-  local label = ""
-  if Controls.Label then
-    label = Trim(Controls.Label[i].String)
-    if label == "" and CONTENT == "Text" then label = "Menu " .. i end
-  end
+  local label = CONTENT ~= "Icon" and ITEMS[i].label or ""
   -- 0.35 em below the centre puts the cap height in the middle
   if CONTENT == "Text" then
     return TextSvg(label, cx, cy + FONT_SIZE * 0.35, color, active)
@@ -242,9 +258,9 @@ local function SplitList(s)
 end
 
 local function NavigatePage(i)
-  local page = Trim(Controls.Page[i].String)
+  local page = ITEMS[i].page
   if page == "" then return end
-  local panels = SplitList(Controls.Panels.String)
+  local panels = SplitList(P("Panels"))
   if #panels == 0 then navError = "No panel set"; return end
   for _, panel in ipairs(panels) do
     local ok, err = pcall(Uci.SetPage, panel, page)
@@ -258,12 +274,12 @@ local function NavigatePage(i)
 end
 
 local function NavigateLayers(i)
-  local uci = Trim(Controls["UCI Name"].String)
+  local uci = Trim(P("UCI Name"))
   if uci == "" then navError = "No UCI name set"; return end
   -- layers of the selected item stay visible even if other items list them too
   local keep = {}
-  local selPage = Trim(Controls.Page[i].String)
-  for _, layer in ipairs(SplitList(Controls.Layer[i].String)) do keep[selPage .. "\0" .. layer] = true end
+  local selPage = ITEMS[i].page
+  for _, layer in ipairs(SplitList(ITEMS[i].layers)) do keep[selPage .. "\0" .. layer] = true end
 
   local function Set(page, layer, visible)
     local ok, err = pcall(Uci.SetLayerVisibility, uci, page, layer, visible, TRANSITION)
@@ -276,15 +292,15 @@ local function NavigateLayers(i)
   end
 
   for n = 1, N do
-    local page = Trim(Controls.Page[n].String)
+    local page = ITEMS[n].page
     if n ~= i and page ~= "" then
-      for _, layer in ipairs(SplitList(Controls.Layer[n].String)) do
+      for _, layer in ipairs(SplitList(ITEMS[n].layers)) do
         if not keep[page .. "\0" .. layer] then Set(page, layer, false) end
       end
     end
   end
   if selPage ~= "" then
-    for _, layer in ipairs(SplitList(Controls.Layer[i].String)) do Set(selPage, layer, true) end
+    for _, layer in ipairs(SplitList(ITEMS[i].layers)) do Set(selPage, layer, true) end
   end
 end
 
@@ -333,11 +349,6 @@ for n = 1, N do
     end
     Select(n, true)
   end
-  if Controls.Label then Controls.Label[n].EventHandler = function() Render(n) end end
-  if Controls.Icon then
-    Controls.Icon[n].Choices = MenuIconNames
-    Controls.Icon[n].EventHandler = function() Render(n) end
-  end
 end
 
 Controls["Active Menu"].EventHandler = function(ctl)
@@ -349,39 +360,30 @@ Controls.Lock.EventHandler = function()
   UpdateStatus()
 end
 
-for c in pairs(DEFAULT_COLORS) do
-  local ctl = Controls["Color " .. c]
-  if Trim(ctl.String) == "" then ctl.String = DEFAULT_COLORS[c] end
-  ctl.EventHandler = RenderAll
-end
 
--- Panel discovery (Page mode): touch panels / UCI viewers with Script Access
+-- Panel discovery (Page mode): list touch panels / UCI viewers with Script Access in the log.
+-- Uci.SetPage needs the Inventory name, the status block's code name usually carries a prefix.
 if NAV == "Page" then
   local found = {}
   for _, comp in ipairs(Component.GetComponents()) do
     local t = tostring(comp.Type):lower()
     Log(2, ('Component "%s" type "%s"'):format(comp.Name, comp.Type))
-    if t:find("uci") or t:find("touch") or t:find("tsc") or t:find("panel") or t:find("ipad") then
-      table.insert(found, comp.Name)
+    if t:find("uci") or t:find("touch") or t:find("tsc") or t:find("panel") then
+      local guess = comp.Name:gsub("^UCI_Viewer_", ""):gsub("^Touch_Screen_Status_", ""):gsub("^TSC_Status_", "")
+      table.insert(found, guess)
+      if DebugLevel >= 2 and comp.Properties then
+        for _, p in ipairs(comp.Properties) do
+          Log(2, ('  %s = %s'):format(tostring(p.Name), tostring(p.Value)))
+        end
+      end
     end
   end
-  table.sort(found)
-  Controls["Add Panel"].Choices = found
-  if #found == 0 then
-    Log(1, "No panels found. Enable Script Access on the status block of the touch panel / UCI viewer.")
+  if #found > 0 then
+    Log(1, "Panels found (enter the Inventory name in 'Panels'): " .. table.concat(found, ", "))
   else
-    Log(1, #found .. " panel(s) found: " .. table.concat(found, ", "))
+    Log(1, "No panels found. Enable Script Access on the touch panel / UCI viewer status block to list them here.")
   end
-
-  Controls["Add Panel"].EventHandler = function(ctl)
-    local name = Trim(ctl.String)
-    if name == "" then return end
-    local list = SplitList(Controls.Panels.String)
-    for _, p in ipairs(list) do if p == name then ctl.String = ""; return end end
-    table.insert(list, name)
-    Controls.Panels.String = table.concat(list, ", ")
-    ctl.String = ""
-  end
+  if Trim(P("Panels")) == "" then navError = "No panel set (property 'Panels')" end
 end
 
 -- Start ----------------------------------------------------------------------------

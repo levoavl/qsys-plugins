@@ -4,8 +4,9 @@
 
 --[[ #include "info.lua" ]]
 --[[ #include "levo_brand.lua" ]]
+--[[ #include "icons.lua" ]]
 
-PageNames = { "Control", "Setup", "About" }
+PageNames = { "Control", "About" }
 
 function GetColor(props)
   return LevoBrand.Colors.Atlantic
@@ -53,6 +54,5 @@ function GetControlLayout(props)
 end
 
 if Controls then
-  --[[ #include "icons.lua" ]]
   --[[ #include "runtime.lua" ]]
 end

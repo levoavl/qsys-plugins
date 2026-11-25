@@ -1,11 +1,15 @@
 -- (c) levo AVL | Elias Jenny - MIT License
-local n       = props["Menu Count"].Value
-local nav     = props["Navigation"].Value
-local content = props["Content"].Value
-local C   = LevoBrand.Colors
-local M   = 16
-local W   = 700
-local ROW = 24
+-- The Control page shows the menu bar at its real size and spacing, so the items can be
+-- selected together and copied onto a UCI in one go.
+local n        = props["Menu Count"].Value
+local vertical = props["Orientation"].Value == "Vertical"
+local IW, IH   = props["Item Width"].Value, props["Item Height"].Value
+local SP       = props["Item Spacing"].Value
+local C  = LevoBrand.Colors
+local M  = 16
+
+local barW = vertical and IW or (n * IW + (n - 1) * SP)
+local barH = vertical and (n * IH + (n - 1) * SP) or IH
 
 local function Label(text, x, ly, w, align, color, style)
   table.insert(graphics, {
@@ -14,27 +18,27 @@ local function Label(text, x, ly, w, align, color, style)
   })
 end
 
-local function Section(text, ly)
-  Label(text, M, ly, W - 2 * M, "Left", C.Atlantic, "Bold")
-  return ly + 24
-end
-
 if CurrentPage == "Control" then
-  local itemW = 120
-  local cols  = math.min(n, 5)
-  local rows  = math.ceil(n / cols)
-  local H = LevoBrand.HeaderHeight + 2 + 16 + 24 + rows * 52 + 100
+  local W = math.max(520, barW + 2 * M + (vertical and 40 or 0))
+  local H = LevoBrand.HeaderHeight + 2 + 16 + 24 + barH + (vertical and 0 or 24) + 100
   LevoBrand.Background(graphics, W, H)
   local y = LevoBrand.Header(graphics, W, LevoBrand.PluginName(PluginInfo), CurrentPage) + 16
-  y = Section("Menu", y)
+  Label("Menu bar - select all items and copy them onto the UCI", M, y, W - 2 * M, "Left", C.Atlantic, "Bold")
+  y = y + 24
+
   for i = 1, n do
-    local col, row = (i - 1) % cols, (i - 1) // cols
-    layout["Menu " .. i] = { PrettyName = "Menu~" .. i .. "~Button", Style = "Button",
-      Position = { M + col * itemW, y + row * 52 }, Size = { itemW, 48 } }
-    layout["Menu Active " .. i] = { PrettyName = "Menu~" .. i .. "~Active", Style = "Led",
-      Position = { M + col * itemW + itemW - 16, y + row * 52 + 4 }, Size = { 10, 10 } }
+    local x = vertical and M or (M + (i - 1) * (IW + SP))
+    local iy = vertical and (y + (i - 1) * (IH + SP)) or y
+    layout["Menu " .. i] = { PrettyName = "Menu~" .. i, Style = "Button",
+      Position = { x, iy }, Size = { IW, IH }, Margin = 0 }
+    -- active LEDs next to (vertical) or below (horizontal) each item
+    local lx = vertical and (M + IW + 16) or (x + IW / 2 - 6)
+    local ly = vertical and (iy + IH / 2 - 6) or (y + IH + 8)
+    layout["Menu Active " .. i] = { PrettyName = "Menu Active~" .. i, Style = "Led",
+      Position = { lx, ly }, Size = { 12, 12 } }
   end
-  y = y + rows * 52 + 12
+  y = y + barH + (vertical and 16 or 32)
+
   Label("Active Menu", M, y, 100)
   layout["Active Menu"] = { PrettyName = "Active Menu", Style = "Text", Position = { M + 108, y }, Size = { 60, 20 } }
   Label("Lock", M + 180, y, 60)
@@ -44,61 +48,8 @@ if CurrentPage == "Control" then
   Label("Status", M, y, 100)
   layout["Status"] = { PrettyName = "Status", Position = { M + 108, y }, Size = { W - 2 * M - 108, 20 } }
 
-elseif CurrentPage == "Setup" then
-  local H = LevoBrand.HeaderHeight + 2 + 16 + 24 * 3 + 4 * ROW + (n + 1) * ROW + 6 * ROW + 60
-  LevoBrand.Background(graphics, W, H)
-  local y = LevoBrand.Header(graphics, W, LevoBrand.PluginName(PluginInfo), CurrentPage) + 16
-
-  y = Section("Navigation: " .. nav, y)
-  if nav == "Page" then
-    Label("Panels", M, y, 100)
-    layout["Panels"] = { PrettyName = "Setup~Panels", Style = "Text", Position = { M + 108, y }, Size = { 360, 20 } }
-    y = y + ROW
-    Label("Add Panel", M, y, 100)
-    layout["Add Panel"] = { PrettyName = "Setup~Add Panel", Style = "ComboBox", Position = { M + 108, y }, Size = { 360, 20 } }
-    y = y + ROW
-    Label("Names of touch panels / UCI viewers from the Inventory, comma-separated.", M + 108, y, 500, "Left", C.Mid)
-    y = y + ROW + 6
-  elseif nav == "Layer" then
-    Label("UCI Name", M, y, 100)
-    layout["UCI Name"] = { PrettyName = "Setup~UCI Name", Style = "Text", Position = { M + 108, y }, Size = { 360, 20 } }
-    y = y + ROW
-    Label("Layers: one or more per menu item, comma-separated.", M + 108, y, 500, "Left", C.Mid)
-    y = y + ROW + 6
-  end
-
-  y = Section("Menu items", y)
-  local x = M + 40
-  local cols = {}
-  if content ~= "Icon" then table.insert(cols, { "Label", 130 }) end
-  if content ~= "Text" then table.insert(cols, { "Icon", 150 }) end
-  if nav ~= "Output Only" then table.insert(cols, { "Page", 130 }) end
-  if nav == "Layer" then table.insert(cols, { "Layer", 180 }) end
-  local cx = x
-  for _, c in ipairs(cols) do
-    Label(c[1], cx, y, c[2], "Left", C.Mid); cx = cx + c[2] + 8
-  end
-  y = y + 20
-  for i = 1, n do
-    Label(tostring(i), M, y, 32)
-    cx = x
-    for _, c in ipairs(cols) do
-      layout[c[1] .. " " .. i] = { PrettyName = "Menu~" .. i .. "~" .. c[1],
-        Style = c[1] == "Icon" and "ComboBox" or "Text", Position = { cx, y }, Size = { c[2], 20 } }
-      cx = cx + c[2] + 8
-    end
-    y = y + ROW
-  end
-  y = y + 6
-
-  y = Section("Colours (hex)", y)
-  for _, c in ipairs({ "Background", "Text", "Active Text", "Indicator", "Divider" }) do
-    Label(c, M, y, 100)
-    layout["Color " .. c] = { PrettyName = "Colours~" .. c, Style = "Text", Position = { M + 108, y }, Size = { 100, 20 } }
-    y = y + ROW
-  end
-
 elseif CurrentPage == "About" then
+  local W = 560
   LevoBrand.Background(graphics, W, 440)
   local y = LevoBrand.Header(graphics, W, LevoBrand.PluginName(PluginInfo), CurrentPage) + 16
   y = LevoBrand.About(graphics, M, y, W - 2 * M, PluginInfo)

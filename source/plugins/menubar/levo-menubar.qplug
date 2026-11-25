@@ -7,8 +7,8 @@
 
 PluginInfo = {
   Name         = "levo AVL~Menu Bar",
-  Version      = "0.2",
-  BuildVersion = "0.2",
+  Version      = "0.3",
+  BuildVersion = "0.3",
   Id           = "7c523b2f-7d3e-4292-af05-e628d96b72d5",
   Author       = "levo AVL | Elias Jenny",
   Description  = "UCI menu bar drawn as SVG with an animated indicator and page or layer navigation.",
@@ -157,268 +157,7 @@ function LevoBrand.About(graphics, x, y, width, info)
   return y + line * 2
 end
 -- <<< levo_brand.lua
-
-PageNames = { "Control", "Setup", "About" }
-
-function GetColor(props)
-  return LevoBrand.Colors.Atlantic
-end
-
-function GetPrettyName(props)
-  return PluginInfo.Name:gsub("^.-~", "") .. "\n" .. PluginInfo.BuildVersion
-end
-
-function GetPages(props)
-  local pages = {}
-  for _, name in ipairs(PageNames) do
-    table.insert(pages, { name = name })
-  end
-  return pages
-end
-
-function GetProperties()
-  local props = {}
-  -- >>> properties.lua
--- (c) levo AVL | Elias Jenny - MIT License
-
--- Bar geometry
-table.insert(props, { Name = "Menu Count",   Type = "integer", Min = 2, Max = 12, Value = 4 })
-table.insert(props, { Name = "Orientation",  Type = "enum", Choices = { "Horizontal", "Vertical" }, Value = "Horizontal" })
-table.insert(props, { Name = "Item Width",   Type = "integer", Min = 30, Max = 1000, Value = 200 })
-table.insert(props, { Name = "Item Height",  Type = "integer", Min = 30, Max = 600, Value = 80 })
-table.insert(props, { Name = "Item Spacing", Type = "integer", Min = 0, Max = 200, Value = 0 })  -- px gap between items
-table.insert(props, { Name = "Corner Radius", Type = "integer", Min = 0, Max = 300, Value = 0 })
-table.insert(props, { Name = "Rounded Corners", Type = "enum", Choices = { "Bar Ends", "Each Item" }, Value = "Bar Ends" })
-
--- Item content
-table.insert(props, { Name = "Content",     Type = "enum", Choices = { "Text", "Icon", "Icon + Text" }, Value = "Text" })
-table.insert(props, { Name = "Font",        Type = "enum",
-  Choices = { "Arial", "Helvetica", "Verdana", "Tahoma", "Trebuchet MS", "Georgia" }, Value = "Arial" })
-table.insert(props, { Name = "Font Size",   Type = "integer", Min = 8, Max = 72, Value = 22 })
-table.insert(props, { Name = "Bold Active", Type = "boolean", Value = true })
-table.insert(props, { Name = "Icon Size",   Type = "integer", Min = 12, Max = 300, Value = 36 })
-table.insert(props, { Name = "Fill Active Icon", Type = "boolean", Value = true })
-
--- Indicator
-table.insert(props, { Name = "Indicator Style",    Type = "enum", Choices = { "None", "Line", "Pill", "Block" }, Value = "Line" })
-table.insert(props, { Name = "Line Position",      Type = "enum", Choices = { "Bottom / Right", "Top / Left" }, Value = "Bottom / Right" })
-table.insert(props, { Name = "Indicator Size",     Type = "integer", Min = 1, Max = 40, Value = 6 })   -- line thickness
-table.insert(props, { Name = "Indicator Margin",   Type = "integer", Min = 0, Max = 100, Value = 0 })  -- inset from the item edge
-
--- Dividers between items
-table.insert(props, { Name = "Dividers",        Type = "boolean", Value = false })
-table.insert(props, { Name = "Divider Length",  Type = "integer", Min = 5, Max = 100, Value = 60 })  -- % of item height/width
-table.insert(props, { Name = "Divider Width",   Type = "integer", Min = 1, Max = 10, Value = 2 })
-
--- Behaviour
-table.insert(props, { Name = "Animation Time",   Type = "integer", Min = 0, Max = 2000, Value = 300 })  -- ms, 0 = jump
-table.insert(props, { Name = "Navigation",       Type = "enum", Choices = { "Page", "Layer", "Output Only" }, Value = "Page" })
-table.insert(props, { Name = "Layer Transition", Type = "enum",
-  Choices = { "none", "fade", "left", "right", "top", "bottom" }, Value = "fade" })
-table.insert(props, {
-  Name = "Debug Print",
-  Type = "enum",
-  Choices = { "None", "Basic", "Verbose" },
-  Value = "None",
-})
--- <<< properties.lua
-  return props
-end
-
-function RectifyProperties(props)
-  -- >>> rectify.lua
--- (c) levo AVL | Elias Jenny - MIT License
-local content   = props["Content"].Value
-local indicator = props["Indicator Style"].Value
-
-props["Rounded Corners"].IsHidden  = props["Corner Radius"].Value == 0
-props["Font"].IsHidden             = content == "Icon"
-props["Font Size"].IsHidden        = content == "Icon"
-props["Bold Active"].IsHidden      = content == "Icon"
-props["Icon Size"].IsHidden        = content == "Text"
-props["Fill Active Icon"].IsHidden = content == "Text"
-props["Line Position"].IsHidden    = indicator ~= "Line"
-props["Indicator Size"].IsHidden   = indicator ~= "Line"
-props["Indicator Margin"].IsHidden = indicator == "None"
-props["Divider Length"].IsHidden   = not props["Dividers"].Value
-props["Divider Width"].IsHidden    = not props["Dividers"].Value
-props["Layer Transition"].IsHidden = props["Navigation"].Value ~= "Layer"
-if props.plugin_show_debug.Value == false then
-  props["Debug Print"].IsHidden = true
-end
--- <<< rectify.lua
-  return props
-end
-
-function GetPins(props)
-  local pins = {}
-  return pins
-end
-
-function GetControls(props)
-  local ctrls = {}
-  -- >>> controls.lua
--- (c) levo AVL | Elias Jenny - MIT License
-local n       = props["Menu Count"].Value
-local nav     = props["Navigation"].Value
-local content = props["Content"].Value
-
--- Menu items: these go onto the UCI. Their look is drawn by the plugin.
-table.insert(ctrls, { Name = "Menu", ControlType = "Button", ButtonType = "Toggle",
-  Count = n, UserPin = true, PinStyle = "Both" })
-table.insert(ctrls, { Name = "Menu Active", ControlType = "Indicator", IndicatorType = "Led",
-  Count = n, UserPin = true, PinStyle = "Output" })
-if content ~= "Icon" then
-  table.insert(ctrls, { Name = "Label", ControlType = "Text", Count = n, UserPin = true, PinStyle = "Both" })
-end
-if content ~= "Text" then
-  table.insert(ctrls, { Name = "Icon", ControlType = "Text", Count = n, UserPin = false })
-end
-table.insert(ctrls, { Name = "Active Menu", ControlType = "Knob", ControlUnit = "Integer",
-  Min = 1, Max = n, Count = 1, UserPin = true, PinStyle = "Both" })
-table.insert(ctrls, { Name = "Lock", ControlType = "Button", ButtonType = "Toggle",
-  Count = 1, UserPin = true, PinStyle = "Both" })
-
--- Navigation targets
-if nav == "Page" then
-  table.insert(ctrls, { Name = "Panels", ControlType = "Text", Count = 1, UserPin = false })
-  table.insert(ctrls, { Name = "Add Panel", ControlType = "Text", Count = 1, UserPin = false })
-end
-if nav == "Layer" then
-  table.insert(ctrls, { Name = "UCI Name", ControlType = "Text", Count = 1, UserPin = false })
-  table.insert(ctrls, { Name = "Layer", ControlType = "Text", Count = n, UserPin = false })
-end
-if nav ~= "Output Only" then
-  table.insert(ctrls, { Name = "Page", ControlType = "Text", Count = n, UserPin = false })
-end
-
--- Colours as hex text, defaults are the levo colours
-for _, c in ipairs({ "Background", "Text", "Active Text", "Indicator", "Divider" }) do
-  table.insert(ctrls, { Name = "Color " .. c, ControlType = "Text", Count = 1, UserPin = false })
-end
-
-table.insert(ctrls, { Name = "Status", ControlType = "Indicator", IndicatorType = "Status",
-  Count = 1, UserPin = true, PinStyle = "Output" })
--- <<< controls.lua
-  return ctrls
-end
-
-function GetControlLayout(props)
-  local layout, graphics = {}, {}
-  local CurrentPage = PageNames[props["page_index"].Value]
-  -- >>> layout.lua
--- (c) levo AVL | Elias Jenny - MIT License
-local n       = props["Menu Count"].Value
-local nav     = props["Navigation"].Value
-local content = props["Content"].Value
-local C   = LevoBrand.Colors
-local M   = 16
-local W   = 700
-local ROW = 24
-
-local function Label(text, x, ly, w, align, color, style)
-  table.insert(graphics, {
-    Type = "Text", Text = text, Position = { x, ly }, Size = { w, 20 },
-    FontSize = 12, FontStyle = style or "Regular", HTextAlign = align or "Right", Color = color or C.Onyx,
-  })
-end
-
-local function Section(text, ly)
-  Label(text, M, ly, W - 2 * M, "Left", C.Atlantic, "Bold")
-  return ly + 24
-end
-
-if CurrentPage == "Control" then
-  local itemW = 120
-  local cols  = math.min(n, 5)
-  local rows  = math.ceil(n / cols)
-  local H = LevoBrand.HeaderHeight + 2 + 16 + 24 + rows * 52 + 100
-  LevoBrand.Background(graphics, W, H)
-  local y = LevoBrand.Header(graphics, W, LevoBrand.PluginName(PluginInfo), CurrentPage) + 16
-  y = Section("Menu", y)
-  for i = 1, n do
-    local col, row = (i - 1) % cols, (i - 1) // cols
-    layout["Menu " .. i] = { PrettyName = "Menu~" .. i .. "~Button", Style = "Button",
-      Position = { M + col * itemW, y + row * 52 }, Size = { itemW, 48 } }
-    layout["Menu Active " .. i] = { PrettyName = "Menu~" .. i .. "~Active", Style = "Led",
-      Position = { M + col * itemW + itemW - 16, y + row * 52 + 4 }, Size = { 10, 10 } }
-  end
-  y = y + rows * 52 + 12
-  Label("Active Menu", M, y, 100)
-  layout["Active Menu"] = { PrettyName = "Active Menu", Style = "Text", Position = { M + 108, y }, Size = { 60, 20 } }
-  Label("Lock", M + 180, y, 60)
-  layout["Lock"] = { PrettyName = "Lock", Style = "Button", Legend = "Lock",
-    Position = { M + 248, y }, Size = { 60, 20 } }
-  y = y + 32
-  Label("Status", M, y, 100)
-  layout["Status"] = { PrettyName = "Status", Position = { M + 108, y }, Size = { W - 2 * M - 108, 20 } }
-
-elseif CurrentPage == "Setup" then
-  local H = LevoBrand.HeaderHeight + 2 + 16 + 24 * 3 + 4 * ROW + (n + 1) * ROW + 6 * ROW + 60
-  LevoBrand.Background(graphics, W, H)
-  local y = LevoBrand.Header(graphics, W, LevoBrand.PluginName(PluginInfo), CurrentPage) + 16
-
-  y = Section("Navigation: " .. nav, y)
-  if nav == "Page" then
-    Label("Panels", M, y, 100)
-    layout["Panels"] = { PrettyName = "Setup~Panels", Style = "Text", Position = { M + 108, y }, Size = { 360, 20 } }
-    y = y + ROW
-    Label("Add Panel", M, y, 100)
-    layout["Add Panel"] = { PrettyName = "Setup~Add Panel", Style = "ComboBox", Position = { M + 108, y }, Size = { 360, 20 } }
-    y = y + ROW
-    Label("Names of touch panels / UCI viewers from the Inventory, comma-separated.", M + 108, y, 500, "Left", C.Mid)
-    y = y + ROW + 6
-  elseif nav == "Layer" then
-    Label("UCI Name", M, y, 100)
-    layout["UCI Name"] = { PrettyName = "Setup~UCI Name", Style = "Text", Position = { M + 108, y }, Size = { 360, 20 } }
-    y = y + ROW
-    Label("Layers: one or more per menu item, comma-separated.", M + 108, y, 500, "Left", C.Mid)
-    y = y + ROW + 6
-  end
-
-  y = Section("Menu items", y)
-  local x = M + 40
-  local cols = {}
-  if content ~= "Icon" then table.insert(cols, { "Label", 130 }) end
-  if content ~= "Text" then table.insert(cols, { "Icon", 150 }) end
-  if nav ~= "Output Only" then table.insert(cols, { "Page", 130 }) end
-  if nav == "Layer" then table.insert(cols, { "Layer", 180 }) end
-  local cx = x
-  for _, c in ipairs(cols) do
-    Label(c[1], cx, y, c[2], "Left", C.Mid); cx = cx + c[2] + 8
-  end
-  y = y + 20
-  for i = 1, n do
-    Label(tostring(i), M, y, 32)
-    cx = x
-    for _, c in ipairs(cols) do
-      layout[c[1] .. " " .. i] = { PrettyName = "Menu~" .. i .. "~" .. c[1],
-        Style = c[1] == "Icon" and "ComboBox" or "Text", Position = { cx, y }, Size = { c[2], 20 } }
-      cx = cx + c[2] + 8
-    end
-    y = y + ROW
-  end
-  y = y + 6
-
-  y = Section("Colours (hex)", y)
-  for _, c in ipairs({ "Background", "Text", "Active Text", "Indicator", "Divider" }) do
-    Label(c, M, y, 100)
-    layout["Color " .. c] = { PrettyName = "Colours~" .. c, Style = "Text", Position = { M + 108, y }, Size = { 100, 20 } }
-    y = y + ROW
-  end
-
-elseif CurrentPage == "About" then
-  LevoBrand.Background(graphics, W, 440)
-  local y = LevoBrand.Header(graphics, W, LevoBrand.PluginName(PluginInfo), CurrentPage) + 16
-  y = LevoBrand.About(graphics, M, y, W - 2 * M, PluginInfo)
-  Label("Icons: Material Symbols by Google, Apache License 2.0.", M, y + 4, W - 2 * M, "Left", C.Mid)
-end
--- <<< layout.lua
-  return layout, graphics
-end
-
-if Controls then
-  -- >>> icons.lua
+-- >>> icons.lua
 -- Generated by source/tools/gen_menubar_icons.py - do not edit by hand.
 -- Material Symbols (Rounded, weight 400) (c) Google LLC, Apache License 2.0.
 -- Path data in viewBox 0 -960 960 960. o = outline, f = filled.
@@ -506,6 +245,232 @@ MenuIconNames = {}
 for k in pairs(MenuIcons) do table.insert(MenuIconNames, k) end
 table.sort(MenuIconNames)
 -- <<< icons.lua
+
+PageNames = { "Control", "About" }
+
+function GetColor(props)
+  return LevoBrand.Colors.Atlantic
+end
+
+function GetPrettyName(props)
+  return PluginInfo.Name:gsub("^.-~", "") .. "\n" .. PluginInfo.BuildVersion
+end
+
+function GetPages(props)
+  local pages = {}
+  for _, name in ipairs(PageNames) do
+    table.insert(pages, { name = name })
+  end
+  return pages
+end
+
+function GetProperties()
+  local props = {}
+  -- >>> properties.lua
+-- (c) levo AVL | Elias Jenny - MIT License
+-- All settings live in the property panel. Per-item properties exist for the maximum
+-- number of items and are hidden in rectify.lua when not needed.
+
+local MAX_ITEMS = 12
+local function Hex(rgb) return string.format("#%02X%02X%02X", rgb[1], rgb[2], rgb[3]) end
+local C = LevoBrand.Colors
+
+-- Bar geometry
+table.insert(props, { Name = "Menu Count",   Type = "integer", Min = 2, Max = MAX_ITEMS, Value = 4 })
+table.insert(props, { Name = "Orientation",  Type = "enum", Choices = { "Horizontal", "Vertical" }, Value = "Horizontal" })
+table.insert(props, { Name = "Item Width",   Type = "integer", Min = 30, Max = 1000, Value = 200 })
+table.insert(props, { Name = "Item Height",  Type = "integer", Min = 30, Max = 600, Value = 80 })
+table.insert(props, { Name = "Item Spacing", Type = "integer", Min = 0, Max = 200, Value = 0 })  -- px gap between items
+table.insert(props, { Name = "Corner Radius", Type = "integer", Min = 0, Max = 300, Value = 0 })
+table.insert(props, { Name = "Rounded Corners", Type = "enum", Choices = { "Bar Ends", "Each Item" }, Value = "Bar Ends" })
+
+-- Item content
+table.insert(props, { Name = "Content",     Type = "enum", Choices = { "Text", "Icon", "Icon + Text" }, Value = "Text" })
+table.insert(props, { Name = "Font",        Type = "enum",
+  Choices = { "Arial", "Helvetica", "Verdana", "Tahoma", "Trebuchet MS", "Georgia" }, Value = "Arial" })
+table.insert(props, { Name = "Font Size",   Type = "integer", Min = 8, Max = 72, Value = 22 })
+table.insert(props, { Name = "Bold Active", Type = "boolean", Value = true })
+table.insert(props, { Name = "Icon Size",   Type = "integer", Min = 12, Max = 300, Value = 36 })
+table.insert(props, { Name = "Fill Active Icon", Type = "boolean", Value = true })
+
+-- Indicator
+table.insert(props, { Name = "Indicator Style",  Type = "enum", Choices = { "None", "Line", "Pill", "Block" }, Value = "Line" })
+table.insert(props, { Name = "Line Position",    Type = "enum", Choices = { "Bottom / Right", "Top / Left" }, Value = "Bottom / Right" })
+table.insert(props, { Name = "Indicator Size",   Type = "integer", Min = 1, Max = 40, Value = 6 })   -- line thickness
+table.insert(props, { Name = "Indicator Margin", Type = "integer", Min = 0, Max = 100, Value = 0 })  -- gap to the item edges
+
+-- Dividers between items
+table.insert(props, { Name = "Dividers",       Type = "boolean", Value = false })
+table.insert(props, { Name = "Divider Length", Type = "integer", Min = 5, Max = 100, Value = 60 })  -- % of item height/width
+table.insert(props, { Name = "Divider Width",  Type = "integer", Min = 1, Max = 10, Value = 2 })
+
+-- Colours (hex, or "none" for transparent)
+table.insert(props, { Name = "Color Background",  Type = "string", Value = Hex(C.Porcelain) })
+table.insert(props, { Name = "Color Text",        Type = "string", Value = Hex(C.Onyx) })
+table.insert(props, { Name = "Color Active Text", Type = "string", Value = Hex(C.Atlantic) })
+table.insert(props, { Name = "Color Indicator",   Type = "string", Value = Hex(C.Amber) })
+table.insert(props, { Name = "Color Divider",     Type = "string", Value = Hex(C.Line) })
+
+-- Behaviour
+table.insert(props, { Name = "Animation Time",   Type = "integer", Min = 0, Max = 2000, Value = 300 })  -- ms, 0 = jump
+table.insert(props, { Name = "Navigation",       Type = "enum", Choices = { "Page", "Layer", "Output Only" }, Value = "Page" })
+table.insert(props, { Name = "Panels",           Type = "string", Value = "" })  -- Page mode: Inventory names, comma-separated
+table.insert(props, { Name = "UCI Name",         Type = "string", Value = "" })  -- Layer mode
+table.insert(props, { Name = "Layer Transition", Type = "enum",
+  Choices = { "none", "fade", "left", "right", "top", "bottom" }, Value = "fade" })
+
+-- Menu items
+local icons = { "(none)" }
+for _, name in ipairs(MenuIconNames) do table.insert(icons, name) end
+for i = 1, MAX_ITEMS do
+  table.insert(props, { Name = ("Menu %d Label"):format(i),  Type = "string", Value = "Menu " .. i })
+  table.insert(props, { Name = ("Menu %d Icon"):format(i),   Type = "enum", Choices = icons, Value = "(none)" })
+  table.insert(props, { Name = ("Menu %d Page"):format(i),   Type = "string", Value = "" })
+  table.insert(props, { Name = ("Menu %d Layers"):format(i), Type = "string", Value = "" })  -- comma-separated
+end
+
+table.insert(props, {
+  Name = "Debug Print",
+  Type = "enum",
+  Choices = { "None", "Basic", "Verbose" },
+  Value = "None",
+})
+-- <<< properties.lua
+  return props
+end
+
+function RectifyProperties(props)
+  -- >>> rectify.lua
+-- (c) levo AVL | Elias Jenny - MIT License
+local n         = props["Menu Count"].Value
+local content   = props["Content"].Value
+local indicator = props["Indicator Style"].Value
+local nav       = props["Navigation"].Value
+
+props["Rounded Corners"].IsHidden  = props["Corner Radius"].Value == 0
+props["Font"].IsHidden             = content == "Icon"
+props["Font Size"].IsHidden        = content == "Icon"
+props["Bold Active"].IsHidden      = content == "Icon"
+props["Icon Size"].IsHidden        = content == "Text"
+props["Fill Active Icon"].IsHidden = content == "Text"
+props["Line Position"].IsHidden    = indicator ~= "Line"
+props["Indicator Size"].IsHidden   = indicator ~= "Line"
+props["Indicator Margin"].IsHidden = indicator == "None"
+props["Color Indicator"].IsHidden  = indicator == "None"
+props["Divider Length"].IsHidden   = not props["Dividers"].Value
+props["Divider Width"].IsHidden    = not props["Dividers"].Value
+props["Color Divider"].IsHidden    = not props["Dividers"].Value
+props["Panels"].IsHidden           = nav ~= "Page"
+props["UCI Name"].IsHidden         = nav ~= "Layer"
+props["Layer Transition"].IsHidden = nav ~= "Layer"
+
+for i = 1, 12 do
+  local used = i <= n
+  props[("Menu %d Label"):format(i)].IsHidden  = not used or content == "Icon"
+  props[("Menu %d Icon"):format(i)].IsHidden   = not used or content == "Text"
+  props[("Menu %d Page"):format(i)].IsHidden   = not used or nav == "Output Only"
+  props[("Menu %d Layers"):format(i)].IsHidden = not used or nav ~= "Layer"
+end
+
+if props.plugin_show_debug.Value == false then
+  props["Debug Print"].IsHidden = true
+end
+-- <<< rectify.lua
+  return props
+end
+
+function GetPins(props)
+  local pins = {}
+  return pins
+end
+
+function GetControls(props)
+  local ctrls = {}
+  -- >>> controls.lua
+-- (c) levo AVL | Elias Jenny - MIT License
+local n = props["Menu Count"].Value
+
+-- Menu items: these go onto the UCI. Their look is drawn by the plugin.
+table.insert(ctrls, { Name = "Menu", ControlType = "Button", ButtonType = "Toggle",
+  Count = n, UserPin = true, PinStyle = "Both" })
+table.insert(ctrls, { Name = "Menu Active", ControlType = "Indicator", IndicatorType = "Led",
+  Count = n, UserPin = true, PinStyle = "Output" })
+table.insert(ctrls, { Name = "Active Menu", ControlType = "Knob", ControlUnit = "Integer",
+  Min = 1, Max = n, Count = 1, UserPin = true, PinStyle = "Both" })
+table.insert(ctrls, { Name = "Lock", ControlType = "Button", ButtonType = "Toggle",
+  Count = 1, UserPin = true, PinStyle = "Both" })
+table.insert(ctrls, { Name = "Status", ControlType = "Indicator", IndicatorType = "Status",
+  Count = 1, UserPin = true, PinStyle = "Output" })
+-- <<< controls.lua
+  return ctrls
+end
+
+function GetControlLayout(props)
+  local layout, graphics = {}, {}
+  local CurrentPage = PageNames[props["page_index"].Value]
+  -- >>> layout.lua
+-- (c) levo AVL | Elias Jenny - MIT License
+-- The Control page shows the menu bar at its real size and spacing, so the items can be
+-- selected together and copied onto a UCI in one go.
+local n        = props["Menu Count"].Value
+local vertical = props["Orientation"].Value == "Vertical"
+local IW, IH   = props["Item Width"].Value, props["Item Height"].Value
+local SP       = props["Item Spacing"].Value
+local C  = LevoBrand.Colors
+local M  = 16
+
+local barW = vertical and IW or (n * IW + (n - 1) * SP)
+local barH = vertical and (n * IH + (n - 1) * SP) or IH
+
+local function Label(text, x, ly, w, align, color, style)
+  table.insert(graphics, {
+    Type = "Text", Text = text, Position = { x, ly }, Size = { w, 20 },
+    FontSize = 12, FontStyle = style or "Regular", HTextAlign = align or "Right", Color = color or C.Onyx,
+  })
+end
+
+if CurrentPage == "Control" then
+  local W = math.max(520, barW + 2 * M + (vertical and 40 or 0))
+  local H = LevoBrand.HeaderHeight + 2 + 16 + 24 + barH + (vertical and 0 or 24) + 100
+  LevoBrand.Background(graphics, W, H)
+  local y = LevoBrand.Header(graphics, W, LevoBrand.PluginName(PluginInfo), CurrentPage) + 16
+  Label("Menu bar - select all items and copy them onto the UCI", M, y, W - 2 * M, "Left", C.Atlantic, "Bold")
+  y = y + 24
+
+  for i = 1, n do
+    local x = vertical and M or (M + (i - 1) * (IW + SP))
+    local iy = vertical and (y + (i - 1) * (IH + SP)) or y
+    layout["Menu " .. i] = { PrettyName = "Menu~" .. i, Style = "Button",
+      Position = { x, iy }, Size = { IW, IH }, Margin = 0 }
+    -- active LEDs next to (vertical) or below (horizontal) each item
+    local lx = vertical and (M + IW + 16) or (x + IW / 2 - 6)
+    local ly = vertical and (iy + IH / 2 - 6) or (y + IH + 8)
+    layout["Menu Active " .. i] = { PrettyName = "Menu Active~" .. i, Style = "Led",
+      Position = { lx, ly }, Size = { 12, 12 } }
+  end
+  y = y + barH + (vertical and 16 or 32)
+
+  Label("Active Menu", M, y, 100)
+  layout["Active Menu"] = { PrettyName = "Active Menu", Style = "Text", Position = { M + 108, y }, Size = { 60, 20 } }
+  Label("Lock", M + 180, y, 60)
+  layout["Lock"] = { PrettyName = "Lock", Style = "Button", Legend = "Lock",
+    Position = { M + 248, y }, Size = { 60, 20 } }
+  y = y + 32
+  Label("Status", M, y, 100)
+  layout["Status"] = { PrettyName = "Status", Position = { M + 108, y }, Size = { W - 2 * M - 108, 20 } }
+
+elseif CurrentPage == "About" then
+  local W = 560
+  LevoBrand.Background(graphics, W, 440)
+  local y = LevoBrand.Header(graphics, W, LevoBrand.PluginName(PluginInfo), CurrentPage) + 16
+  y = LevoBrand.About(graphics, M, y, W - 2 * M, PluginInfo)
+  Label("Icons: Material Symbols by Google, Apache License 2.0.", M, y + 4, W - 2 * M, "Left", C.Mid)
+end
+-- <<< layout.lua
+  return layout, graphics
+end
+
+if Controls then
   -- >>> runtime.lua
 -- (c) levo AVL | Elias Jenny - MIT License
 -- Runtime: draws the menu items as SVG, animates the indicator and navigates the UCI.
@@ -562,10 +527,29 @@ local DEFAULT_COLORS = {
 
 local function Trim(s) return (s:gsub("^%s+", ""):gsub("%s+$", "")) end
 
-local function Color(name)
-  local s = Controls["Color " .. name].String:gsub("%s", "")
-  if s:match("^#%x%x%x%x%x%x$") or s:match("^#%x%x%x$") or s:lower() == "none" then return s end
-  return DEFAULT_COLORS[name]
+-- Colours come from the properties; invalid values fall back to the levo colours
+local COLORS = {}
+for name, default in pairs(DEFAULT_COLORS) do
+  local s = P("Color " .. name):gsub("%s", "")
+  if s:match("^#%x%x%x%x%x%x$") or s:match("^#%x%x%x$") or s:lower() == "none" then
+    COLORS[name] = s
+  else
+    if s ~= "" then print(('[levo] Color %s "%s" is not a hex colour, using %s'):format(name, s, default)) end
+    COLORS[name] = default
+  end
+end
+local function Color(name) return COLORS[name] end
+
+-- Per-item settings from the properties
+local ITEMS = {}
+for i = 1, N do
+  local icon = P(("Menu %d Icon"):format(i))
+  ITEMS[i] = {
+    label  = Trim(P(("Menu %d Label"):format(i))),
+    icon   = icon ~= "(none)" and icon or nil,
+    page   = Trim(P(("Menu %d Page"):format(i))),
+    layers = P(("Menu %d Layers"):format(i)),
+  }
 end
 
 local function Fill(color)
@@ -615,12 +599,14 @@ local function Indicator(i, d)
   local m = IND_MARGIN
   local x, y = VERTICAL and 0 or d, VERTICAL and d or 0
   if IND_STYLE == "Line" then
+    -- the margin keeps the line away from the item edges (sides and outer edge)
+    local r = IND_SIZE / 2
     if VERTICAL then
-      local lx = LINE_END and (IW - IND_SIZE) or 0
-      return RoundRect(lx, y + m, IND_SIZE, IH - 2 * m, IND_SIZE / 2, IND_SIZE / 2, IND_SIZE / 2, IND_SIZE / 2, col)
+      local lx = LINE_END and (IW - IND_SIZE - m) or m
+      return RoundRect(lx, y + m, IND_SIZE, IH - 2 * m, r, r, r, r, col)
     end
-    local ly = LINE_END and (IH - IND_SIZE) or 0
-    return RoundRect(x + m, ly, IW - 2 * m, IND_SIZE, IND_SIZE / 2, IND_SIZE / 2, IND_SIZE / 2, IND_SIZE / 2, col)
+    local ly = LINE_END and (IH - IND_SIZE - m) or m
+    return RoundRect(x + m, ly, IW - 2 * m, IND_SIZE, r, r, r, r, col)
   end
   local w, h = IW - 2 * m, IH - 2 * m
   if w <= 0 or h <= 0 then return "" end
@@ -647,8 +633,7 @@ local function Divider(i)
 end
 
 local function IconSvg(i, cx, top, color, active)
-  local name = Trim(Controls.Icon[i].String)
-  local icon = MenuIcons[name]
+  local icon = ITEMS[i].icon and MenuIcons[ITEMS[i].icon]
   if not icon then return "" end
   local s = ICON_SIZE / 960
   return string.format('<g transform="translate(%.1f,%.1f) scale(%.5f)"><path d="%s" %s/></g>',
@@ -666,11 +651,7 @@ end
 local function Content(i, active)
   local color = active and Color("Active Text") or Color("Text")
   local cx, cy = IW / 2, IH / 2
-  local label = ""
-  if Controls.Label then
-    label = Trim(Controls.Label[i].String)
-    if label == "" and CONTENT == "Text" then label = "Menu " .. i end
-  end
+  local label = CONTENT ~= "Icon" and ITEMS[i].label or ""
   -- 0.35 em below the centre puts the cap height in the middle
   if CONTENT == "Text" then
     return TextSvg(label, cx, cy + FONT_SIZE * 0.35, color, active)
@@ -751,9 +732,9 @@ local function SplitList(s)
 end
 
 local function NavigatePage(i)
-  local page = Trim(Controls.Page[i].String)
+  local page = ITEMS[i].page
   if page == "" then return end
-  local panels = SplitList(Controls.Panels.String)
+  local panels = SplitList(P("Panels"))
   if #panels == 0 then navError = "No panel set"; return end
   for _, panel in ipairs(panels) do
     local ok, err = pcall(Uci.SetPage, panel, page)
@@ -767,12 +748,12 @@ local function NavigatePage(i)
 end
 
 local function NavigateLayers(i)
-  local uci = Trim(Controls["UCI Name"].String)
+  local uci = Trim(P("UCI Name"))
   if uci == "" then navError = "No UCI name set"; return end
   -- layers of the selected item stay visible even if other items list them too
   local keep = {}
-  local selPage = Trim(Controls.Page[i].String)
-  for _, layer in ipairs(SplitList(Controls.Layer[i].String)) do keep[selPage .. "\0" .. layer] = true end
+  local selPage = ITEMS[i].page
+  for _, layer in ipairs(SplitList(ITEMS[i].layers)) do keep[selPage .. "\0" .. layer] = true end
 
   local function Set(page, layer, visible)
     local ok, err = pcall(Uci.SetLayerVisibility, uci, page, layer, visible, TRANSITION)
@@ -785,15 +766,15 @@ local function NavigateLayers(i)
   end
 
   for n = 1, N do
-    local page = Trim(Controls.Page[n].String)
+    local page = ITEMS[n].page
     if n ~= i and page ~= "" then
-      for _, layer in ipairs(SplitList(Controls.Layer[n].String)) do
+      for _, layer in ipairs(SplitList(ITEMS[n].layers)) do
         if not keep[page .. "\0" .. layer] then Set(page, layer, false) end
       end
     end
   end
   if selPage ~= "" then
-    for _, layer in ipairs(SplitList(Controls.Layer[i].String)) do Set(selPage, layer, true) end
+    for _, layer in ipairs(SplitList(ITEMS[i].layers)) do Set(selPage, layer, true) end
   end
 end
 
@@ -842,11 +823,6 @@ for n = 1, N do
     end
     Select(n, true)
   end
-  if Controls.Label then Controls.Label[n].EventHandler = function() Render(n) end end
-  if Controls.Icon then
-    Controls.Icon[n].Choices = MenuIconNames
-    Controls.Icon[n].EventHandler = function() Render(n) end
-  end
 end
 
 Controls["Active Menu"].EventHandler = function(ctl)
@@ -858,39 +834,30 @@ Controls.Lock.EventHandler = function()
   UpdateStatus()
 end
 
-for c in pairs(DEFAULT_COLORS) do
-  local ctl = Controls["Color " .. c]
-  if Trim(ctl.String) == "" then ctl.String = DEFAULT_COLORS[c] end
-  ctl.EventHandler = RenderAll
-end
 
--- Panel discovery (Page mode): touch panels / UCI viewers with Script Access
+-- Panel discovery (Page mode): list touch panels / UCI viewers with Script Access in the log.
+-- Uci.SetPage needs the Inventory name, the status block's code name usually carries a prefix.
 if NAV == "Page" then
   local found = {}
   for _, comp in ipairs(Component.GetComponents()) do
     local t = tostring(comp.Type):lower()
     Log(2, ('Component "%s" type "%s"'):format(comp.Name, comp.Type))
-    if t:find("uci") or t:find("touch") or t:find("tsc") or t:find("panel") or t:find("ipad") then
-      table.insert(found, comp.Name)
+    if t:find("uci") or t:find("touch") or t:find("tsc") or t:find("panel") then
+      local guess = comp.Name:gsub("^UCI_Viewer_", ""):gsub("^Touch_Screen_Status_", ""):gsub("^TSC_Status_", "")
+      table.insert(found, guess)
+      if DebugLevel >= 2 and comp.Properties then
+        for _, p in ipairs(comp.Properties) do
+          Log(2, ('  %s = %s'):format(tostring(p.Name), tostring(p.Value)))
+        end
+      end
     end
   end
-  table.sort(found)
-  Controls["Add Panel"].Choices = found
-  if #found == 0 then
-    Log(1, "No panels found. Enable Script Access on the status block of the touch panel / UCI viewer.")
+  if #found > 0 then
+    Log(1, "Panels found (enter the Inventory name in 'Panels'): " .. table.concat(found, ", "))
   else
-    Log(1, #found .. " panel(s) found: " .. table.concat(found, ", "))
+    Log(1, "No panels found. Enable Script Access on the touch panel / UCI viewer status block to list them here.")
   end
-
-  Controls["Add Panel"].EventHandler = function(ctl)
-    local name = Trim(ctl.String)
-    if name == "" then return end
-    local list = SplitList(Controls.Panels.String)
-    for _, p in ipairs(list) do if p == name then ctl.String = ""; return end end
-    table.insert(list, name)
-    Controls.Panels.String = table.concat(list, ", ")
-    ctl.String = ""
-  end
+  if Trim(P("Panels")) == "" then navError = "No panel set (property 'Panels')" end
 end
 
 -- Start ----------------------------------------------------------------------------
