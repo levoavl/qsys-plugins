@@ -213,6 +213,7 @@ def test_basic():
     check(p["slots"][0] == 255 and p["slots"][27] == 128, "channel values in place")
     check(all(b == 0 for b in p["slots"][28:]), "slots 29..512 are all zero")
     check(len(data) == 18 + 512, "total packet size 530")
+    check(h.g.Sent[len(pk)]["from"] == 6454, "DMX sent from source port 6454")
 
     h.clear()
     h.advance(3.0)

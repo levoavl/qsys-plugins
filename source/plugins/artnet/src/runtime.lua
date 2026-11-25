@@ -121,13 +121,18 @@ local function OpenSocket()
 end
 
 local SentCount, SendErrors, LastSendError = 0, 0, nil
+local function DiscoverySocket() return ArtNetRuntime and ArtNetRuntime.Discovery or nil end
 
 local function Send(u, now)
   local ip = TargetIp(u)
   if not ArtNet.ValidIp(ip) then return end
   u.sequence = (u.sequence % 255) + 1  -- 1..255, 0 would disable sequencing
   local packet = ArtNet.Dmx(u.sequence, PortAddressOf(u), (not Controls.Blackout.Boolean) and u.slots or nil)
-  local ok, err = pcall(function() Socket:Send(ip, ArtNet.PORT, packet) end)
+  -- Send from UDP 6454 when the discovery socket has it (Art-Net source port,
+  -- receivers then list DMX source and ArtPollReply node as one device);
+  -- otherwise from the ephemeral send socket.
+  local sock = DiscoverySocket() or Socket
+  local ok, err = pcall(function() sock:Send(ip, ArtNet.PORT, packet) end)
   if not ok then
     SendErrors = SendErrors + 1
     if LastSendError ~= tostring(err) then

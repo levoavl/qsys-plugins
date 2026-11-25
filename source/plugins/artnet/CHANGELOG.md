@@ -5,6 +5,8 @@
 - ArtPollReply now also goes to the subnet broadcast address (Art-Net 3 behaviour,
   some tools only listen for that) and carries the Core's MAC address.
 - Unsolicited ArtPollReply at start-up and when the node name changes.
+- ArtDmx is sent from UDP 6454 (the discovery socket) when available, so receivers
+  no longer list the plugin twice (once as IP:port, once as node).
 
 ## 0.4 – unreleased
 
