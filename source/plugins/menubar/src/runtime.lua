@@ -200,6 +200,11 @@ end
 
 local function Divider(i)
   if not DIVIDERS or i == N then return "" end
+  -- no divider where a Pill or Block covers the edge (also while it slides)
+  if IND_STYLE == "Pill" or IND_STYLE == "Block" then
+    local edge = i * PITCH
+    if edge >= pos - 1 and edge <= pos + SPAN + 1 then return "" end
+  end
   local col = Fill(Color("Divider"))
   if VERTICAL then
     local len = IW * DIV_LEN
@@ -273,7 +278,7 @@ end
 
 -- Redraw only the items the indicator touched between a and b
 local function RenderRange(a, b)
-  local lo, hi = math.min(a, b), math.max(a, b) + SPAN
+  local lo, hi = math.min(a, b) - 2, math.max(a, b) + SPAN + 2   -- +-2 px: neighbours' dividers
   for i = 1, N do
     local s = (i - 1) * PITCH
     if s < hi and s + SPAN > lo then Render(i) end
