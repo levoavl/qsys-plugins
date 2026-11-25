@@ -1,5 +1,13 @@
 # Changelog – Art-Net
 
+## 0.4 – unreleased
+
+- Node name: answers ArtPoll with ArtPollReply (one per universe), so ArtNetominator,
+  Resolume and consoles show the sender by name. "Node Name" on the Setup page.
+  Needs UDP 6454 on the Core; "Discovery" on the Setup page shows whether it is active.
+- Property "Send Mode": "On Change" (default, keep-alive 1/s) or "Continuous" (always
+  at the refresh rate, for nodes that expect a constant stream).
+
 ## 0.3 – unreleased
 
 - Fix: output stopped right after start-up on the Core – the send timer was only held

@@ -93,24 +93,47 @@ function Advance(seconds, step)
 end
 
 Sent = {}
+Sockets = {}
+PortBusy = false
 UdpSocket = { New = function()
   local s = { opened = false }
-  function s:Open() self.opened = true end
+  function s:Open(ip, port)
+    if port == 6454 and PortBusy then error("address already in use") end
+    self.opened, self.port = true, port
+  end
   function s:Send(ip, port, data)
     assert(self.opened, "send on closed socket")
-    Sent[#Sent + 1] = { ip = ip, port = port, data = data }
+    Sent[#Sent + 1] = { ip = ip, port = port, data = data, from = self.port }
   end
+  Sockets[#Sockets + 1] = s
   return s
 end }
+
+Network = { Interfaces = function()
+  return { { Interface = "LAN A", Address = "192.168.1.10", Netmask = "255.255.255.0" },
+           { Interface = "LAN B", Address = "10.0.0.10", Netmask = "255.255.255.0" } }
+end }
+Design = { GetStatus = function() return { DesignName = "Test Design" } end }
+
+function FeedPoll(from)
+  for _, s in ipairs(Sockets) do
+    if s.port == 6454 and s.EventHandler then
+      s.EventHandler(s, { Address = from, Port = 6454,
+        Data = "Art-Net\0" .. string.char(0x00, 0x20, 0, 14, 0, 0) })
+    end
+  end
+end
 """
 
 
 class Harness:
-    def __init__(self, props=None, emulating=False, no_timer_now=False):
+    def __init__(self, props=None, emulating=False, no_timer_now=False, port_busy=False):
         self.lua = LuaRuntime(unpack_returned_tuples=True, encoding="latin-1")
         g = self.lua.globals()
         self.lua.execute(MOCKS)
         self.lua.execute(f"System = {{ IsEmulating = {'true' if emulating else 'false'} }}")
+        if port_busy:
+            self.lua.execute("PortBusy = true")
         if no_timer_now:
             self.lua.execute("Timer.Now = nil")
         g.Controls = None
@@ -268,8 +291,53 @@ def test_no_timer_now():
     check(2 <= n <= 4, f"keep-alive still ~1/s ({n} packets in 3 s)")
 
 
+def test_discovery():
+    print("discovery (ArtPoll / ArtPollReply)")
+    h = Harness({"Universe Count": 2, "Channels U1": 8, "Channels U2": 8})
+    check("Answering" in h.ctl("Discovery").String, "discovery socket bound to 6454")
+    h.set("Node Name", "String", "Kesselhaus Licht")
+    h.set("U1 Target IP", "String", "10.0.0.50")
+    h.set("U1 Enable", "Boolean", True)
+    h.set("U2 SubNet", "Value", 1)
+    h.set("U2 Universe", "Value", 1)
+    h.clear()
+    h.g.FeedPoll("10.0.0.99")
+    replies = [(ip, port, d) for ip, port, d in h.sent() if d[8:10] == bytes([0x00, 0x21])]
+    check(len(replies) == 2, "one ArtPollReply per universe")
+    ip, port, d = replies[0]
+    check(ip == "10.0.0.99" and port == 6454, "reply goes to the poller on 6454")
+    check(len(d) == 239, "reply length 239")
+    check(d[10:14] == bytes([10, 0, 0, 10]), "own IP from the interface in the poller's subnet")
+    check(d[26:44].rstrip(b"\0") == b"Kesselhaus Licht", "short name = Node Name")
+    check(b"Test Design" in d[44:108], "long name carries the design name")
+    check(d[178] == 0x80 and replies[1][2][178] == 0x00, "GoodInput: U1 active, U2 idle")
+    d2 = replies[1][2]
+    check(d2[18] == 0 and d2[19] == 1 and d2[186] == 1 and d2[211] == 2, "U2 Net/Sub/Uni + bind index 2")
+
+    h2 = Harness({"Channels U1": 8}, port_busy=True)
+    h2.set("U1 Target IP", "String", "10.0.0.50")
+    h2.set("U1 Enable", "Boolean", True)
+    h2.advance(0.2)
+    check("not available" in h2.ctl("Discovery").String, "port busy -> discovery not available")
+    check(len(h2.sent()) >= 1 and h2.ctl("Status").Value == 0, "sending still works without discovery")
+
+
+def test_continuous():
+    print("send mode continuous")
+    h = Harness({"Channels U1": 8, "Send Mode": "Continuous", "Refresh Rate (Hz)": 30})
+    h.set("U1 Target IP", "String", "10.0.0.50")
+    h.set("U1 Enable", "Boolean", True)
+    h.advance(0.5)
+    h.clear()
+    h.advance(2.0)
+    n = len(h.sent())
+    check(55 <= n <= 62, f"~30 packets/s while idle ({n} in 2 s)")
+
+
 test_basic()
 test_multi()
+test_discovery()
+test_continuous()
 test_no_timer_now()
 test_emulation()
 print("\nall passed" if failures == 0 else f"\n{failures} FAILED")

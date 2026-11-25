@@ -25,6 +25,8 @@ end
 
 local UniverseCount = Properties["Universe Count"].Value
 local RefreshHz = math.max(1, math.min(44, Properties["Refresh Rate (Hz)"].Value))
+local Continuous = Properties["Send Mode"].Value == "Continuous"
+local DEFAULT_NODE_NAME = "Q-SYS Art-Net"
 
 -- Clock. Timer.Now() is preferred; if it is not available on this firmware the
 -- send timer's own tick count is used (same approach as the Beat Analyzer).
@@ -179,6 +181,98 @@ for _, name in ipairs({ "Broadcast", "Broadcast Address", "Blackout", "Send in E
   end
 end
 
+-- --------------------------------------------------------------- discovery
+-- Answers ArtPoll on UDP 6454 with one ArtPollReply per universe, so tools like
+-- ArtNetominator or Resolume show the node name. Needs port 6454 on the Core; if
+-- it cannot be bound, sending works as before and Discovery says so.
+local Discovery = nil
+
+local function NodeName()
+  local n = Controls["Node Name"].String:gsub("^%s+", ""):gsub("%s+$", "")
+  return n ~= "" and n or DEFAULT_NODE_NAME
+end
+
+local function DesignName()
+  local ok, st = pcall(function() return Design.GetStatus() end)
+  return ok and type(st) == "table" and st.DesignName or nil
+end
+
+-- Local interface address in the poller's subnet (first interface otherwise)
+local function LocalIpFor(remote)
+  local ok, ifs = pcall(function() return Network.Interfaces() end)
+  if not ok or type(ifs) ~= "table" then
+    ok, ifs = pcall(function() return System.LocalInterfaces end)
+  end
+  if not ok or type(ifs) ~= "table" then return "0.0.0.0" end
+  local function n(ip)
+    local a, b, c, d = tostring(ip or ""):match("^(%d+)%.(%d+)%.(%d+)%.(%d+)$")
+    return a and ((tonumber(a) << 24) | (tonumber(b) << 16) | (tonumber(c) << 8) | tonumber(d)) or nil
+  end
+  local first = nil
+  for _, i in pairs(ifs) do
+    local addr, mask = i.Address or i.IP, i.Netmask or i.NetMask
+    if n(addr) then
+      first = first or addr
+      if n(mask) and n(remote) and (n(addr) & n(mask)) == (n(remote) & n(mask)) then return addr end
+    end
+  end
+  return first or "0.0.0.0"
+end
+
+local PollReplies = 0
+
+local function ReplyToPoll(sender)
+  local ip = LocalIpFor(sender)
+  local design = DesignName()
+  local long = NodeName() .. " - levo AVL Art-Net " .. PluginInfo.BuildVersion .. (design and (" - " .. design) or "")
+  local major, minor = PluginInfo.Version:match("^(%d+)%.(%d+)")
+  for _, u in ipairs(Universes) do
+    local active = Ctl(u.index, "Enable").Boolean and OutputAllowed()
+    local pkt = ArtNet.PollReply({
+      ip = ip, shortName = NodeName(), longName = long,
+      report = string.format("#0001 [%04d] %s", PollReplies % 10000, active and "Sending" or "Idle"),
+      portAddress = PortAddressOf(u), bindIndex = u.index, active = active,
+      versionMajor = tonumber(major) or 0, versionMinor = tonumber(minor) or 0,
+    })
+    pcall(function() Discovery:Send(sender, ArtNet.PORT, pkt) end)
+  end
+  PollReplies = PollReplies + 1
+  Log(2, string.format("ArtPoll from %s, replied as %s (%s)", sender, NodeName(), ip))
+end
+
+local function OpenDiscovery()
+  local s = UdpSocket.New()
+  s.EventHandler = function(sock, packet)
+    local op = ArtNet.OpCode(packet.Data)
+    if op == ArtNet.OP_POLL and OutputAllowed() then ReplyToPoll(packet.Address) end
+  end
+  -- Signature of UdpSocket:Open for binding a port is not 100 % documented, try the
+  -- variants in order and keep the first that works.
+  local variants = {
+    function() s:Open(nil, ArtNet.PORT) end,
+    function() s:Open("", ArtNet.PORT) end,
+    function() s:Open("0.0.0.0", ArtNet.PORT) end,
+  }
+  local lastErr
+  for i, open in ipairs(variants) do
+    local ok, err = pcall(open)
+    if ok then
+      Discovery = s
+      ArtNetRuntime.Discovery = s
+      Controls.Discovery.String = "Answering ArtPoll on UDP " .. ArtNet.PORT
+      Log(1, string.format("Discovery: listening on UDP %d (variant %d)", ArtNet.PORT, i))
+      return
+    end
+    lastErr = tostring(err)
+  end
+  Controls.Discovery.String = "Discovery not available (UDP " .. ArtNet.PORT .. " in use?)"
+  Log(1, "Discovery not available: " .. (lastErr or "?"))
+end
+
+Controls["Node Name"].EventHandler = function(ctl)
+  Log(1, "Node name: " .. NodeName())
+end
+
 -- --------------------------------------------------------------- send loop
 local RetryAt = 0
 local Tick = Timer.New()
@@ -194,7 +288,7 @@ Tick.EventHandler = function()
   end
   if not OutputAllowed() then return end
   for _, u in ipairs(Universes) do
-    if Ctl(u.index, "Enable").Boolean and (u.dirty or now - u.lastSent >= KEEPALIVE_S) then
+    if Ctl(u.index, "Enable").Boolean and (Continuous or u.dirty or now - u.lastSent >= KEEPALIVE_S) then
       Send(u, now)
     end
   end
@@ -205,8 +299,12 @@ SetStatus(STATUS.Initializing, "Starting")
 if Controls["Broadcast Address"].String == "" then
   Controls["Broadcast Address"].String = "255.255.255.255"
 end
-Log(1, string.format("Started: %d universe(s), %d Hz, emulation %s, clock %s, build %s",
-  UniverseCount, RefreshHz, tostring(Emulating), ClockSource, PluginInfo.BuildVersion))
+if Controls["Node Name"].String == "" then
+  Controls["Node Name"].String = DEFAULT_NODE_NAME
+end
+Log(1, string.format("Started: %d universe(s), %d Hz, %s, emulation %s, clock %s, build %s",
+  UniverseCount, RefreshHz, Continuous and "continuous" or "on change", tostring(Emulating),
+  ClockSource, PluginInfo.BuildVersion))
 -- Keep long-lived objects reachable from a global. A timer or socket that is only
 -- held by a local variable gets garbage collected on the Core and silently stops.
 ArtNetRuntime = { Tick = Tick, Universes = Universes }
@@ -214,3 +312,4 @@ ArtNetRuntime = { Tick = Tick, Universes = Universes }
 Tick:Start(TickInterval)
 OpenSocket()
 RetryAt = Clock() + SOCKET_RETRY_S
+OpenDiscovery()

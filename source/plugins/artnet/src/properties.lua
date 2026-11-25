@@ -18,6 +18,10 @@ table.insert(props, {
   Type = "integer", Min = 1, Max = 44, Value = 30,
 })
 table.insert(props, {
+  Name = "Send Mode",
+  Type = "enum", Choices = { "On Change", "Continuous" }, Value = "On Change",
+})
+table.insert(props, {
   Name = "Debug Print",
   Type = "enum", Choices = { "None", "Basic", "Verbose" }, Value = "None",
 })

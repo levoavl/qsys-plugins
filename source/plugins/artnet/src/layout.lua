@@ -66,7 +66,7 @@ if universe then
 elseif CurrentPage == "Setup" then
   local count = props["Universe Count"].Value
   local W = 560
-  local H = LevoBrand.HeaderHeight + 2 + 120 + count * 54 + 150
+  local H = LevoBrand.HeaderHeight + 2 + 120 + count * 54 + 190
   LevoBrand.Background(graphics, W, H)
   local y = LevoBrand.Header(graphics, W, LevoBrand.PluginName(PluginInfo), CurrentPage) + 12
 
@@ -100,6 +100,10 @@ elseif CurrentPage == "Setup" then
   Label("Address", M + 100, y + 2, 56, 18, { align = "Right", color = C.Mid, size = 10 })
   Place("Broadcast Address", "Setup~Broadcast Address", M + 162, y, 130, 22, TEXT)
   Label("Off = unicast to each universe's Target IP", M + 302, y + 2, W - M - 302 - M, 18, { size = 10, color = C.Mid })
+  y = y + 32
+  Label("Node Name", M, y + 2, 80, 18, { color = C.Mid, size = 10 })
+  Place("Node Name", "Setup~Node Name", M + 84, y, 160, 22, TEXT)
+  Place("Discovery", "Setup~Discovery", M + 254, y + 2, W - M - 254 - M, 18, INFO)
   y = y + 32
   Place("Send in Emulation", "Setup~Send in Emulation", M, y, 90, 22,
     { Style = "Button", Legend = "Emulation TX", FontSize = 10, Color = C.Amber })

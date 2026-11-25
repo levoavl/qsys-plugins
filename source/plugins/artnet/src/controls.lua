@@ -23,6 +23,8 @@ end
 
 Add({ Name = "Broadcast", ControlType = "Button", ButtonType = "Toggle" })
 Add({ Name = "Broadcast Address", ControlType = "Text" })
+Add({ Name = "Node Name", ControlType = "Text" })
+Add({ Name = "Discovery", ControlType = "Indicator", IndicatorType = "Text", PinStyle = "Output" })
 Add({ Name = "Blackout", ControlType = "Button", ButtonType = "Toggle" })
 Add({ Name = "Send in Emulation", ControlType = "Button", ButtonType = "Toggle", UserPin = false })
 Add({ Name = "Status", ControlType = "Indicator", IndicatorType = "Status", PinStyle = "Output" })
