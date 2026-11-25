@@ -32,6 +32,7 @@ Part of [levo AVL Q-SYS Plugins](../README.md).
 | Command Count | 0–32 | 4 | Free command slots |
 | Poll Interval (ms) | 100–2000 | 250 | How often executor states are requested |
 | Button Legends | Fader Buttons 2+3 / All / Off | Fader Buttons 2+3 | Which buttons get the MA button function as legend |
+| Enable Pin | Yes / No | No | Adds an `Enable` control/pin. Off = plugin idle, status "Disabled" (Not Present) instead of connection errors – e.g. wire it to the console's power. |
 | Debug Print | None / Basic / Verbose | None | Verbose logs every executor state change |
 
 Pages without slots are hidden. At maximum counts the plugin has about 2500 controls –
@@ -86,7 +87,10 @@ put the macro on an executor button and use a button slot.
 ### Status
 
 `Status` (OK / Compromised / Fault / Missing / Initializing), `Connected`, `Logged In`,
-and on the Setup page `Session`, `Reconnects`, `Last Error`.
+and on the Setup page `Session`, `Reconnects`, `Last Error`, plus plugin health: `Lua Memory`
+(normal about 1 MB), `Plugin Uptime` (stops if the plugin hangs) and `Internal Errors`.
+Internal errors, a stalled timer and memory above 10 MB are also written to the Core event
+log (Core Manager > Event Log), at most every 10 minutes.
 
 ## Plugin UI and UCIs
 

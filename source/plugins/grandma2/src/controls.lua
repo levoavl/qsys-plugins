@@ -28,6 +28,9 @@ Int("Port", 65535)
 TextIn("Username")
 TextIn("Password", "Input")
 Trigger("Reconnect")
+if props["Enable Pin"] and props["Enable Pin"].Value == true then
+  Add({ Name = "Enable", ControlType = "Button", ButtonType = "Toggle", PinStyle = "Both" })
+end
 Add({ Name = "Status", ControlType = "Indicator", IndicatorType = "Status", PinStyle = "Output" })
 Led("Connected")
 Led("Logged In")
@@ -35,6 +38,7 @@ TextIn("Command TX", "Input")
 TextOut("Session")
 TextOut("Last Error")
 TextOut("Reconnects")
+LevoHealth.AddControls(Add)   -- Lua Memory, Plugin Uptime, Internal Errors
 
 -- Fader executors
 for i = 1, counts.Faders do

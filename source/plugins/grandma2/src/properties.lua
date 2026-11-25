@@ -12,6 +12,9 @@ table.insert(props, {
   Choices = { "Fader Buttons 2+3", "All", "Off" },
   Value = "Fader Buttons 2+3",
 })
+-- Adds an "Enable" control/pin: off = plugin idle with status "Disabled" (e.g. wired to
+-- the console's power). Off by default, so existing designs keep running unchanged.
+table.insert(props, { Name = "Enable Pin", Type = "boolean", Value = false })
 table.insert(props, {
   Name = "Debug Print",
   Type = "enum",

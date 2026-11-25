@@ -153,6 +153,11 @@ elseif CurrentPage == "Setup" then
   Place("Status", "Status", fx, y, 300, 22)
   Place("Reconnect", "Setup~Reconnect", fx + 310, y, 90, 22, { Style = "Button", Legend = "Reconnect", Color = C.Amber })
   y = y + 28
+  if props["Enable Pin"] and props["Enable Pin"].Value == true then
+    Label("Enable", M, y + 1, lw, 20, { align = "Right" })
+    Place("Enable", "Setup~Enable", fx, y, 90, 22, { Style = "Button", Legend = "Enabled", Color = C.Amber })
+    y = y + 28
+  end
   Label("Connected", M, y, lw, 18, { align = "Right" })
   Place("Connected", "Connected", fx, y + 1, 16, 16, { Color = C.Amber })
   Label("Logged In", fx + 30, y, 70, 18, { align = "Right" })
@@ -170,6 +175,9 @@ elseif CurrentPage == "Setup" then
   Row("Session", "Session", "Debug~Session", 120, { Style = "Text" })
   Row("Reconnects", "Reconnects", "Debug~Reconnects", 120, { Style = "Text" })
   Row("Last Error", "Last Error", "Debug~Last Error", 480, { Style = "Text" })
+  for _, name in ipairs(LevoHealth.CONTROLS) do
+    Row(name, name, "Debug~" .. name, 120, { Style = "Text" })
+  end
   y = y + 6
 
   H = y + M

@@ -8,6 +8,7 @@
 
 --[[ #include "info.lua" ]]
 --[[ #include "levo_brand.lua" ]]
+--[[ #include "levo_health.lua" ]]
 
 -- Slot counts from the properties (also used at runtime via `Properties`)
 function SlotCounts(props)

@@ -48,11 +48,8 @@ local function SetLegend(name, text)
 end
 
 local STATUS = { OK = 0, Compromised = 1, Fault = 2, NotPresent = 3, Missing = 4, Initializing = 5 }
-local function SetStatus(value, text)
-  local c = Controls.Status
-  if c.Value ~= value then c.Value = value end
-  SetString("Status", text)
-end
+-- compares with what it wrote last: the Core reads Status back as "State - text"
+local SetStatus = LevoHealth.StatusWriter(Controls.Status)
 
 local function SetError(text)
   SetString("Last Error", text)
@@ -272,6 +269,7 @@ local function SetPhase(phase)
 end
 
 local OnMessage  -- forward declaration
+local GuardMessage -- OnMessage protected by the health module (set below)
 
 local function ScheduleRetry(reason)
   Conn.attempt = Conn.attempt + 1
@@ -290,9 +288,21 @@ local function Disconnect()
   Conn.pollQueue, Conn.pollWaiting = {}, false
 end
 
+-- "Enable" control (property Enable Pin); without it the plugin is always enabled
+local EnableCtl = Controls.Enable
+local function Enabled() return EnableCtl == nil or EnableCtl.Boolean end
+
 local function Connect()
   Disconnect()
   Conn.retryAt = nil
+  if not Enabled() then
+    Conn.attempt = 0
+    SetPhase("disabled")
+    ShowAllOffline()
+    SetStatus(STATUS.NotPresent, "Disabled")
+    Log(1, "Disabled")
+    return
+  end
   local ip = Controls["IP Address"].String:gsub("^%s+", ""):gsub("%s+$", "")
   if ip == "" then
     SetPhase("idle")
@@ -314,7 +324,7 @@ local function Connect()
       SetStatus(STATUS.Initializing, "Connected, logging in")
       Conn.lastRx = Now
     end,
-    OnMessage = function(text) OnMessage(text) end,
+    OnMessage = function(text) GuardMessage(text) end,
     OnClose = function(reason)
       Conn.ws = nil
       SetError(reason or "connection closed")
@@ -445,7 +455,7 @@ local MainTimer = Timer.New()
 -- Keep long-lived objects reachable from a global. A timer that is only held by
 -- a local variable gets garbage collected on the Core and silently stops.
 GrandMA2Runtime = { Timer = MainTimer, Conn = Conn }
-MainTimer.EventHandler = function()
+local function MainTick()
   Now = Now + TICK
 
   if Conn.phase == "waiting" and Conn.retryAt and Now >= Conn.retryAt then
@@ -485,6 +495,20 @@ MainTimer.EventHandler = function()
     NextPoll()
   end
 end
+
+-- Health (levo_health.lua): errors are printed, counted, logged in the Core event
+-- log and followed by a clean reconnect; watchdog, memory guard and readouts
+local Health = LevoHealth.New({
+  name = "grandMA2", tag = "[grandMA2]", timer = MainTimer, tick = TICK, controls = Controls,
+  onError = SetError,
+  onReset = function(reason)
+    Disconnect()
+    if Enabled() then ScheduleRetry(reason) else Connect() end   -- Connect() -> Disabled
+  end,
+})
+GrandMA2Runtime.Health = Health.Timer
+MainTimer.EventHandler = Health.MainHandler(MainTick)
+GuardMessage = function(text) Health.Run("message", OnMessage, text) end
 
 ---------------------------------------------------------------------------
 -- User input
@@ -613,13 +637,14 @@ end
 
 local function OnConnectionSetting()
   Conn.attempt = 0
-  Connect()
+  Health.Run("connect", Connect)
 end
 Controls["IP Address"].EventHandler = OnConnectionSetting
 Controls.Port.EventHandler = OnConnectionSetting
 Controls.Username.EventHandler = OnConnectionSetting
 Controls.Password.EventHandler = OnConnectionSetting
-Controls.Reconnect.EventHandler = function() Reconnect(true) end
+Controls.Reconnect.EventHandler = function() Health.Run("connect", Reconnect, true) end
+if EnableCtl then EnableCtl.EventHandler = OnConnectionSetting end
 
 ---------------------------------------------------------------------------
 -- Start
@@ -632,4 +657,5 @@ WireSlotHandlers()
 Log(1, ("Started, build %s - %d fader(s), %d button(s), %d macro(s), %d command(s)"):format(
   PluginInfo.BuildVersion, Counts.Faders, Counts.Buttons, Counts.Macros, Counts.Commands))
 MainTimer:Start(TICK)
-Connect()
+Health.Start()
+Health.Run("start", Connect)

@@ -86,17 +86,27 @@ Timers = setmetatable({}, { __mode = "v" })
 Timer = { New = function()
   local t = { running = false }
   -- no strong reference here, like on the Core
-  function t:Start(iv) self.interval = iv; self.running = true end
+  function t:Start(iv) self.interval = iv; self.running = true; self.acc = 0 end
   function t:Stop() self.running = false end
   Timers[#Timers + 1] = t
   return t
 end, CallAfter = function(fn, d) error("CallAfter not mocked") end }
 
+-- one call = one main tick (50 ms); timers with longer intervals fire when due
 function TickAll()
   for _, t in pairs(Timers) do
-    if t.running and t.EventHandler then t.EventHandler(t) end
+    if t.running and t.EventHandler then
+      t.acc = (t.acc or 0) + 0.05
+      if t.acc >= (t.interval or 0.05) - 1e-9 then
+        t.acc = t.acc - (t.interval or 0.05)
+        t.EventHandler(t)
+      end
+    end
   end
 end
+
+EventLog = {}
+Log = { Error = function(s) EventLog[#EventLog + 1] = s end, Message = function(s) EventLog[#EventLog + 1] = s end }
 
 -- ---------------------------------------------------------------- sockets
 Sockets = {}
@@ -460,6 +470,27 @@ def test_large_and_fragmented():
     check(out == [(0xA, "hi")], "ping answered with pong")
 
 
+def test_enable_and_health():
+    print("test_enable_and_health")
+    h = Harness()
+    check(h.g.Controls[b"Enable"] is None, "no Enable control by default")
+    h.tick(int(3 / 0.05))
+    check(h.s("Plugin Uptime") == "0:00:03" and h.s("Lua Memory").endswith(" MB"), f"health readouts: {h.s('Plugin Uptime')}, {h.s('Lua Memory')}")
+    n = len(h.g.Sockets)
+    h = Harness({"Enable Pin": True})
+    check(h.ctl("Status").Value == 3 and h.s("Status") == "Disabled", f"Enable off -> Disabled: {h.s('Status')}")
+    socks = len(h.g.Sockets)
+    h.tick(int(40 / 0.05))
+    check(len(h.g.Sockets) == socks and h.s("Status") == "Disabled", "no connection attempts while disabled")
+    h.user("Enable", "Boolean", True)
+    check(h.ctl("Status").Value == 5, f"enable -> connecting: {h.s('Status')}")
+    h.handshake_and_login()
+    check(h.ctl("Status").Value == 0, "OK after enable")
+    h.user("Enable", "Boolean", False)
+    check(h.s("Status") == "Disabled" and not h.b("Connected"), "disable -> Disabled, disconnected")
+    check(len(h.g.EventLog) == 0, "no event log entries in normal operation")
+
+
 def replay(path):
     """Replay a Locimation verbose log: feed every received playbacks response."""
     print(f"replay {path}")
@@ -516,6 +547,7 @@ if __name__ == "__main__":
     test_exec_assignment()
     test_main_button_feedback()
     test_large_and_fragmented()
+    test_enable_and_health()
     for p in sys.argv[1:]:
         replay(p)
     print("all tests passed")

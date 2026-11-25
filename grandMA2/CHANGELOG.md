@@ -5,6 +5,20 @@ Format: [Keep a Changelog](https://keepachangelog.com), versioning: `major.minor
 
 ## [Unreleased]
 
+## [1.1] – 2026-11-25
+
+### Added
+- Property "Enable Pin" (default off) adds an Enable control/pin. Off: the plugin
+  disconnects and shows status "Disabled" (Not Present) instead of connection errors.
+- Plugin health on the Setup page: Lua Memory, Plugin Uptime, Internal Errors.
+- Runtime errors (timer, incoming messages) are caught, counted, written to the Core
+  event log and followed by a clean reconnect. Watchdog for the main timer, memory
+  warning above 10 MB, reset above 32 MB.
+
+### Changed
+- Status is written via the shared status writer (compares with what was written, not
+  with the Core's read-back "State - text").
+
 ## [1.0] – 2026-10-16
 
 First release.
