@@ -58,11 +58,9 @@ local function Text(name)
 end
 
 local STATUS = MAOutput.Status
-local function SetStatus(code, text)
-  local c = Controls.Status
-  if c.Value ~= code then c.Value = code end
-  SetString("Status", text)
-end
+-- compares with what it wrote last: the Core reads Status back as "State - text",
+-- so a read-back compare rewrote the status on every display refresh (10x per second)
+local SetStatus = LevoHealth.StatusWriter(Controls.Status)
 
 local LastErrorText = ""
 local function SetError(text)
@@ -440,13 +438,15 @@ local function OnTick()
   end
 end
 
-MainTimer.EventHandler = function()
-  local ok, err = pcall(OnTick)
-  if not ok then
-    SetError("Runtime error: " .. tostring(err))
-    Log(1, "Runtime error: " .. tostring(err))
-  end
-end
+-- Health (levo_health.lua): errors are printed, counted and logged in the Core
+-- event log, watchdog for the main timer, memory guard and readouts
+local Health = LevoHealth.New({
+  name = "Beat Analyzer", tag = "[Beat Analyzer]", timer = MainTimer, tick = TICK, clock = Clock, controls = Controls,
+  onError = SetError,
+  onReset = function() Engine:Reset() end,   -- the console output reconnects on its own
+})
+BeatAnalyzerRuntime.Health = Health.Timer
+MainTimer.EventHandler = Health.MainHandler(OnTick)
 
 ---------------------------------------------------------------------------
 -- Start
@@ -456,3 +456,4 @@ Level.rateT, Level.lastChange = Clock(), Clock()
 Log(1, ("Beat Analyzer %s started: source %s, console %s, clock %s"):format(
   PluginInfo.BuildVersion, Opt.LevelSource, Opt.Console, ClockSource))
 MainTimer:Start(TICK)
+Health.Start()

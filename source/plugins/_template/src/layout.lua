@@ -22,6 +22,12 @@ elseif CurrentPage == "Setup" then
     Position = { 124, y }, Size = { 140, 20 },
   }
 
+  -- health readouts (levo_health.lua)
+  for i, name in ipairs(LevoHealth.CONTROLS) do
+    Label(name, 16, y + 28 * i, 100)
+    layout[name] = { PrettyName = "Debug~" .. name, Style = "Text", Position = { 124, y + 28 * i }, Size = { 100, 20 } }
+  end
+
 elseif CurrentPage == "About" then
   LevoBrand.About(graphics, 16, y, W - 32, PluginInfo)
 end

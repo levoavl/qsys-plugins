@@ -203,6 +203,12 @@ elseif CurrentPage == "Debug" then
   y = Row("Last Error", "Last Error", "Debug~Last Error", y, W - M - LW - M, Flat({ HTextAlign = "Left" }))
   y = y + 6
 
+  y = Section("Plugin Health", y)
+  for _, name in ipairs(LevoHealth.CONTROLS) do
+    y = Row(name, name, "Debug~" .. name, y, 120, Flat({ HTextAlign = "Left" }))
+  end
+  y = y + 6
+
   if opt.LevelSource == "Test Generator" then
     y = Section("Test Generator", y)
     y = Row("Test BPM", "Test BPM", "Test Generator~Test BPM", y, 80, Field())

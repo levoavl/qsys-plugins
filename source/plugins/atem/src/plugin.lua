@@ -10,6 +10,7 @@
 
 --[[ #include "info.lua" ]]
 --[[ #include "levo_brand.lua" ]]
+--[[ #include "levo_health.lua" ]]
 --[[ #include "atem_models.lua" ]]
 --[[ #include "atem_topology.lua" ]]
 

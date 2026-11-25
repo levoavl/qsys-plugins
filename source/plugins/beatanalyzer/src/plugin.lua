@@ -4,6 +4,7 @@
 
 --[[ #include "info.lua" ]]
 --[[ #include "levo_brand.lua" ]]
+--[[ #include "levo_health.lua" ]]
 
 PageNames = { "Control", "Setup", "Debug", "About" }
 

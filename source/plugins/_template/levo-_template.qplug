@@ -54,6 +54,9 @@ LevoBrand = {
     AmberSoft = { 255, 219, 150 },  -- amber at reduced intensity, e.g. fading states (derived)
     Line      = { 214, 214, 210 },  -- hairlines, frames (derived from Porcelain)
     Haze      = { 172, 196, 222 },  -- secondary text on Atlantic (derived)
+    -- functional colours, not part of the CI: broadcast tally convention
+    TallyRed   = { 214, 40, 40 },   -- program / on air
+    TallyGreen = { 40, 160, 70 },   -- preview
   },
 
   HeaderHeight = 40,
@@ -155,6 +158,193 @@ function LevoBrand.About(graphics, x, y, width, info)
   return y + line * 2
 end
 -- <<< levo_brand.lua
+-- >>> levo_health.lua
+-- (c) levo AVL | Elias Jenny - MIT License
+-- levo AVL plugin health: shared by all plugins with a runtime timer.
+-- Included once at the top of plugin.lua (after levo_brand.lua).
+--
+--  * LevoHealth.StatusWriter  Status control setter that works on the Core
+--  * LevoHealth.New           error recovery, main timer watchdog, memory guard,
+--                             readouts (Lua Memory / Plugin Uptime / Internal Errors)
+--                             and Core event log entries
+--
+-- Why: the Core reads a Status control back with the state in front
+-- ("Missing - text"), so "write only if c.String differs" never matches and a
+-- status updated from a timer is rewritten on every tick. ATEM 1.0 did that
+-- 50 times a second and grew to several hundred MB until the Core hung.
+
+LevoHealth = {
+  -- names of the readout controls (text outputs); add them with LevoHealth.AddControls
+  CONTROLS = { "Lua Memory", "Plugin Uptime", "Internal Errors" },
+  MEM_WARN_KB = 10 * 1024,     -- normal plugins use about 1 MB: warn above this
+  MEM_LIMIT_KB = 32 * 1024,    -- above this: onReset()
+  GC_EVERY = 60,               -- s, full garbage collection
+  STALL_AFTER = 3,             -- s without a main timer tick -> restart the timer
+  EVENT_LOG_EVERY = 600,       -- s, at most one event log entry per kind
+}
+
+-- Control definitions for GetControls: add(def) inserts one definition
+function LevoHealth.AddControls(add)
+  for _, name in ipairs(LevoHealth.CONTROLS) do
+    add({ Name = name, ControlType = "Indicator", IndicatorType = "Text", PinStyle = "Output", UserPin = true, Count = 1 })
+  end
+end
+
+-- Status setter: compares with what it wrote last, never with the read-back
+function LevoHealth.StatusWriter(control)
+  local last = {}
+  return function(value, text)
+    local c = type(control) == "function" and control() or control
+    if not c then return end
+    text = text or ""
+    if last.value ~= value then
+      c.Value = value
+      last.value = value
+    end
+    if last.text ~= text then
+      c.String = text
+      last.text = text
+    end
+  end
+end
+
+local function FormatUptime(s)
+  s = math.floor(s)
+  return ("%d:%02d:%02d"):format(s // 3600, s % 3600 // 60, s % 60)
+end
+LevoHealth.FormatUptime = FormatUptime
+
+-- opts:
+--   name      text in front of event log entries, e.g. "ATEM Switcher"
+--   tag       print prefix, e.g. "[ATEM]"
+--   timer     main Timer (watchdog restarts it), interval = opts.tick (s)
+--   clock     function() -> seconds (optional, e.g. Timer.Now): Plugin Uptime from this
+--             clock at the last main tick instead of ticks x interval
+--   controls  Controls table (readouts are written when the controls exist)
+--   onError   function(msg)    e.g. show in "Last Error" (optional)
+--   onReset   function(reason) drop device state and reconnect (optional)
+function LevoHealth.New(opts)
+  local h = { ticks = 0, seenTicks = 0, stalled = 0, seconds = 0, errors = 0 }
+  local startClock = opts.clock and opts.clock() or 0
+  local lastClock = startClock
+  local lastPrint, lastPrintAt = nil, -1e9
+  local logged = {}           -- [kind] = seconds of the last event log entry
+  local hasGc = type(collectgarbage) == "function"
+  local healthTimer = Timer.New()
+  h.Timer = healthTimer       -- keep reachable from the plugin's global runtime table
+
+  local function MemoryKB() return hasGc and collectgarbage("count") or 0 end
+
+  local function SetText(name, s)
+    local c = opts.controls and opts.controls[name]
+    if c and c.String ~= s then c.String = s end
+  end
+
+  -- Core event log (Core Manager > Event Log), plain print as fallback
+  local function EventLog(kind, msg)
+    local last = logged[kind]
+    if last and h.seconds - last < LevoHealth.EVENT_LOG_EVERY then return end
+    logged[kind] = h.seconds
+    local text = opts.name .. ": " .. msg
+    local logger = type(Log) == "table" and (Log.Error or Log.Message)
+    local ok = logger and pcall(logger, text)
+    if not ok then print(opts.tag .. " (event log) " .. text) end
+  end
+
+  -- Problems: always printed (independent of Debug Print, max once a minute per
+  -- message) and written to the event log (max every 10 minutes per kind)
+  function h.Report(msg, kind)
+    if msg ~= lastPrint or h.seconds - lastPrintAt >= 60 then
+      print(opts.tag .. " " .. msg)
+      lastPrint, lastPrintAt = msg, h.seconds
+    end
+    EventLog(kind or msg, msg)
+  end
+
+  local function Reset(reason)
+    if not opts.onReset then return end
+    local ok, err = pcall(opts.onReset, reason)
+    if not ok then h.Report("Recovery failed: " .. tostring(err), "recovery") end
+  end
+
+  function h.OnError(where, err)
+    h.errors = h.errors + 1
+    local msg = ("Internal error (%s): %s"):format(where, tostring(err))
+    h.Report(msg, "error " .. where)
+    if opts.onError then pcall(opts.onError, msg) end
+    Reset("Internal error")
+  end
+
+  -- Run fn(...) protected; on error report + reset. Returns true if fn ran clean.
+  function h.Run(where, fn, ...)
+    local ok, err = pcall(fn, ...)
+    if not ok then h.OnError(where, err) end
+    return ok
+  end
+
+  -- EventHandler for the main timer: counts ticks (watchdog, uptime) and protects fn
+  function h.MainHandler(fn)
+    return function(...)
+      h.ticks = h.ticks + 1
+      if opts.clock then lastClock = opts.clock() end
+      h.Run("timer", fn, ...)
+    end
+  end
+
+  -- Same protection for socket / control handlers
+  function h.Handler(where, fn)
+    return function(...) h.Run(where, fn, ...) end
+  end
+
+  local function Check()
+    h.seconds = h.seconds + 1
+    -- main timer watchdog
+    if opts.timer then
+      if h.ticks == h.seenTicks then
+        h.stalled = h.stalled + 1
+        if h.stalled >= LevoHealth.STALL_AFTER then
+          h.Report("Main timer stalled - restarting it", "stall")
+          opts.timer:Stop()
+          opts.timer:Start(opts.tick)
+          h.stalled = 0
+        end
+      else
+        h.stalled = 0
+      end
+      h.seenTicks = h.ticks
+    end
+    -- memory: measured right after a full collection (live data, no garbage)
+    local kb = MemoryKB()
+    local collect = h.seconds % LevoHealth.GC_EVERY == 0
+    if hasGc and (collect or kb > LevoHealth.MEM_LIMIT_KB) then
+      collectgarbage("collect")
+      kb = MemoryKB()
+      if kb > LevoHealth.MEM_LIMIT_KB then
+        h.Report(("Memory limit reached (%.1f MB) - resetting"):format(kb / 1024), "memory limit")
+        Reset("Memory limit reached")
+        collectgarbage("collect")
+        kb = MemoryKB()
+      elseif collect and kb > LevoHealth.MEM_WARN_KB then
+        h.Report(("High memory use: %.1f MB (normal is about 1 MB)"):format(kb / 1024), "memory warn")
+      end
+    end
+    -- readouts; Plugin Uptime follows the main timer, so it stops if the plugin hangs
+    SetText("Lua Memory", hasGc and ("%.1f MB"):format(kb / 1024) or "n/a")
+    local up = opts.clock and (lastClock - startClock) or (opts.timer and h.ticks * opts.tick) or h.seconds
+    SetText("Plugin Uptime", FormatUptime(up))
+    SetText("Internal Errors", tostring(h.errors))
+  end
+
+  healthTimer.EventHandler = function()
+    local ok, err = pcall(Check)
+    if not ok then h.Report("Health check failed: " .. tostring(err), "health") end
+  end
+
+  function h.Start() healthTimer:Start(1) end
+
+  return h
+end
+-- <<< levo_health.lua
 
 PageNames = { "Control", "Setup", "About" }
 
@@ -223,6 +413,8 @@ table.insert(ctrls, {
   UserPin = true,
   PinStyle = "Output",
 })
+-- Lua Memory, Plugin Uptime, Internal Errors (levo_health.lua)
+LevoHealth.AddControls(function(def) table.insert(ctrls, def) end)
 -- <<< controls.lua
   return ctrls
 end
@@ -255,6 +447,12 @@ elseif CurrentPage == "Setup" then
     Position = { 124, y }, Size = { 140, 20 },
   }
 
+  -- health readouts (levo_health.lua)
+  for i, name in ipairs(LevoHealth.CONTROLS) do
+    Label(name, 16, y + 28 * i, 100)
+    layout[name] = { PrettyName = "Debug~" .. name, Style = "Text", Position = { 124, y + 28 * i }, Size = { 100, 20 } }
+  end
+
 elseif CurrentPage == "About" then
   LevoBrand.About(graphics, 16, y, W - 32, PluginInfo)
 end
@@ -268,21 +466,39 @@ if Controls then
 -- Runtime code: only runs on the Core or in Emulation mode.
 
 local DebugLevel = ({ None = 0, Basic = 1, Verbose = 2 })[Properties["Debug Print"].Value] or 0
+local TICK = 0.1   -- main timer (s)
 
 local function Log(level, msg)
   if level <= DebugLevel then print("[levo] " .. msg) end
 end
 
-local function SetStatus(value, text)
-  Controls.Status.Value = value  -- 0 OK, 1 Compromised, 2 Fault, 3 Not present, 4 Missing, 5 Initializing
-  Controls.Status.String = text or ""
+-- 0 OK, 1 Compromised, 2 Fault, 3 Not present, 4 Missing, 5 Initializing.
+-- Always use this writer: it compares with what it wrote, not with the read-back
+-- (the Core reads Status back as "State - text").
+local SetStatus = LevoHealth.StatusWriter(Controls.Status)
+
+local MainTimer = Timer.New()
+local Health = LevoHealth.New({
+  name = "levo Template", tag = "[levo]", timer = MainTimer, tick = TICK, controls = Controls,
+  onReset = function(reason) Log(1, "Reset: " .. reason) end,   -- drop device state, reconnect
+})
+-- Keep long-lived objects reachable from a global: objects only held by locals
+-- can be garbage collected on the Core and silently stop working.
+TemplateRuntime = { Timer = MainTimer, Health = Health.Timer }
+
+local function MainTick()
+  -- periodic work goes here (protected: errors are reported, counted and reset)
 end
+
+MainTimer.EventHandler = Health.MainHandler(MainTick)
+
+Controls.IPAddress.EventHandler = Health.Handler("ip", function(ctl)
+  Log(1, "IP address set to " .. ctl.String)
+end)
 
 SetStatus(0, "Template loaded")
 Log(1, "Template plugin started, build " .. PluginInfo.BuildVersion)
-
-Controls.IPAddress.EventHandler = function(ctl)
-  Log(1, "IP address set to " .. ctl.String)
-end
+MainTimer:Start(TICK)
+Health.Start()
 -- <<< runtime.lua
 end

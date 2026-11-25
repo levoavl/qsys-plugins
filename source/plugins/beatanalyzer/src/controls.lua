@@ -89,6 +89,7 @@ if opt.Console ~= "None" then
   TextOut("Last Reply")
 end
 TextOut("Last Error")
+LevoHealth.AddControls(Add)   -- Lua Memory, Plugin Uptime, Internal Errors
 
 -- Debug
 TextOut("Level Updates")

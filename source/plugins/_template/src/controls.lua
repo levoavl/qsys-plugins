@@ -14,3 +14,5 @@ table.insert(ctrls, {
   UserPin = true,
   PinStyle = "Output",
 })
+-- Lua Memory, Plugin Uptime, Internal Errors (levo_health.lua)
+LevoHealth.AddControls(function(def) table.insert(ctrls, def) end)

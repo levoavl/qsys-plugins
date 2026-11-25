@@ -5,6 +5,18 @@ Format: [Keep a Changelog](https://keepachangelog.com), versioning: `major.minor
 
 ## [Unreleased]
 
+## [1.1] – 2026-11-25
+
+### Fixed
+- Status was rewritten on every display refresh (10 times a second): the Core reads a
+  Status control back with the state in front, so comparing with the read-back never
+  matched. Same bug as in ATEM 1.0, where it made the plugin grow to several hundred MB.
+
+### Added
+- Plugin health on the Debug page: Lua Memory, Plugin Uptime, Internal Errors.
+- Runtime errors, a stalled main timer (restarted by a watchdog) and memory above 10 MB
+  are written to the Core event log. Above 32 MB the beat engine is reset.
+
 ## [1.0] – 2026-10-28
 
 First release. Developed as "Sound2Beat" (versions 0.1–0.3).

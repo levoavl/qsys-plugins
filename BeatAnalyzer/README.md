@@ -178,6 +178,10 @@ the music.
 `Last Error`. With the Test Generator: `Test BPM`, `Test Jitter`, `Test Dropout`,
 `Test Update` (simulated meter interval) and `Test Breakdown`.
 
+Plugin health: `Lua Memory` (normal about 1 MB), `Plugin Uptime` (stops if the plugin
+hangs) and `Internal Errors`. Internal errors, a stalled timer and memory above 10 MB are
+also written to the Core event log (Core Manager > Event Log), at most every 10 minutes.
+
 ## Status
 
 | Status | Meaning |

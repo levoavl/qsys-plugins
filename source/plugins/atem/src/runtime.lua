@@ -13,7 +13,6 @@ local BACKOFF = { 1, 2, 4, 8, 15, 30 }
 
 local Now = 0                 -- monotonic time in seconds, advanced by the main timer
 
-local CoreLog = Log           -- Q-SYS event log API, shadowed by the debug helper below
 local function Log(level, msg)
   if level <= DebugLevel then print(("[ATEM] %s"):format(msg)) end
 end
@@ -50,21 +49,8 @@ local function SetChoices(name, list)
 end
 
 local STATUS = { OK = 0, Compromised = 1, Fault = 2, NotPresent = 3, Missing = 4, Initializing = 5 }
--- The Core reads a Status control back with the state in front ("Missing - text"),
--- so comparing with the read-back never matches. Compare with what we last wrote.
-local LastStatus = {}
-local function SetStatus(value, text)
-  local c = Controls.Status
-  text = text or ""
-  if LastStatus.value ~= value then
-    c.Value = value
-    LastStatus.value = value
-  end
-  if LastStatus.text ~= text then
-    c.String = text
-    LastStatus.text = text
-  end
-end
+-- compares with what it wrote last: the Core reads Status back as "State - text"
+local SetStatus = LevoHealth.StatusWriter(Controls.Status)
 
 local function SetError(text)
   SetString("Last Error", text)
@@ -807,43 +793,11 @@ local function MainTick()
 end
 
 ---------------------------------------------------------------------------
--- Health: error recovery, main timer watchdog, memory guard
--- A runtime error inside the main timer must not leave the connection state
--- machine half-way (e.g. stuck between two reconnect attempts), and the plugin
--- must never grow without bound on the Core.
+-- Health (levo_health.lua): error recovery, main timer watchdog, memory guard,
+-- readouts and event log. A runtime error inside the main timer must not leave
+-- the connection state machine half-way, and the plugin must never grow
+-- without bound on the Core.
 ---------------------------------------------------------------------------
-local MEM_WARN_KB = 10 * 1024    -- normal use is around 1 MB: above this, log a warning
-local MEM_LIMIT_KB = 32 * 1024   -- above this, reset the connection
-local GC_EVERY = 60              -- s, full garbage collection
-local STALL_AFTER = 3            -- s without a main timer tick -> restart it
-
-local Health = { ticks = 0, seenTicks = 0, stalled = 0, seconds = 0, errors = 0, lastError = nil, lastErrorAt = -1e9 }
-local HasGc = type(collectgarbage) == "function"
-local function MemoryKB() return HasGc and collectgarbage("count") or 0 end
-
--- Core event log (Core Manager > Event Log), with a plain print as fallback
-local EVENT_LOG_EVERY = 600      -- s, at most one event log entry per kind in this time
-local EventLogged = {}           -- [kind] = Health.seconds of the last entry
-local function EventLog(kind, msg)
-  local last = EventLogged[kind]
-  if last and Health.seconds - last < EVENT_LOG_EVERY then return end
-  EventLogged[kind] = Health.seconds
-  local text = "ATEM Switcher: " .. msg
-  local logger = type(CoreLog) == "table" and (CoreLog.Error or CoreLog.Message)
-  local ok = logger and pcall(logger, text)
-  if not ok then print("[ATEM] (event log) " .. text) end
-end
-
--- Errors are always printed (independent of Debug Print), at most once a minute per
--- message, and written to the Core event log (at most every 10 minutes per kind)
-local function Report(msg, kind)
-  if msg ~= Health.lastError or Health.seconds - Health.lastErrorAt >= 60 then
-    print("[ATEM] " .. msg)
-    Health.lastError, Health.lastErrorAt = msg, Health.seconds
-  end
-  EventLog(kind or msg, msg)
-end
-
 -- Drop everything the plugin knows about the switcher and connect again
 local function ResetConnection(reason)
   pcall(function() Session:Close() end)
@@ -860,72 +814,17 @@ local function ResetConnection(reason)
   if not ok then
     -- last resort: plain state, the next tick retries
     Conn.phase, Conn.retryAt, Conn.retryReason = "waiting", Now + BACKOFF[1], reason
-    Report("Recovery failed: " .. tostring(err))
+    print("[ATEM] Recovery failed: " .. tostring(err))
   end
 end
 
-OnInternalError = function(where, err)
-  Health.errors = Health.errors + 1
-  local msg = ("Internal error (%s): %s"):format(where, tostring(err))
-  Report(msg, "error " .. where)
-  pcall(SetError, msg)
-  ResetConnection("Internal error")
-end
-
-MainTimer.EventHandler = function()
-  Health.ticks = Health.ticks + 1
-  local ok, err = pcall(MainTick)
-  if not ok then OnInternalError("timer", err) end
-end
-
-local function FormatUptime(s)
-  s = math.floor(s)
-  return ("%d:%02d:%02d"):format(s // 3600, s % 3600 // 60, s % 60)
-end
-
-local function HealthTick()
-  Health.seconds = Health.seconds + 1
-  -- main timer watchdog
-  if Health.ticks == Health.seenTicks then
-    Health.stalled = Health.stalled + 1
-    if Health.stalled >= STALL_AFTER then
-      Report("Main timer stalled - restarting it", "stall")
-      MainTimer:Stop()
-      MainTimer:Start(TICK)
-      Health.stalled = 0
-    end
-  else
-    Health.stalled = 0
-  end
-  Health.seenTicks = Health.ticks
-  -- memory guard
-  local kb = MemoryKB()
-  if HasGc and (Health.seconds % GC_EVERY == 0 or kb > MEM_LIMIT_KB) then
-    collectgarbage("collect")
-    kb = MemoryKB()
-    if kb > MEM_LIMIT_KB then
-      Report(("Memory limit reached (%.1f MB) - resetting connection"):format(kb / 1024), "memory limit")
-      ResetConnection("Memory limit reached")
-      collectgarbage("collect")
-      kb = MemoryKB()
-    end
-  end
-  -- measured right after a full collection: live data only, garbage excluded
-  if HasGc and Health.seconds % GC_EVERY == 0 and kb > MEM_WARN_KB then
-    Report(("High memory use: %.1f MB (normal is about 1 MB)"):format(kb / 1024), "memory warn")
-  end
-  -- readouts: Plugin Uptime follows the main timer, so it stops when the plugin hangs
-  SetString("Lua Memory", HasGc and ("%.1f MB"):format(kb / 1024) or "n/a")
-  SetString("Plugin Uptime", FormatUptime(Now))
-  SetString("Internal Errors", tostring(Health.errors))
-end
-
-local HealthTimer = Timer.New()
-HealthTimer.EventHandler = function()
-  local ok, err = pcall(HealthTick)
-  if not ok then Report("Health check failed: " .. tostring(err)) end
-end
-AtemRuntime.HealthTimer = HealthTimer
+local Health = LevoHealth.New({
+  name = "ATEM Switcher", tag = "[ATEM]", timer = MainTimer, tick = TICK, controls = Controls,
+  onError = SetError, onReset = ResetConnection,
+})
+OnInternalError = Health.OnError
+MainTimer.EventHandler = Health.MainHandler(MainTick)
+AtemRuntime.HealthTimer = Health.Timer
 
 ---------------------------------------------------------------------------
 -- User input
@@ -1342,6 +1241,6 @@ end
 RenderAll()
 Log(1, ("Started, build %s - model %s, %d M/E"):format(PluginInfo.BuildVersion, Topo.Name, Topo.MEs))
 MainTimer:Start(TICK)
-HealthTimer:Start(1)
+Health.Start()
 local ok, err = pcall(Connect)
 if not ok then OnInternalError("start", err) end
