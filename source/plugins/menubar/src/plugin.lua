@@ -6,7 +6,7 @@
 --[[ #include "levo_brand.lua" ]]
 --[[ #include "icons.lua" ]]
 
-PageNames = { "Control", "About" }
+PageNames = { "Control", "Setup", "About" }
 
 function GetColor(props)
   return LevoBrand.Colors.Atlantic

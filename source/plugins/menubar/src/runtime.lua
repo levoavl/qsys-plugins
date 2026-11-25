@@ -13,70 +13,115 @@ local function SetStatus(value, text)
   Controls.Status.String = text or ""
 end
 
--- Configuration ----------------------------------------------------------------
+-- Fixed configuration (properties) ---------------------------------------------
 local P = function(name) return Properties[name].Value end
-local N          = P("Menu Count")
-local VERTICAL   = P("Orientation") == "Vertical"
-local IW, IH     = P("Item Width"), P("Item Height")
-local SPACING    = P("Item Spacing")
-local RADIUS     = P("Corner Radius")
-local EACH_ITEM  = P("Rounded Corners") == "Each Item"
-local CONTENT    = P("Content")
-local FONT       = P("Font")
-local FONT_SIZE  = P("Font Size")
-local BOLD       = P("Bold Active")
-local ICON_SIZE  = P("Icon Size")
-local FILL_ICON  = P("Fill Active Icon")
-local IND_STYLE  = P("Indicator Style")
-local LINE_END   = P("Line Position") == "Bottom / Right"
-local IND_SIZE   = P("Indicator Size")
-local IND_MARGIN = P("Indicator Margin")
-local DIVIDERS   = P("Dividers")
-local DIV_LEN    = P("Divider Length") / 100
-local DIV_W      = P("Divider Width")
-local ANIM_MS    = P("Animation Time")
-local NAV        = P("Navigation")
-local TRANSITION = P("Layer Transition")
+local N        = P("Menu Count")
+local VERTICAL = P("Orientation") == "Vertical"
+local IW, IH   = P("Item Width"), P("Item Height")
+local SPACING  = P("Item Spacing")
+local NAV      = P("Navigation")
 
 local SPAN  = VERTICAL and IH or IW   -- item length along the bar
 local PITCH = SPAN + SPACING          -- distance from one item to the next
 local FRAME_S = 0.03                  -- ~33 frames per second
 
+local function Trim(s) return (s:gsub("^%s+", ""):gsub("%s+$", "")) end
 local function Hex(rgb) return string.format("#%02X%02X%02X", rgb[1], rgb[2], rgb[3]) end
-local DEFAULT_COLORS = {
-  ["Background"]  = Hex(LevoBrand.Colors.Porcelain),
-  ["Text"]        = Hex(LevoBrand.Colors.Onyx),
-  ["Active Text"] = Hex(LevoBrand.Colors.Atlantic),
-  ["Indicator"]   = Hex(LevoBrand.Colors.Amber),
-  ["Divider"]     = Hex(LevoBrand.Colors.Line),
+
+-- Live configuration (Setup page) ----------------------------------------------------
+local CHOICES = {
+  ["Content"]          = { "Text", "Icon", "Icon + Text" },
+  ["Font"]             = { "Arial", "Helvetica", "Verdana", "Tahoma", "Trebuchet MS", "Georgia" },
+  ["Rounded Corners"]  = { "Bar Ends", "Each Item" },
+  ["Indicator Style"]  = { "None", "Line", "Pill", "Block" },
+  ["Line Position"]    = { "Bottom / Right", "Top / Left" },
+  ["Layer Transition"] = { "none", "fade", "left", "right", "top", "bottom" },
 }
 
-local function Trim(s) return (s:gsub("^%s+", ""):gsub("%s+$", "")) end
+-- Written once on the first start; afterwards the user's values are kept
+local DEFAULTS = {
+  ["Content"] = "Text", ["Font"] = "Arial", ["Font Size"] = 22, ["Bold Active"] = true,
+  ["Icon Size"] = 36, ["Fill Active Icon"] = true,
+  ["Corner Radius"] = 0, ["Rounded Corners"] = "Bar Ends",
+  ["Indicator Style"] = "Line", ["Line Position"] = "Bottom / Right",
+  ["Indicator Size"] = 6, ["Indicator Margin"] = 0, ["Animation Time"] = 300,
+  ["Dividers"] = false, ["Divider Length"] = 60, ["Divider Width"] = 2,
+  ["Color Background"]  = Hex(LevoBrand.Colors.Porcelain),
+  ["Color Text"]        = Hex(LevoBrand.Colors.Onyx),
+  ["Color Active Text"] = Hex(LevoBrand.Colors.Atlantic),
+  ["Color Indicator"]   = Hex(LevoBrand.Colors.Amber),
+  ["Color Divider"]     = Hex(LevoBrand.Colors.Line),
+  ["Layer Transition"]  = "fade",
+}
 
--- Colours come from the properties; invalid values fall back to the levo colours
-local COLORS = {}
-for name, default in pairs(DEFAULT_COLORS) do
-  local s = P("Color " .. name):gsub("%s", "")
-  if s:match("^#%x%x%x%x%x%x$") or s:match("^#%x%x%x$") or s:lower() == "none" then
-    COLORS[name] = s
-  else
-    if s ~= "" then print(('[levo] Color %s "%s" is not a hex colour, using %s'):format(name, s, default)) end
-    COLORS[name] = default
+for name, list in pairs(CHOICES) do
+  if Controls[name] then Controls[name].Choices = list end
+end
+
+if Controls["Defaults Set"].String == "" then
+  for name, v in pairs(DEFAULTS) do
+    local ctl = Controls[name]
+    if ctl then
+      if type(v) == "boolean" then ctl.Boolean = v
+      elseif type(v) == "number" then ctl.Value = v
+      else ctl.String = v end
+    end
+  end
+  for i = 1, N do Controls.Label[i].String = "Menu " .. i end
+  Controls["Defaults Set"].String = "1"
+end
+
+local function S(name) return Controls[name].String end
+local function V(name) return math.floor(Controls[name].Value + 0.5) end
+local function B(name) return Controls[name].Boolean end
+
+local RADIUS, EACH_ITEM, CONTENT, FONT, FONT_SIZE, BOLD, ICON_SIZE, FILL_ICON
+local IND_STYLE, LINE_END, IND_SIZE, IND_MARGIN, DIVIDERS, DIV_LEN, DIV_W, ANIM_MS, TRANSITION
+local COLORS, ITEMS = {}, {}
+
+local function LoadConfig()
+  RADIUS     = V("Corner Radius")
+  EACH_ITEM  = S("Rounded Corners") == "Each Item"
+  CONTENT    = S("Content")
+  FONT       = S("Font") ~= "" and S("Font") or "Arial"
+  FONT_SIZE  = V("Font Size")
+  BOLD       = B("Bold Active")
+  ICON_SIZE  = V("Icon Size")
+  FILL_ICON  = B("Fill Active Icon")
+  IND_STYLE  = S("Indicator Style")
+  LINE_END   = S("Line Position") ~= "Top / Left"
+  IND_SIZE   = V("Indicator Size")
+  IND_MARGIN = V("Indicator Margin")
+  DIVIDERS   = B("Dividers")
+  DIV_LEN    = V("Divider Length") / 100
+  DIV_W      = V("Divider Width")
+  ANIM_MS    = V("Animation Time")
+  TRANSITION = Controls["Layer Transition"] and S("Layer Transition") or "fade"
+  if TRANSITION == "" then TRANSITION = "fade" end
+
+  -- colours: hex or "none"; anything else falls back to the levo colour
+  for _, name in ipairs({ "Background", "Text", "Active Text", "Indicator", "Divider" }) do
+    local s = S("Color " .. name):gsub("%s", "")
+    if s:match("^#%x%x%x%x%x%x$") or s:match("^#%x%x%x$") or s:lower() == "none" then
+      COLORS[name] = s
+    else
+      COLORS[name] = DEFAULTS["Color " .. name]
+    end
+  end
+
+  for i = 1, N do
+    local icon = Trim(Controls.Icon[i].String)
+    ITEMS[i] = {
+      label  = Trim(Controls.Label[i].String),
+      icon   = icon ~= "" and icon ~= "(none)" and icon or nil,
+      page   = Controls.Page and Trim(Controls.Page[i].String) or "",
+      layers = Controls.Layers and Controls.Layers[i].String or "",
+    }
   end
 end
-local function Color(name) return COLORS[name] end
+LoadConfig()
 
--- Per-item settings from the properties
-local ITEMS = {}
-for i = 1, N do
-  local icon = P(("Menu %d Icon"):format(i))
-  ITEMS[i] = {
-    label  = Trim(P(("Menu %d Label"):format(i))),
-    icon   = icon ~= "(none)" and icon or nil,
-    page   = Trim(P(("Menu %d Page"):format(i))),
-    layers = P(("Menu %d Layers"):format(i)),
-  }
-end
+local function Color(name) return COLORS[name] end
 
 local function Fill(color)
   return color:lower() == "none" and 'fill="none"' or ('fill="' .. color .. '"')
@@ -257,15 +302,48 @@ local function SplitList(s)
   return list
 end
 
+-- Uci.SetPage needs the Inventory name. A status block's code name often differs
+-- (e.g. "UCI_Viewer_UCI_Viewer-1" for the Inventory name "UCI_Viewer_1"), so we try a few
+-- variants once and remember the one that works.
+local resolved = {}
+
+local function Candidates(name)
+  local list, seen = {}, {}
+  local function add(c) if c ~= "" and not seen[c] then seen[c] = true; table.insert(list, c) end end
+  local bases = { name }
+  for _, prefix in ipairs({ "UCI_Viewer_", "TSC_Status_", "Touch_Screen_Status_", "TSC_" }) do
+    if name:sub(1, #prefix) == prefix then table.insert(bases, name:sub(#prefix + 1)) end
+  end
+  for _, b in ipairs(bases) do
+    add(b); add((b:gsub("%-", "_"))); add((b:gsub("_", "-")))
+  end
+  return list
+end
+
+local function SetPage(panel, page)
+  if resolved[panel] then return pcall(Uci.SetPage, resolved[panel], page) end
+  local lastErr
+  for _, name in ipairs(Candidates(panel)) do
+    local ok, err = pcall(Uci.SetPage, name, page)
+    if ok then
+      resolved[panel] = name
+      if name ~= panel then Log(1, ('Panel "%s" found as "%s"'):format(panel, name)) end
+      return true
+    end
+    lastErr = err
+  end
+  return false, lastErr
+end
+
 local function NavigatePage(i)
   local page = ITEMS[i].page
   if page == "" then return end
-  local panels = SplitList(P("Panels"))
+  local panels = SplitList(S("Panels"))
   if #panels == 0 then navError = "No panel set"; return end
   for _, panel in ipairs(panels) do
-    local ok, err = pcall(Uci.SetPage, panel, page)
+    local ok, err = SetPage(panel, page)
     if ok then
-      Log(2, ('SetPage "%s" -> "%s"'):format(panel, page))
+      Log(2, ('SetPage "%s" -> "%s"'):format(resolved[panel] or panel, page))
     else
       navError = ('Page "%s" on "%s": %s'):format(page, panel, tostring(err))
       Log(1, navError)
@@ -274,7 +352,7 @@ local function NavigatePage(i)
 end
 
 local function NavigateLayers(i)
-  local uci = Trim(P("UCI Name"))
+  local uci = Trim(S("UCI Name"))
   if uci == "" then navError = "No UCI name set"; return end
   -- layers of the selected item stay visible even if other items list them too
   local keep = {}
@@ -360,30 +438,54 @@ Controls.Lock.EventHandler = function()
   UpdateStatus()
 end
 
+-- Every look setting is live: reload and redraw
+local function Live()
+  LoadConfig()
+  animTimer:Stop()
+  pos = (current - 1) * PITCH
+  RenderAll()
+end
+for name in pairs(DEFAULTS) do
+  if Controls[name] then Controls[name].EventHandler = Live end
+end
 
--- Panel discovery (Page mode): list touch panels / UCI viewers with Script Access in the log.
--- Uci.SetPage needs the Inventory name, the status block's code name usually carries a prefix.
+local iconChoices = { "(none)" }
+for _, name in ipairs(MenuIconNames) do table.insert(iconChoices, name) end
+for n = 1, N do
+  Controls.Icon[n].Choices = iconChoices
+  Controls.Icon[n].EventHandler = Live
+  Controls.Label[n].EventHandler = Live
+  if Controls.Page then Controls.Page[n].EventHandler = LoadConfig end
+  if Controls.Layers then Controls.Layers[n].EventHandler = LoadConfig end
+end
+
+-- Panel discovery (Page mode): touch panels / UCI viewers with Script Access
 if NAV == "Page" then
   local found = {}
   for _, comp in ipairs(Component.GetComponents()) do
     local t = tostring(comp.Type):lower()
     Log(2, ('Component "%s" type "%s"'):format(comp.Name, comp.Type))
     if t:find("uci") or t:find("touch") or t:find("tsc") or t:find("panel") then
-      local guess = comp.Name:gsub("^UCI_Viewer_", ""):gsub("^Touch_Screen_Status_", ""):gsub("^TSC_Status_", "")
-      table.insert(found, guess)
-      if DebugLevel >= 2 and comp.Properties then
-        for _, p in ipairs(comp.Properties) do
-          Log(2, ('  %s = %s'):format(tostring(p.Name), tostring(p.Value)))
-        end
-      end
+      table.insert(found, comp.Name)
     end
   end
+  table.sort(found)
+  Controls["Add Panel"].Choices = found
   if #found > 0 then
-    Log(1, "Panels found (enter the Inventory name in 'Panels'): " .. table.concat(found, ", "))
+    Log(1, #found .. " panel(s) found: " .. table.concat(found, ", "))
   else
-    Log(1, "No panels found. Enable Script Access on the touch panel / UCI viewer status block to list them here.")
+    Log(1, "No panels found. Enable Script Access on the touch panel / UCI viewer status block, or type the Inventory name into Panels.")
   end
-  if Trim(P("Panels")) == "" then navError = "No panel set (property 'Panels')" end
+
+  Controls["Add Panel"].EventHandler = function(ctl)
+    local name = Trim(ctl.String)
+    if name == "" then return end
+    local list = SplitList(S("Panels"))
+    for _, p in ipairs(list) do if p == name then ctl.String = ""; return end end
+    table.insert(list, name)
+    Controls.Panels.String = table.concat(list, ", ")
+    ctl.String = ""
+  end
 end
 
 -- Start ----------------------------------------------------------------------------
