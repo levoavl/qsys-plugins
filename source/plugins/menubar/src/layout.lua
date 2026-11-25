@@ -2,7 +2,9 @@
 local n        = props["Menu Count"].Value
 local vertical = props["Orientation"].Value == "Vertical"
 local IW, IH   = props["Item Width"].Value, props["Item Height"].Value
-local SP       = -props["Item Overlap"].Value   -- negative spacing = overlap; the gap is drawn inside the SVG
+-- Buttons overlap by 2 px: Q-SYS leaves a thin inset around a button icon, the overlap hides it.
+-- Visible gaps come from Item Gap, drawn inside the SVG.
+local SP       = -2
 local C   = LevoBrand.Colors
 local M   = 16
 local ROW = 24

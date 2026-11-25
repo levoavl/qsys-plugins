@@ -18,7 +18,7 @@ local P = function(name) return Properties[name].Value end
 local N        = P("Menu Count")
 local VERTICAL = P("Orientation") == "Vertical"
 local BASE_W, BASE_H = P("Item Width"), P("Item Height")
-local OVERLAP = P("Item Overlap")
+local OVERLAP = 2   -- px, must match the layout (hides the inset around button icons)
 -- Drawing size of one item. Width/Height Correction (Setup) enlarge the SVG when Q-SYS
 -- fits it into a box with a different aspect ratio than the button.
 local IW, IH = BASE_W, BASE_H
@@ -46,18 +46,18 @@ local CHOICES = {
 
 -- Written once on the first start; afterwards the user's values are kept
 local DEFAULTS = {
-  ["Content"] = "Text", ["Font"] = "Arial", ["Font Size"] = 22, ["Bold Active"] = true,
-  ["Icon Size"] = 36, ["Fill Active Icon"] = true,
-  ["Item Gap"] = 0, ["Width Correction"] = 0, ["Height Correction"] = 0, ["Corner Radius"] = 0, ["Rounded Corners"] = "Bar Ends",
-  ["Indicator Style"] = "Line", ["Line Position"] = "Bottom / Right",
-  ["Indicator Size"] = 6, ["Indicator Margin X"] = 0, ["Indicator Margin Y"] = 0, ["Animation Time"] = 300,
-  ["Dividers"] = false, ["Divider Length"] = 60, ["Divider Width"] = 2,
-  ["Color Background"]  = Hex(LevoBrand.Colors.Porcelain),
-  ["Color Text"]        = Hex(LevoBrand.Colors.Onyx),
-  ["Color Active Text"] = Hex(LevoBrand.Colors.Atlantic),
+  ["Content"] = "Icon + Text", ["Font"] = "Tahoma", ["Font Size"] = 18, ["Bold Active"] = true,
+  ["Icon Size"] = 28, ["Fill Active Icon"] = true,
+  ["Item Gap"] = 0, ["Width Correction"] = 0, ["Height Correction"] = 0, ["Corner Radius"] = 30, ["Rounded Corners"] = "Bar Ends",
+  ["Indicator Style"] = "Pill", ["Line Position"] = "Bottom / Right",
+  ["Indicator Size"] = 4, ["Indicator Margin X"] = 0, ["Indicator Margin Y"] = 0, ["Animation Time"] = 200,
+  ["Dividers"] = true, ["Divider Length"] = 60, ["Divider Width"] = 2,
+  ["Color Background"]  = Hex(LevoBrand.Colors.Atlantic),
+  ["Color Text"]        = Hex(LevoBrand.Colors.Porcelain),
+  ["Color Active Text"] = Hex(LevoBrand.Colors.Porcelain),
   ["Color Indicator"]   = Hex(LevoBrand.Colors.Amber),
-  ["Color Divider"]     = Hex(LevoBrand.Colors.Line),
-  ["Layer Transition"]  = "fade",
+  ["Color Divider"]     = Hex(LevoBrand.Colors.Porcelain),
+  ["Layer Transition"]  = "none",
 }
 
 for name, list in pairs(CHOICES) do
@@ -73,7 +73,15 @@ if Controls["Defaults Set"].String == "" then
       else ctl.String = v end
     end
   end
-  for i = 1, N do Controls.Label[i].String = "Menu " .. i end
+  local items = {
+    { "Power", "power_settings_new" }, { "Audio", "mic" },
+    { "Video", "desktop_windows" }, { "Settings", "settings" },
+  }
+  for i = 1, N do
+    local it = items[i]
+    Controls.Label[i].String = it and it[1] or ("Menu " .. i)
+    Controls.Icon[i].String = it and it[2] or ""
+  end
   Controls["Defaults Set"].String = "1"
 end
 
@@ -291,7 +299,7 @@ local function Indicator(i, d)
 end
 
 -- Divider on boundary k (between item k and k+1), drawn in item i's coordinates.
--- With Item Overlap both items draw it at the same spot, whichever lies on top shows it.
+-- Neighbouring buttons overlap by 2 px; both items draw it at the same spot, whichever lies on top shows it.
 local function DividerAt(i, k)
   if k < 1 or k >= N then return "" end
   -- no divider where a Pill or Block covers the edge (also while it slides)
