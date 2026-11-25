@@ -89,7 +89,7 @@ local function MacBytes(mac)
   return string.char(table.unpack(h))
 end
 
--- ArtPollReply for one universe (one port). opts: ip, mac, shortName, longName,
+-- ArtPollReply for one universe (one port). opts: ip, mac, output, shortName, longName,
 -- report, portAddress, bindIndex, version (major, minor), active
 function ArtNet.PollReply(o)
   local pa = o.portAddress or 0
@@ -104,11 +104,12 @@ function ArtNet.PollReply(o)
     "\0\0",                                                   -- EstaMan
     Fixed(o.shortName, 18), Fixed(o.longName, 64), Fixed(o.report, 64),
     U16BE(1),                                                 -- NumPorts
-    string.char(0x40, 0, 0, 0),                               -- PortTypes: DMX512, input to Art-Net
-    string.char(o.active and 0x80 or 0x00, 0, 0, 0),          -- GoodInput: data received
-    string.char(0, 0, 0, 0),                                  -- GoodOutput
-    string.char(pa & 0x0F, 0, 0, 0),                          -- SwIn
-    string.char(0, 0, 0, 0),                                  -- SwOut
+    -- PortTypes: DMX512; a send universe is an input to Art-Net, a receive universe an output
+    string.char(o.output and 0x80 or 0x40, 0, 0, 0),
+    string.char((not o.output and o.active) and 0x80 or 0x00, 0, 0, 0),  -- GoodInput: data received
+    string.char((o.output and o.active) and 0x80 or 0x00, 0, 0, 0),      -- GoodOutput: data transmitted
+    string.char(o.output and 0 or (pa & 0x0F), 0, 0, 0),                 -- SwIn
+    string.char(o.output and (pa & 0x0F) or 0, 0, 0, 0),                 -- SwOut
     "\0\0\0", "\0\0\0",                                       -- AcnPriority, SwMacro, SwRemote, Spare x3
     string.char(0x01),                                        -- Style: StController
     MacBytes(o.mac),                                          -- MAC
@@ -117,4 +118,28 @@ function ArtNet.PollReply(o)
   }
   local s = table.concat(p)
   return s .. string.rep("\0", ArtNet.POLL_REPLY_LEN - #s)
+end
+
+-- ArtPoll (controllers send it to find nodes)
+function ArtNet.Poll()
+  return "Art-Net\0" .. U16LE(ArtNet.OP_POLL) .. U16BE(ArtNet.PROT_VER) .. string.char(0x00, 0x00)
+end
+
+-- Parses an ArtDmx packet: returns sequence, portAddress, data (string of the DMX
+-- slots as sent, 2..512 bytes), or nil when it is not a valid ArtDmx
+function ArtNet.ParseDmx(data)
+  if ArtNet.OpCode(data) ~= ArtNet.OP_DMX or #data < 20 then return nil end
+  local seq = data:byte(13)
+  local pa = data:byte(15) | ((data:byte(16) & 0x7F) << 8)
+  local len = (data:byte(17) << 8) | data:byte(18)
+  if len < 1 or len > ArtNet.SLOTS then return nil end
+  return seq, pa, data:sub(19, 18 + len)
+end
+
+-- Parses an ArtPollReply: returns ip string and short name, or nil
+function ArtNet.ParsePollReply(data)
+  if ArtNet.OpCode(data) ~= ArtNet.OP_POLL_REPLY or #data < 108 then return nil end
+  local ip = string.format("%d.%d.%d.%d", data:byte(11), data:byte(12), data:byte(13), data:byte(14))
+  local short = data:sub(27, 44):match("^[^%z]*")
+  return ip, short
 end

@@ -115,6 +115,12 @@ Network = { Interfaces = function()
 end }
 Design = { GetStatus = function() return { DesignName = "Test Design" } end }
 
+function Feed(from, data)
+  for _, s in ipairs(Sockets) do
+    if s.port == 6454 and s.EventHandler then s.EventHandler(s, { Address = from, Port = 6454, Data = data }) end
+  end
+end
+
 function FeedPoll(from)
   for _, s in ipairs(Sockets) do
     if s.port == 6454 and s.EventHandler then
@@ -124,6 +130,23 @@ function FeedPoll(from)
   end
 end
 """
+
+
+def artdmx(port_address, slots, seq=1, length=None):
+    data = bytes(slots)
+    if length is None:
+        length = len(data)
+    return (b"Art-Net\0" + struct.pack("<H", 0x5000) + struct.pack(">H", 14) + bytes([seq, 0])
+            + bytes([port_address & 0xFF, (port_address >> 8) & 0x7F]) + struct.pack(">H", length) + data)
+
+
+def artpollreply(ip, short):
+    d = bytearray(239)
+    d[0:8] = b"Art-Net\0"
+    d[8:10] = struct.pack("<H", 0x2100)
+    d[10:14] = bytes(int(x) for x in ip.split("."))
+    d[26:26 + len(short)] = short.encode()
+    return bytes(d)
 
 
 class Harness:
@@ -170,6 +193,9 @@ class Harness:
 
     def ctl(self, name):
         return self.g.Controls[name]
+
+    def feed(self, sender, data):
+        self.g.Feed(sender, data.decode("latin-1"))
 
     def advance(self, s):
         self.g.Advance(s)
@@ -295,7 +321,7 @@ def test_no_timer_now():
 def test_discovery():
     print("discovery (ArtPoll / ArtPollReply)")
     h = Harness({"Universe Count": 2, "Channels U1": 8, "Channels U2": 8})
-    check("Answering" in h.ctl("Discovery").String, "discovery socket bound to 6454")
+    check("active" in h.ctl("Discovery").String, "discovery socket bound to 6454")
     ann = [ip for ip, _, d in h.sent() if d[8:10] == bytes([0x00, 0x21])]
     check(len(ann) == 2 and set(ann) == {"192.168.1.255"}, "announcement at start-up to first subnet broadcast")
     h.set("Node Name", "String", "Kesselhaus Licht")
@@ -340,7 +366,85 @@ def test_continuous():
     check(55 <= n <= 62, f"~30 packets/s while idle ({n} in 2 s)")
 
 
+def test_range():
+    print("send channel range 100-130")
+    h = Harness({"Start Channel U1": 100, "Channels U1": 31})
+    check(h.ctl("U1 Ch 100") is not None and h.ctl("U1 Ch 130") is not None, "controls named Ch 100..130")
+    check(h.ctl("U1 Ch 99") is None and h.ctl("U1 Ch 131") is None, "no controls outside the range")
+    h.set("U1 Target IP", "String", "10.0.0.50")
+    h.set("U1 Enable", "Boolean", True)
+    h.set("U1 Ch 100", "Value", 11)
+    h.set("U1 Ch 130", "Value", 22)
+    h.advance(0.1)
+    p = parse(h.sent()[-1][2])
+    check(p["slots"][99] == 11 and p["slots"][129] == 22, "values at DMX 100 and 130")
+    check(all(b == 0 for i, b in enumerate(p["slots"]) if i < 99 or i > 129), "everything else 0")
+    h2 = Harness({"Start Channel U1": 500, "Channels U1": 32})
+    check(h2.ctl("U1 Ch 512") is not None and h2.ctl("U1 Ch 513") is None, "range clamped at 512")
+
+
+def test_receive():
+    print("receive")
+    h = Harness({"Mode U1": "Receive", "Start Channel U1": 10, "Channels U1": 5})
+    check(h.ctl("U1 Target IP") is None, "no target IP on a receive universe")
+    h.set("U1 Universe", "Value", 1)
+    h.advance(1.1)
+    check(h.ctl("Status").Value == 4, "Missing while no data")
+    slots = [0] * 512
+    slots[9], slots[13], slots[14] = 200, 77, 99   # DMX 10, 14 (in range), 15 (out of range)
+    h.feed("192.168.1.239", artdmx(1, slots))
+    check(h.ctl("U1 Ch 10").Value == 200 and h.ctl("U1 Ch 14").Value == 77, "values arrive on Ch 10 / Ch 14")
+    check(h.ctl("U1 Data").Boolean, "Data LED on")
+    h.feed("192.168.1.239", artdmx(2, [255] * 512))
+    check(h.ctl("U1 Ch 10").Value == 200, "other port address ignored")
+    h.feed("192.168.1.239", artdmx(1, [5] * 12))
+    check(h.ctl("U1 Ch 12").Value == 5 and h.ctl("U1 Ch 13").Value == 0, "short packet: missing slots are 0")
+    h.feed("192.168.1.10", artdmx(1, [250] * 512))
+    check(h.ctl("U1 Ch 10").Value == 5, "own packets ignored")
+    h.feed("192.168.1.239", artpollreply("192.168.1.239", "Arena"))
+    for _ in range(30):
+        h.feed("192.168.1.239", artdmx(1, [9] * 512))
+        h.g.Advance(1 / 30)
+    check(h.ctl("Status").Value == 0, "status OK while receiving")
+    info = h.ctl("U1 Info").String
+    check("Arena" in info and "pkt/s" in info, f"info shows sender name and rate ({info})")
+    h.feed("192.168.1.240", artdmx(1, [1] * 512))
+    h.advance(1.1)
+    check(h.ctl("Status").Value == 1, "two sources -> Compromised")
+
+    h.set("U1 Source Filter", "String", "192.168.1.239")
+    h.feed("192.168.1.240", artdmx(1, [3] * 512))
+    check(h.ctl("U1 Ch 10").Value != 3, "source filter blocks other IPs")
+
+    h.advance(4.5)
+    check(not h.ctl("U1 Data").Boolean and h.ctl("U1 Ch 10").Value != 0, "timeout: LED off, Hold keeps values")
+    check(h.ctl("Status").Value == 4, "status Missing after timeout")
+    h.set("U1 On Loss", "String", "Zero")
+    h.feed("192.168.1.239", artdmx(1, [9] * 512))
+    h.advance(4.5)
+    check(h.ctl("U1 Ch 10").Value == 0, "timeout with Zero sets channels to 0")
+
+    print("mixed send + receive")
+    h = Harness({"Universe Count": 2, "Mode U2": "Receive", "Channels U1": 4, "Channels U2": 4})
+    h.set("U1 Target IP", "String", "192.168.1.239")
+    h.set("U1 Enable", "Boolean", True)
+    h.set("U2 Universe", "Value", 3)
+    h.feed("192.168.1.239", artdmx(3, [42] * 512))
+    h.advance(1.1)
+    check(h.ctl("U2 Ch 1").Value == 42, "U2 receives while U1 sends")
+    check(h.ctl("Status").Value == 0 and "receiving 1" in h.ctl("Status").String, h.ctl("Status").String)
+    polls = [ip for ip, _, d in h.sent() if d[8:10] == bytes([0x00, 0x20])]
+    check(len(polls) >= 1, "sends ArtPoll to learn sender names")
+    h.clear()
+    h.g.FeedPoll("192.168.1.239")
+    rep = [d for ip, _, d in h.sent() if d[8:10] == bytes([0x00, 0x21]) and ip == "192.168.1.239"]
+    check(len(rep) == 2 and rep[0][174] == 0x40 and rep[1][174] == 0x80, "reply: U1 input port, U2 output port")
+    check(rep[1][190] == 3, "U2 SwOut = universe 3")
+
+
 test_basic()
+test_range()
+test_receive()
 test_multi()
 test_discovery()
 test_continuous()

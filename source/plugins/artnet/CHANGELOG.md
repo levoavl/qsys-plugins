@@ -1,5 +1,16 @@
 # Changelog – Art-Net
 
+## 0.6 – unreleased
+
+- Receive mode: property "Mode U1..U4" (Send / Receive). Receive universes show the
+  incoming values as read-only knobs with output pins, a Data LED, source IP and name,
+  packets per second. Setup: optional source IP filter, timeout, on loss Hold / Zero.
+  Several sources on one universe: latest wins, Status warns.
+- Learns sender names from ArtPollReply and polls every 30 s when receiving.
+- Channel range: property "Start Channel U1..U4", controls are named by their DMX
+  channel (e.g. "U1 Ch 100"). Send: slots outside the range are 0.
+- Note: changing Start Channel renames the channel controls (pins need rewiring).
+
 ## 0.5 – unreleased
 
 - ArtPollReply now also goes to the subnet broadcast address (Art-Net 3 behaviour,

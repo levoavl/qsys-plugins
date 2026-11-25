@@ -6,19 +6,28 @@ local function Add(def)
   table.insert(ctrls, def)
 end
 
-local universeCount = props["Universe Count"].Value
-
-for u = 1, universeCount do
+for u = 1, ArtNetConfig.Count(props) do
+  local cfg = ArtNetConfig.Universe(props, u)
   local p = "U" .. u .. " "
-  for ch = 1, props["Channels U" .. u].Value do
-    Add({ Name = p .. "Ch " .. ch, ControlType = "Knob", ControlUnit = "Integer", Min = 0, Max = 255 })
+  local receive = cfg.mode == "Receive"
+  -- channel controls are named by their DMX channel (U1 Ch 100 ...)
+  for ch = cfg.first, cfg.last do
+    Add({ Name = p .. "Ch " .. ch, ControlType = "Knob", ControlUnit = "Integer", Min = 0, Max = 255,
+          PinStyle = receive and "Output" or "Both" })
   end
-  Add({ Name = p .. "Target IP", ControlType = "Text" })
   Add({ Name = p .. "Net", ControlType = "Knob", ControlUnit = "Integer", Min = 0, Max = 127 })
   Add({ Name = p .. "SubNet", ControlType = "Knob", ControlUnit = "Integer", Min = 0, Max = 15 })
   Add({ Name = p .. "Universe", ControlType = "Knob", ControlUnit = "Integer", Min = 0, Max = 15 })
-  Add({ Name = p .. "Enable", ControlType = "Button", ButtonType = "Toggle" })
   Add({ Name = p .. "Info", ControlType = "Indicator", IndicatorType = "Text", PinStyle = "Output" })
+  if receive then
+    Add({ Name = p .. "Source Filter", ControlType = "Text" })
+    Add({ Name = p .. "Timeout", ControlType = "Knob", ControlUnit = "Integer", Min = 1, Max = 60 })
+    Add({ Name = p .. "On Loss", ControlType = "Text" })   -- combo: Hold / Zero
+    Add({ Name = p .. "Data", ControlType = "Indicator", IndicatorType = "Led", PinStyle = "Output" })
+  else
+    Add({ Name = p .. "Target IP", ControlType = "Text" })
+    Add({ Name = p .. "Enable", ControlType = "Button", ButtonType = "Toggle" })
+  end
 end
 
 Add({ Name = "Broadcast", ControlType = "Button", ButtonType = "Toggle" })

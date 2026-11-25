@@ -1,15 +1,16 @@
--- levo AVL Q-SYS plugin - Art-Net sender
+-- levo AVL Q-SYS plugin - Art-Net send / receive
 -- Built into a single .qplug by tools/build.py (resolves the #include lines).
 -- (c) levo AVL | Elias Jenny - MIT License
 
 --[[ #include "info.lua" ]]
 --[[ #include "levo_brand.lua" ]]
 --[[ #include "artnet_protocol.lua" ]]
+--[[ #include "universe_config.lua" ]]
 
 -- One page per universe, then Setup and About
 function PageList(props)
   local pages = {}
-  for u = 1, props["Universe Count"].Value do
+  for u = 1, ArtNetConfig.Count(props) do
     table.insert(pages, "Universe " .. u)
   end
   table.insert(pages, "Setup")

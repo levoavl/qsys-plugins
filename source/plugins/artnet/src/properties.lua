@@ -5,6 +5,14 @@ table.insert(props, {
 })
 for u = 1, 4 do
   table.insert(props, {
+    Name = "Mode U" .. u,
+    Type = "enum", Choices = { "Send", "Receive" }, Value = "Send",
+  })
+  table.insert(props, {
+    Name = "Start Channel U" .. u,
+    Type = "integer", Min = 1, Max = 512, Value = 1,
+  })
+  table.insert(props, {
     Name = "Channels U" .. u,
     Type = "integer", Min = 1, Max = 512, Value = 32,
   })
