@@ -5,6 +5,8 @@ table.insert(props, { Name = "Menu Count",   Type = "integer", Min = 2, Max = 12
 table.insert(props, { Name = "Orientation",  Type = "enum", Choices = { "Horizontal", "Vertical" }, Value = "Horizontal" })
 table.insert(props, { Name = "Item Width",   Type = "integer", Min = 30, Max = 1000, Value = 200 })
 table.insert(props, { Name = "Item Height",  Type = "integer", Min = 30, Max = 600, Value = 80 })
+-- px the buttons overlap on the UCI, hides the thin inset Q-SYS leaves around a button icon
+table.insert(props, { Name = "Item Overlap", Type = "integer", Min = 0, Max = 20, Value = 0 })
 table.insert(props, {
   Name = "Debug Print",
   Type = "enum",

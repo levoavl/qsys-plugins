@@ -2,7 +2,7 @@
 local n        = props["Menu Count"].Value
 local vertical = props["Orientation"].Value == "Vertical"
 local IW, IH   = props["Item Width"].Value, props["Item Height"].Value
-local SP       = 0   -- items sit edge to edge; the gap is drawn inside the SVG
+local SP       = -props["Item Overlap"].Value   -- negative spacing = overlap; the gap is drawn inside the SVG
 local C   = LevoBrand.Colors
 local M   = 16
 local ROW = 24
@@ -28,7 +28,7 @@ local function Bar(x0, y0)
     local x  = vertical and x0 or (x0 + (i - 1) * (IW + SP))
     local iy = vertical and (y0 + (i - 1) * (IH + SP)) or y0
     layout["Menu " .. i] = { PrettyName = "Menu~" .. i, Style = "Button",
-      Position = { x, iy }, Size = { IW, IH }, Margin = 0, Padding = 0 }
+      Position = { x, iy }, Size = { IW, IH }, Margin = 0, Padding = 0, StrokeWidth = 0 }
   end
 end
 

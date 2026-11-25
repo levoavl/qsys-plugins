@@ -18,6 +18,7 @@ local P = function(name) return Properties[name].Value end
 local N        = P("Menu Count")
 local VERTICAL = P("Orientation") == "Vertical"
 local BASE_W, BASE_H = P("Item Width"), P("Item Height")
+local OVERLAP = P("Item Overlap")
 -- Drawing size of one item. Width/Height Correction (Setup) enlarge the SVG when Q-SYS
 -- fits it into a box with a different aspect ratio than the button.
 local IW, IH = BASE_W, BASE_H
@@ -25,7 +26,7 @@ local SPAN, PITCH                     -- item length along the bar; items sit ed
 local function UpdateSize(wc, hc)
   IW, IH = math.max(10, BASE_W + wc), math.max(10, BASE_H + hc)
   SPAN = VERTICAL and IH or IW
-  PITCH = SPAN
+  PITCH = SPAN - OVERLAP
 end
 UpdateSize(0, 0)
 local FRAME_S = 0.03                  -- ~33 frames per second
@@ -273,22 +274,30 @@ local function Indicator(i, d)
   return PolyPath(ClipPoly(shape, RoundRectPoly(bx, by, bw, bh, tl, tr, br, bl)), col)
 end
 
-local function Divider(i)
-  if not DIVIDERS or i == N then return "" end
+-- Divider on boundary k (between item k and k+1), drawn in item i's coordinates.
+-- With Item Overlap both items draw it at the same spot, whichever lies on top shows it.
+local function DividerAt(i, k)
+  if k < 1 or k >= N then return "" end
   -- no divider where a Pill or Block covers the edge (also while it slides)
+  local edge = k * PITCH + OVERLAP / 2 - DIV_W / 2   -- start of the divider along the bar
   if IND_STYLE == "Pill" or IND_STYLE == "Block" then
-    local edge = i * PITCH
-    if edge >= pos - 1 and edge <= pos + SPAN + 1 then return "" end
+    if edge + DIV_W >= pos - 1 and edge <= pos + SPAN + 1 then return "" end
   end
+  local at = edge - (i - 1) * PITCH                   -- relative to item i
   local col = Fill(Color("Divider"))
   if VERTICAL then
     local len = IW * DIV_LEN
     return string.format('<rect x="%.1f" y="%.1f" width="%.1f" height="%d" %s/>',
-      (IW - len) / 2, IH - DIV_W, len, DIV_W, col)
+      (IW - len) / 2, at, len, DIV_W, col)
   end
   local len = IH * DIV_LEN
   return string.format('<rect x="%.1f" y="%.1f" width="%d" height="%.1f" %s/>',
-    IW - DIV_W, (IH - len) / 2, DIV_W, len, col)
+    at, (IH - len) / 2, DIV_W, len, col)
+end
+
+local function Divider(i)
+  if not DIVIDERS then return "" end
+  return DividerAt(i, i - 1) .. DividerAt(i, i)
 end
 
 local function IconSvg(i, cx, top, color, active)
@@ -343,7 +352,7 @@ local function Render(i)
     Divider(i),
     Content(i, active))
   Controls.Menu[i].Style = json.encode({
-    IconData = Crypto.Base64Encode(svg), DrawChrome = false, Margin = 0, Padding = 0, Legend = "",
+    IconData = Crypto.Base64Encode(svg), DrawChrome = false, Margin = 0, Padding = 0, StrokeWidth = 0, Legend = "",
   })
 end
 
