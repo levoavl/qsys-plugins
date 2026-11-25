@@ -89,6 +89,11 @@ function UserSet(name, field, value)
   if c.EventHandler then c.EventHandler(c) end
 end
 
+-- ---------------------------------------------------------------- event log
+EventLog = {}
+Log = { Message = function(s) EventLog[#EventLog + 1] = "msg:" .. s end,
+        Error = function(s) EventLog[#EventLog + 1] = "err:" .. s end }
+
 -- ---------------------------------------------------------------- timer
 Timers = setmetatable({}, { __mode = "v" })   -- weak like on the Core
 Timer = { New = function()
@@ -960,7 +965,7 @@ def test_health():
     print("test_health")
     h = Harness()
     h.tick(int(3 / TICK))
-    check(h.s("Uptime") == "0:00:03", f"uptime follows the main timer: {h.s('Uptime')}")
+    check(h.s("Plugin Uptime") == "0:00:03", f"uptime follows the main timer: {h.s('Plugin Uptime')}")
     check(h.s("Lua Memory").endswith(" MB"), f"memory readout: {h.s('Lua Memory')}")
     # an error in the middle of a reconnect must not freeze the state machine
     L = h.lua
@@ -973,12 +978,14 @@ def test_health():
     h.tick(int(60 / TICK))
     check(h.s("Internal Errors") == "1", f"error counted: {h.s('Internal Errors')}")
     check(any("Internal error (timer)" in p for p in h.printed), "error printed without Debug Print")
+    ev = [h._s(h.g.EventLog[i]) for i in range(1, len(h.g.EventLog) + 1)]
+    check(any(e.startswith("err:ATEM Switcher: Internal error (timer)") for e in ev), f"error in the event log: {ev}")
     check(int(h.s("Reconnects")) >= before + 3, f"still reconnecting after the error ({before} -> {h.s('Reconnects')})")
     # main timer stopped from outside -> watchdog restarts it
     h.g.AtemRuntime.Timer.Stop(h.g.AtemRuntime.Timer)
-    up = h.s("Uptime")
+    up = h.s("Plugin Uptime")
     h.tick(int(5 / TICK))
-    check(h.g.AtemRuntime.Timer.running and h.s("Uptime") != up, f"watchdog restarted the main timer ({up} -> {h.s('Uptime')})")
+    check(h.g.AtemRuntime.Timer.running and h.s("Plugin Uptime") != up, f"watchdog restarted the main timer ({up} -> {h.s('Plugin Uptime')})")
     # connected and idle: memory stays flat
     h2 = Harness()
     h2.connect()
@@ -990,6 +997,13 @@ def test_health():
     L2.execute(b"collectgarbage('collect')")
     kb = L2.eval(b"collectgarbage('count')")
     check(kb < 4096, f"connected 2 min: {kb / 1024:.1f} MB live")
+    check(len(h2.g.EventLog) == 0, "no event log entries in normal operation")
+    # memory above 10 MB -> warning in the event log, once per 10 minutes
+    L2.execute(b"BALLAST = {} for i = 1, 120000 do BALLAST[i] = {i} end")
+    h2.tick(int(130 / TICK))
+    ev = [h2._s(h2.g.EventLog[i]) for i in range(1, len(h2.g.EventLog) + 1)]
+    warns = [e for e in ev if "High memory use" in e]
+    check(len(warns) == 1, f"one memory warning in 2 min: {warns}")
 
 
 def main():

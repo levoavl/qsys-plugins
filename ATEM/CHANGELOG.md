@@ -5,6 +5,17 @@ Format: [Keep a Changelog](https://keepachangelog.com), versioning: `major.minor
 
 ## [Unreleased]
 
+## [1.2] – 2026-11-25
+
+### Added
+- Core event log entries (Core Manager > Event Log) for internal errors, a stalled main
+  timer, the memory limit and a new memory warning above 10 MB (checked after the
+  minute-by-minute garbage collection) – at most one entry per kind every 10 minutes.
+
+### Changed
+- "Uptime" renamed to "Plugin Uptime" (it shows how long the plugin runs, not the
+  switcher). Re-wire the pin if you used it in 1.1.
+
 ## [1.1] – 2026-11-25
 
 ### Fixed

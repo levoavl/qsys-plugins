@@ -13,6 +13,7 @@ local BACKOFF = { 1, 2, 4, 8, 15, 30 }
 
 local Now = 0                 -- monotonic time in seconds, advanced by the main timer
 
+local CoreLog = Log           -- Q-SYS event log API, shadowed by the debug helper below
 local function Log(level, msg)
   if level <= DebugLevel then print(("[ATEM] %s"):format(msg)) end
 end
@@ -791,7 +792,8 @@ end
 -- machine half-way (e.g. stuck between two reconnect attempts), and the plugin
 -- must never grow without bound on the Core.
 ---------------------------------------------------------------------------
-local MEM_LIMIT_KB = 32 * 1024   -- normal use is around 1-3 MB
+local MEM_WARN_KB = 10 * 1024    -- normal use is around 1 MB: above this, log a warning
+local MEM_LIMIT_KB = 32 * 1024   -- above this, reset the connection
 local GC_EVERY = 60              -- s, full garbage collection
 local STALL_AFTER = 3            -- s without a main timer tick -> restart it
 
@@ -799,12 +801,27 @@ local Health = { ticks = 0, seenTicks = 0, stalled = 0, seconds = 0, errors = 0,
 local HasGc = type(collectgarbage) == "function"
 local function MemoryKB() return HasGc and collectgarbage("count") or 0 end
 
--- Errors are always printed (independent of Debug Print), at most once a minute per message
-local function Report(msg)
+-- Core event log (Core Manager > Event Log), with a plain print as fallback
+local EVENT_LOG_EVERY = 600      -- s, at most one event log entry per kind in this time
+local EventLogged = {}           -- [kind] = Health.seconds of the last entry
+local function EventLog(kind, msg)
+  local last = EventLogged[kind]
+  if last and Health.seconds - last < EVENT_LOG_EVERY then return end
+  EventLogged[kind] = Health.seconds
+  local text = "ATEM Switcher: " .. msg
+  local logger = type(CoreLog) == "table" and (CoreLog.Error or CoreLog.Message)
+  local ok = logger and pcall(logger, text)
+  if not ok then print("[ATEM] (event log) " .. text) end
+end
+
+-- Errors are always printed (independent of Debug Print), at most once a minute per
+-- message, and written to the Core event log (at most every 10 minutes per kind)
+local function Report(msg, kind)
   if msg ~= Health.lastError or Health.seconds - Health.lastErrorAt >= 60 then
     print("[ATEM] " .. msg)
     Health.lastError, Health.lastErrorAt = msg, Health.seconds
   end
+  EventLog(kind or msg, msg)
 end
 
 -- Drop everything the plugin knows about the switcher and connect again
@@ -828,7 +845,7 @@ end
 OnInternalError = function(where, err)
   Health.errors = Health.errors + 1
   local msg = ("Internal error (%s): %s"):format(where, tostring(err))
-  Report(msg)
+  Report(msg, "error " .. where)
   pcall(SetError, msg)
   ResetConnection("Internal error")
 end
@@ -850,7 +867,7 @@ local function HealthTick()
   if Health.ticks == Health.seenTicks then
     Health.stalled = Health.stalled + 1
     if Health.stalled >= STALL_AFTER then
-      Report("Main timer stalled - restarting it")
+      Report("Main timer stalled - restarting it", "stall")
       MainTimer:Stop()
       MainTimer:Start(TICK)
       Health.stalled = 0
@@ -865,15 +882,19 @@ local function HealthTick()
     collectgarbage("collect")
     kb = MemoryKB()
     if kb > MEM_LIMIT_KB then
-      Report(("Memory limit reached (%.1f MB) - resetting connection"):format(kb / 1024))
+      Report(("Memory limit reached (%.1f MB) - resetting connection"):format(kb / 1024), "memory limit")
       ResetConnection("Memory limit reached")
       collectgarbage("collect")
       kb = MemoryKB()
     end
   end
-  -- readouts: Uptime follows the main timer, so it stops when the plugin hangs
+  -- measured right after a full collection: live data only, garbage excluded
+  if HasGc and Health.seconds % GC_EVERY == 0 and kb > MEM_WARN_KB then
+    Report(("High memory use: %.1f MB (normal is about 1 MB)"):format(kb / 1024), "memory warn")
+  end
+  -- readouts: Plugin Uptime follows the main timer, so it stops when the plugin hangs
   SetString("Lua Memory", HasGc and ("%.1f MB"):format(kb / 1024) or "n/a")
-  SetString("Uptime", FormatUptime(Now))
+  SetString("Plugin Uptime", FormatUptime(Now))
   SetString("Internal Errors", tostring(Health.errors))
 end
 

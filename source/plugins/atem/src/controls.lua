@@ -29,7 +29,7 @@ TextOut("Protocol Version")
 TextOut("Last Error")
 TextOut("Reconnects")
 TextOut("Lua Memory")
-TextOut("Uptime")
+TextOut("Plugin Uptime")
 TextOut("Internal Errors")
 
 -- Source names as reported by the switcher (for UCI labels)
