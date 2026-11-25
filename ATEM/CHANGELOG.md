@@ -5,6 +5,14 @@ Format: [Keep a Changelog](https://keepachangelog.com), versioning: `major.minor
 
 ## [Unreleased]
 
+## [1.3] – 2026-11-25
+
+### Added
+- Property "Enable Pin" (default off) adds an Enable control/pin. Off: the plugin
+  disconnects, clears its feedback and shows status "Disabled" (Not Present) instead of
+  connection errors; on: connects right away. Meant for switchers that are powered off
+  when not in use.
+
 ## [1.2] – 2026-11-25
 
 ### Added

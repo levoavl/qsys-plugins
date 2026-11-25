@@ -1006,6 +1006,28 @@ def test_health():
     check(len(warns) == 1, f"one memory warning in 2 min: {warns}")
 
 
+def test_enable():
+    print("test_enable")
+    h = Harness()
+    check(h.g.Controls[b"Enable"] is None, "no Enable control by default")
+    h = Harness({"Enable Pin": True})
+    check(h.status() == (3, "Disabled") and not h.atem.take(), f"new control off -> disabled, nothing sent: {h.status()}")
+    c = h.ctl("Status")
+    h.tick(int(30 / TICK))
+    check(h.status() == (3, "Disabled") and not h.atem.take(), "stays disabled, no hello")
+    h.user("Enable")
+    check(h.status()[0] == 5, f"enable -> connecting: {h.status()}")
+    h.connect()
+    check(h.status() == (0, "OK") and h.b("Connected"), "connected after enable")
+    h.user("Enable")
+    check(h.status() == (3, "Disabled") and not h.b("Connected") and not h.b("ME1 Program Input 1"),
+          f"disable -> idle, feedback cleared: {h.status()}")
+    h.user("IP Address", "String", b"10.0.0.9")
+    h.user("Reconnect")
+    h.tick(int(10 / TICK))
+    check(h.status() == (3, "Disabled") and h.s("Last Error") == "", "IP change / Reconnect while disabled: no connect, no error")
+
+
 def main():
     random.seed(1)
     test_connect()
@@ -1019,6 +1041,7 @@ def main():
     test_no_device()
     test_status_writes()
     test_health()
+    test_enable()
     test_wrong_model()
     test_legends()
     test_two_me()

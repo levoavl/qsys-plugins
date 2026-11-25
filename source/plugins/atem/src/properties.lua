@@ -54,6 +54,9 @@ table.insert(props, {
   Choices = { "Default Names", "Device Names" },
   Value = "Default Names",
 })
+-- Adds an "Enable" control/pin: off = plugin idle with status "Disabled" (e.g. wired to
+-- the switcher's power). Off by default, so existing designs keep running unchanged.
+table.insert(props, { Name = "Enable Pin", Type = "boolean", Value = false })
 table.insert(props, {
   Name = "Debug Print",
   Type = "enum",

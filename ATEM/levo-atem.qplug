@@ -13,8 +13,8 @@
 
 PluginInfo = {
   Name         = "levo AVL~ATEM Switcher",  -- "Folder~Name" in the Q-SYS schematic library
-  Version      = "1.2",
-  BuildVersion = "1.2",  -- versions are major.minor, see source/README.md
+  Version      = "1.3",
+  BuildVersion = "1.3",  -- versions are major.minor, see source/README.md
   Id           = "540f6f58-c34c-4c96-b2cc-1430d6b79789",
   Author       = "levo AVL | Elias Jenny",
   Description  = "Control Blackmagic ATEM switchers (all models, multi M/E) with feedback: "
@@ -924,6 +924,9 @@ table.insert(props, {
   Choices = { "Default Names", "Device Names" },
   Value = "Default Names",
 })
+-- Adds an "Enable" control/pin: off = plugin idle with status "Disabled" (e.g. wired to
+-- the switcher's power). Off by default, so existing designs keep running unchanged.
+table.insert(props, { Name = "Enable Pin", Type = "boolean", Value = false })
 table.insert(props, {
   Name = "Debug Print",
   Type = "enum",
@@ -984,6 +987,7 @@ end
 -- Connection
 TextIn("IP Address")
 Trigger("Reconnect")
+if props["Enable Pin"] and props["Enable Pin"].Value == true then Toggle("Enable") end
 Add({ Name = "Status", ControlType = "Indicator", IndicatorType = "Status", PinStyle = "Output" })
 Led("Connected")
 TextOut("Device")
@@ -1587,6 +1591,11 @@ elseif CurrentPage == "Setup" then
   Place("Status", "Status", fx, y, 360, 22)
   Button("Reconnect", "Setup~Reconnect", "Reconnect", fx + 370, y, 100, 22, C.Amber, { FontSize = 11, FontStyle = "Regular" })
   y = y + 28
+  if props["Enable Pin"] and props["Enable Pin"].Value == true then
+    Label("Enable", M, y + 1, lw, 20, { align = "Right" })
+    Button("Enable", "Setup~Enable", "Enabled", fx, y, 100, 22, C.Amber, { FontSize = 11, FontStyle = "Regular" })
+    y = y + 28
+  end
   Label("Connected", M, y, lw, 18, { align = "Right" })
   Place("Connected", "Connected", fx, y + 1, 16, 16, { Color = C.Amber })
   y = y + 26
@@ -3020,7 +3029,7 @@ end
 ---------------------------------------------------------------------------
 local Conn = {
   ip = "",
-  phase = "idle",       -- idle | connecting | syncing | ready | waiting (backoff)
+  phase = "idle",       -- idle | disabled | connecting | syncing | ready | waiting (backoff)
   retryAt = nil,
   attempt = 0,
   reconnects = 0,
@@ -3049,6 +3058,10 @@ end
 
 local Session -- forward
 local Connect
+
+-- "Enable" control (property Enable Pin); without it the plugin is always enabled
+local EnableCtl = Controls.Enable
+local function Enabled() return EnableCtl == nil or EnableCtl.Boolean end
 
 local function ScheduleRetry(reason)
   Conn.attempt = Conn.attempt + 1
@@ -3150,7 +3163,23 @@ local function ValidIp(ip)
   return true
 end
 
+local function Disable()
+  Session:Close()
+  Ready = false
+  St = AtemState.New()
+  Conn.retryAt, Conn.attempt = nil, 0
+  SetPhase("disabled")
+  RenderDevice()
+  RenderAll()
+  SetStatus(STATUS.NotPresent, "Disabled")
+  Log(1, "Disabled")
+end
+
 Connect = function()
+  if not Enabled() then
+    Disable()
+    return
+  end
   Session:Close()
   Ready = false
   St = AtemState.New()
@@ -3291,7 +3320,9 @@ local function ResetConnection(reason)
   for k in pairs(TBarTouched) do TBarTouched[k] = nil end
   for k in pairs(AudioTouched) do AudioTouched[k] = nil end
   for k in pairs(ColorTouched) do ColorTouched[k] = nil end
-  local ok, err = pcall(ScheduleRetry, reason)
+  local ok, err = pcall(function()
+    if Enabled() then ScheduleRetry(reason) else Connect() end   -- Connect() -> Disable()
+  end)
   if not ok then
     -- last resort: plain state, the next tick retries
     Conn.phase, Conn.retryAt, Conn.retryReason = "waiting", Now + BACKOFF[1], reason
@@ -3747,6 +3778,13 @@ Controls["IP Address"].EventHandler = function()
   Conn.attempt = 0
   local ok, err = pcall(Connect)
   if not ok then OnInternalError("connect", err) end
+end
+if EnableCtl then
+  EnableCtl.EventHandler = function()
+    Conn.attempt = 0
+    local ok, err = pcall(Connect)
+    if not ok then OnInternalError("enable", err) end
+  end
 end
 Controls.Reconnect.EventHandler = function()
   Conn.attempt = 0

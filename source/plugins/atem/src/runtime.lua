@@ -563,7 +563,7 @@ end
 ---------------------------------------------------------------------------
 local Conn = {
   ip = "",
-  phase = "idle",       -- idle | connecting | syncing | ready | waiting (backoff)
+  phase = "idle",       -- idle | disabled | connecting | syncing | ready | waiting (backoff)
   retryAt = nil,
   attempt = 0,
   reconnects = 0,
@@ -592,6 +592,10 @@ end
 
 local Session -- forward
 local Connect
+
+-- "Enable" control (property Enable Pin); without it the plugin is always enabled
+local EnableCtl = Controls.Enable
+local function Enabled() return EnableCtl == nil or EnableCtl.Boolean end
 
 local function ScheduleRetry(reason)
   Conn.attempt = Conn.attempt + 1
@@ -693,7 +697,23 @@ local function ValidIp(ip)
   return true
 end
 
+local function Disable()
+  Session:Close()
+  Ready = false
+  St = AtemState.New()
+  Conn.retryAt, Conn.attempt = nil, 0
+  SetPhase("disabled")
+  RenderDevice()
+  RenderAll()
+  SetStatus(STATUS.NotPresent, "Disabled")
+  Log(1, "Disabled")
+end
+
 Connect = function()
+  if not Enabled() then
+    Disable()
+    return
+  end
   Session:Close()
   Ready = false
   St = AtemState.New()
@@ -834,7 +854,9 @@ local function ResetConnection(reason)
   for k in pairs(TBarTouched) do TBarTouched[k] = nil end
   for k in pairs(AudioTouched) do AudioTouched[k] = nil end
   for k in pairs(ColorTouched) do ColorTouched[k] = nil end
-  local ok, err = pcall(ScheduleRetry, reason)
+  local ok, err = pcall(function()
+    if Enabled() then ScheduleRetry(reason) else Connect() end   -- Connect() -> Disable()
+  end)
   if not ok then
     -- last resort: plain state, the next tick retries
     Conn.phase, Conn.retryAt, Conn.retryReason = "waiting", Now + BACKOFF[1], reason
@@ -1290,6 +1312,13 @@ Controls["IP Address"].EventHandler = function()
   Conn.attempt = 0
   local ok, err = pcall(Connect)
   if not ok then OnInternalError("connect", err) end
+end
+if EnableCtl then
+  EnableCtl.EventHandler = function()
+    Conn.attempt = 0
+    local ok, err = pcall(Connect)
+    if not ok then OnInternalError("enable", err) end
+  end
 end
 Controls.Reconnect.EventHandler = function()
   Conn.attempt = 0

@@ -22,6 +22,7 @@ end
 -- Connection
 TextIn("IP Address")
 Trigger("Reconnect")
+if props["Enable Pin"] and props["Enable Pin"].Value == true then Toggle("Enable") end
 Add({ Name = "Status", ControlType = "Indicator", IndicatorType = "Status", PinStyle = "Output" })
 Led("Connected")
 TextOut("Device")

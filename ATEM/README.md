@@ -51,6 +51,7 @@ simultaneous control connections – close unused software panels if the connect
 The plugin is meant as a remote control for operation. Setup details (keyer settings,
 SuperSource layout …) stay in ATEM Software Control – the two setup pages are optional.
 | Button Legends | Default Names / Device Names | Default Names | *Device Names* writes the switcher's short source names (e.g. `CAM1`) as button legends. This overrides legends set on UCI copies of the buttons. |
+| Enable Pin | Yes / No | No | Adds an Enable control/pin. Off = plugin idle, status "Disabled" (Not Present) instead of a connection error – e.g. wire it to the switcher's power. |
 | Debug Print | None / Basic / Verbose | None | Basic: connection and user actions. Verbose: all protocol traffic. |
 
 After connecting, the plugin compares the switcher with the selected model. On a mismatch
@@ -188,6 +189,7 @@ Stream key, server and recording disk are set up in ATEM Software Control.
 |---|---|---|---|
 | IP Address | Text | in/out | Switcher IP address |
 | Reconnect | Trigger | in | |
+| Enable | Toggle | in/out | Only with property Enable Pin. Off = disconnect and stay idle |
 | Status | Status | out | OK / Compromised (model mismatch) / Fault / Missing / Initializing |
 | Connected | LED | out | |
 | Device | Text | out | Product name reported by the switcher |

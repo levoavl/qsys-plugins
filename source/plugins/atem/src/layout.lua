@@ -439,6 +439,11 @@ elseif CurrentPage == "Setup" then
   Place("Status", "Status", fx, y, 360, 22)
   Button("Reconnect", "Setup~Reconnect", "Reconnect", fx + 370, y, 100, 22, C.Amber, { FontSize = 11, FontStyle = "Regular" })
   y = y + 28
+  if props["Enable Pin"] and props["Enable Pin"].Value == true then
+    Label("Enable", M, y + 1, lw, 20, { align = "Right" })
+    Button("Enable", "Setup~Enable", "Enabled", fx, y, 100, 22, C.Amber, { FontSize = 11, FontStyle = "Regular" })
+    y = y + 28
+  end
   Label("Connected", M, y, lw, 18, { align = "Right" })
   Place("Connected", "Connected", fx, y + 1, 16, 16, { Color = C.Amber })
   y = y + 26
