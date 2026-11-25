@@ -1,6 +1,5 @@
 -- (c) levo AVL | Elias Jenny - MIT License
 local n   = props["Menu Count"].Value
-local nav = props["Navigation"].Value
 
 local function Add(def)
   def.Count = def.Count or 1
@@ -28,6 +27,7 @@ Int("Font Size", 8, 72)
 Toggle("Bold Active")
 Int("Icon Size", 12, 300)
 Toggle("Fill Active Icon")
+Int("Item Gap", 0, 200)
 Int("Corner Radius", 0, 300)
 Combo("Rounded Corners")
 Combo("Indicator Style")
@@ -43,16 +43,12 @@ for _, c in ipairs({ "Background", "Text", "Active Text", "Indicator", "Divider"
 -- Setup: items and navigation
 Add({ Name = "Label", ControlType = "Text", Count = n, UserPin = true, PinStyle = "Both" })
 Combo("Icon", n)
-if nav ~= "Output Only" then Text("Page", n) end
-if nav == "Layer" then
-  Text("Layers", n)
-  Text("UCI Name")
-  Combo("Layer Transition")
-end
-if nav == "Page" then
-  Text("Panels")
-  Combo("Add Panel")
-end
+Text("Page", n)
+Text("Layers", n)
+Text("Panels")
+Combo("Add Panel")
+Text("UCI Name")
+Combo("Layer Transition")
 
 -- Marks that the defaults have been written once
 Text("Defaults Set")

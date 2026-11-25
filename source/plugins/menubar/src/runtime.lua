@@ -18,11 +18,9 @@ local P = function(name) return Properties[name].Value end
 local N        = P("Menu Count")
 local VERTICAL = P("Orientation") == "Vertical"
 local IW, IH   = P("Item Width"), P("Item Height")
-local SPACING  = P("Item Spacing")
-local NAV      = P("Navigation")
 
 local SPAN  = VERTICAL and IH or IW   -- item length along the bar
-local PITCH = SPAN + SPACING          -- distance from one item to the next
+local PITCH = SPAN                    -- items sit edge to edge on the UCI
 local FRAME_S = 0.03                  -- ~33 frames per second
 
 local function Trim(s) return (s:gsub("^%s+", ""):gsub("%s+$", "")) end
@@ -42,7 +40,7 @@ local CHOICES = {
 local DEFAULTS = {
   ["Content"] = "Text", ["Font"] = "Arial", ["Font Size"] = 22, ["Bold Active"] = true,
   ["Icon Size"] = 36, ["Fill Active Icon"] = true,
-  ["Corner Radius"] = 0, ["Rounded Corners"] = "Bar Ends",
+  ["Item Gap"] = 0, ["Corner Radius"] = 0, ["Rounded Corners"] = "Bar Ends",
   ["Indicator Style"] = "Line", ["Line Position"] = "Bottom / Right",
   ["Indicator Size"] = 6, ["Indicator Margin"] = 0, ["Animation Time"] = 300,
   ["Dividers"] = false, ["Divider Length"] = 60, ["Divider Width"] = 2,
@@ -75,11 +73,12 @@ local function S(name) return Controls[name].String end
 local function V(name) return math.floor(Controls[name].Value + 0.5) end
 local function B(name) return Controls[name].Boolean end
 
-local RADIUS, EACH_ITEM, CONTENT, FONT, FONT_SIZE, BOLD, ICON_SIZE, FILL_ICON
+local GAP, RADIUS, EACH_ITEM, CONTENT, FONT, FONT_SIZE, BOLD, ICON_SIZE, FILL_ICON
 local IND_STYLE, LINE_END, IND_SIZE, IND_MARGIN, DIVIDERS, DIV_LEN, DIV_W, ANIM_MS, TRANSITION
 local COLORS, ITEMS = {}, {}
 
 local function LoadConfig()
+  GAP        = V("Item Gap") / 2       -- half the gap on each side of an item
   RADIUS     = V("Corner Radius")
   EACH_ITEM  = S("Rounded Corners") == "Each Item"
   CONTENT    = S("Content")
@@ -168,7 +167,10 @@ local function Indicator(i, d)
   if IND_STYLE == "None" then return "" end
   local col = Fill(Color("Indicator"))
   local m = IND_MARGIN
-  local x, y = VERTICAL and 0 or d, VERTICAL and d or 0
+  -- the gap shrinks the item along the bar axis
+  local gx, gy = VERTICAL and 0 or GAP, VERTICAL and GAP or 0
+  local x, y = (VERTICAL and 0 or d) + gx, (VERTICAL and d or 0) + gy
+  local IW, IH = IW - 2 * gx, IH - 2 * gy
   if IND_STYLE == "Line" then
     -- the margin keeps the line away from the item edges (sides and outer edge)
     local r = IND_SIZE / 2
@@ -237,6 +239,11 @@ local function Content(i, active)
 end
 
 -- Drawing ------------------------------------------------------------------------
+local function Background(tl, tr, br, bl)
+  local gx, gy = VERTICAL and 0 or GAP, VERTICAL and GAP or 0
+  return RoundRect(gx, gy, IW - 2 * gx, IH - 2 * gy, tl, tr, br, bl, Fill(Color("Background")))
+end
+
 local function Render(i)
   local active = (i == current)
   local tl, tr, br, bl = Corners(i)
@@ -244,12 +251,12 @@ local function Render(i)
   local svg = string.format(
     '<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d"><g%s>%s%s%s%s</g></svg>',
     IW, IH, opacity,
-    RoundRect(0, 0, IW, IH, tl, tr, br, bl, Fill(Color("Background"))),
+    Background(tl, tr, br, bl),
     Indicator(i, pos - (i - 1) * PITCH),
     Divider(i),
     Content(i, active))
   Controls.Menu[i].Style = json.encode({
-    IconData = Crypto.Base64Encode(svg), DrawChrome = false, Margin = 0, Legend = "",
+    IconData = Crypto.Base64Encode(svg), DrawChrome = false, Margin = 0, Padding = 0, Legend = "",
   })
 end
 
@@ -379,13 +386,18 @@ local function NavigateLayers(i)
   end
   if selPage ~= "" then
     for _, layer in ipairs(SplitList(ITEMS[i].layers)) do Set(selPage, layer, true) end
+  elseif Trim(ITEMS[i].layers) ~= "" then
+    navError = ("Menu %d: Layers need a Page"):format(i)
   end
 end
 
 local function Navigate(i)
   navError = nil
-  if NAV == "Page" then NavigatePage(i)
-  elseif NAV == "Layer" then NavigateLayers(i) end
+  -- both are optional: pages switch when Panels is set, layers when the item lists some
+  if Trim(S("Panels")) ~= "" then NavigatePage(i) end
+  local anyLayers = false
+  for n = 1, N do if Trim(ITEMS[n].layers) ~= "" then anyLayers = true end end
+  if anyLayers then NavigateLayers(i) end
 end
 
 local function UpdateStatus()
@@ -455,12 +467,12 @@ for n = 1, N do
   Controls.Icon[n].Choices = iconChoices
   Controls.Icon[n].EventHandler = Live
   Controls.Label[n].EventHandler = Live
-  if Controls.Page then Controls.Page[n].EventHandler = LoadConfig end
-  if Controls.Layers then Controls.Layers[n].EventHandler = LoadConfig end
+  Controls.Page[n].EventHandler = LoadConfig
+  Controls.Layers[n].EventHandler = LoadConfig
 end
 
 -- Panel discovery (Page mode): touch panels / UCI viewers with Script Access
-if NAV == "Page" then
+do
   local found = {}
   for _, comp in ipairs(Component.GetComponents()) do
     local t = tostring(comp.Type):lower()
@@ -492,4 +504,4 @@ end
 SyncOutputs()
 RenderAll()
 UpdateStatus()
-Log(1, ("Menu Bar started: %d items, %s, %s navigation"):format(N, VERTICAL and "vertical" or "horizontal", NAV))
+Log(1, ("Menu Bar started: %d items, %s"):format(N, VERTICAL and "vertical" or "horizontal"))

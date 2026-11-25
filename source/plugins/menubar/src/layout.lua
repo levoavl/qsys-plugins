@@ -1,9 +1,8 @@
 -- (c) levo AVL | Elias Jenny - MIT License
 local n        = props["Menu Count"].Value
-local nav      = props["Navigation"].Value
 local vertical = props["Orientation"].Value == "Vertical"
 local IW, IH   = props["Item Width"].Value, props["Item Height"].Value
-local SP       = props["Item Spacing"].Value
+local SP       = 0   -- items sit edge to edge; the gap is drawn inside the SVG
 local C   = LevoBrand.Colors
 local M   = 16
 local ROW = 24
@@ -29,7 +28,7 @@ local function Bar(x0, y0)
     local x  = vertical and x0 or (x0 + (i - 1) * (IW + SP))
     local iy = vertical and (y0 + (i - 1) * (IH + SP)) or y0
     layout["Menu " .. i] = { PrettyName = "Menu~" .. i, Style = "Button",
-      Position = { x, iy }, Size = { IW, IH }, Margin = 0 }
+      Position = { x, iy }, Size = { IW, IH }, Margin = 0, Padding = 0 }
   end
 end
 
@@ -66,8 +65,8 @@ elseif CurrentPage == "Setup" then
   local lw = 120                       -- label width
   local cx1, cx2 = x1 + lw + 8, x2 + lw + 8
 
-  local rowsLook = 22
-  local rowsItems = n + 6
+  local rowsLook = 23
+  local rowsItems = n + 11
   local H = LevoBrand.HeaderHeight + 2 + 16 + 24 + barH + 24 + math.max(rowsLook, rowsItems) * ROW + 3 * 24 + 40
   LevoBrand.Background(graphics, W, H)
   local y = LevoBrand.Header(graphics, W, LevoBrand.PluginName(PluginInfo), CurrentPage) + 16
@@ -96,6 +95,7 @@ elseif CurrentPage == "Setup" then
   y = Field("Fill Active Icon", "Fill Active Icon", "Button", 1, y, 60)
   y = y + 6
   y = Section("Shape", x1, y, colW)
+  y = Field("Item Gap", "Item Gap", "Text", 1, y, 60)
   y = Field("Corner Radius", "Corner Radius", "Text", 1, y, 60)
   y = Field("Rounded Corners", "Rounded Corners", "ComboBox", 1, y)
   y = Field("Dividers", "Dividers", "Button", 1, y, 60)
@@ -116,19 +116,16 @@ elseif CurrentPage == "Setup" then
 
   -- Right column: navigation and items
   y = yTop
-  y = Section("Navigation: " .. nav, x2, y, colW)
-  if nav == "Page" then
-    y = Field("Panels", "Panels", "Text", 2, y, 190)
-    y = Field("Add Panel", "Add Panel", "ComboBox", 2, y, 190)
-  elseif nav == "Layer" then
-    y = Field("UCI Name", "UCI Name", "Text", 2, y, 190)
-    y = Field("Layer Transition", "Transition", "ComboBox", 2, y, 120)
-  end
+  y = Section("Pages (Uci.SetPage)", x2, y, colW)
+  y = Field("Panels", "Panels", "Text", 2, y, 190)
+  y = Field("Add Panel", "Add Panel", "ComboBox", 2, y, 190)
+  Label("Empty = do not switch pages.", x2, y, colW, "Left", C.Mid); y = y + ROW
+  y = Section("Layers (Uci.SetLayerVisibility)", x2, y, colW)
+  y = Field("UCI Name", "UCI Name", "Text", 2, y, 190)
+  y = Field("Layer Transition", "Transition", "ComboBox", 2, y, 120)
   y = y + 6
   y = Section("Menu items", x2, y, colW)
-  local cols = { { "Label", 90 }, { "Icon", 110 } }
-  if nav ~= "Output Only" then table.insert(cols, { "Page", 60 }) end
-  if nav == "Layer" then cols[1][2] = 70; cols[2][2] = 90; table.insert(cols, { "Layers", 70 }) end
+  local cols = { { "Label", 70 }, { "Icon", 90 }, { "Page", 60 }, { "Layers", 70 } }
   local x = x2 + 24
   for _, c in ipairs(cols) do Label(c[1], x, y, c[2], "Left", C.Mid); x = x + c[2] + 4 end
   y = y + 20
@@ -142,9 +139,7 @@ elseif CurrentPage == "Setup" then
     end
     y = y + ROW
   end
-  if nav == "Layer" then
-    Label("Several layers per item: comma-separated.", x2, y + 4, colW, "Left", C.Mid)
-  end
+  Label("Layers: comma-separated, on the item's Page.", x2, y + 4, colW, "Left", C.Mid)
 
 elseif CurrentPage == "About" then
   local W = 560
