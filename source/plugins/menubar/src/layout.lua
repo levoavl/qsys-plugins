@@ -65,7 +65,7 @@ elseif CurrentPage == "Setup" then
   local lw = 120                       -- label width
   local cx1, cx2 = x1 + lw + 8, x2 + lw + 8
 
-  local rowsLook = 24
+  local rowsLook = 26
   local rowsItems = n + 11
   local H = LevoBrand.HeaderHeight + 2 + 16 + 24 + barH + 24 + math.max(rowsLook, rowsItems) * ROW + 3 * 24 + 40
   LevoBrand.Background(graphics, W, H)
@@ -96,6 +96,8 @@ elseif CurrentPage == "Setup" then
   y = y + 6
   y = Section("Shape", x1, y, colW)
   y = Field("Item Gap", "Item Gap", "Text", 1, y, 60)
+  y = Field("Width Correction", "Width Correction", "Text", 1, y, 60)
+  y = Field("Height Correction", "Height Correction", "Text", 1, y, 60)
   y = Field("Corner Radius", "Corner Radius", "Text", 1, y, 60)
   y = Field("Rounded Corners", "Rounded Corners", "ComboBox", 1, y)
   y = Field("Dividers", "Dividers", "Button", 1, y, 60)

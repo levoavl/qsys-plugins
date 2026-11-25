@@ -17,10 +17,17 @@ end
 local P = function(name) return Properties[name].Value end
 local N        = P("Menu Count")
 local VERTICAL = P("Orientation") == "Vertical"
-local IW, IH   = P("Item Width"), P("Item Height")
-
-local SPAN  = VERTICAL and IH or IW   -- item length along the bar
-local PITCH = SPAN                    -- items sit edge to edge on the UCI
+local BASE_W, BASE_H = P("Item Width"), P("Item Height")
+-- Drawing size of one item. Width/Height Correction (Setup) enlarge the SVG when Q-SYS
+-- fits it into a box with a different aspect ratio than the button.
+local IW, IH = BASE_W, BASE_H
+local SPAN, PITCH                     -- item length along the bar; items sit edge to edge
+local function UpdateSize(wc, hc)
+  IW, IH = math.max(10, BASE_W + wc), math.max(10, BASE_H + hc)
+  SPAN = VERTICAL and IH or IW
+  PITCH = SPAN
+end
+UpdateSize(0, 0)
 local FRAME_S = 0.03                  -- ~33 frames per second
 
 local function Trim(s) return (s:gsub("^%s+", ""):gsub("%s+$", "")) end
@@ -40,7 +47,7 @@ local CHOICES = {
 local DEFAULTS = {
   ["Content"] = "Text", ["Font"] = "Arial", ["Font Size"] = 22, ["Bold Active"] = true,
   ["Icon Size"] = 36, ["Fill Active Icon"] = true,
-  ["Item Gap"] = 0, ["Corner Radius"] = 0, ["Rounded Corners"] = "Bar Ends",
+  ["Item Gap"] = 0, ["Width Correction"] = 0, ["Height Correction"] = 0, ["Corner Radius"] = 0, ["Rounded Corners"] = "Bar Ends",
   ["Indicator Style"] = "Line", ["Line Position"] = "Bottom / Right",
   ["Indicator Size"] = 6, ["Indicator Margin X"] = 0, ["Indicator Margin Y"] = 0, ["Animation Time"] = 300,
   ["Dividers"] = false, ["Divider Length"] = 60, ["Divider Width"] = 2,
@@ -78,6 +85,7 @@ local IND_STYLE, LINE_END, IND_SIZE, MX, MY, DIVIDERS, DIV_LEN, DIV_W, ANIM_MS, 
 local COLORS, ITEMS = {}, {}
 
 local function LoadConfig()
+  UpdateSize(V("Width Correction"), V("Height Correction"))
   GAP        = V("Item Gap") / 2       -- half the gap on each side of an item
   RADIUS     = V("Corner Radius")
   EACH_ITEM  = S("Rounded Corners") == "Each Item"
@@ -163,39 +171,106 @@ local function Corners(i)
   return first and RADIUS or 0, last and RADIUS or 0, last and RADIUS or 0, first and RADIUS or 0
 end
 
+-- Polygons: the indicator is clipped to the item's own shape, so a line or pill never
+-- sticks out over rounded corners or into the gap.
+local SEG = 8   -- segments per corner arc
+
+local function RoundRectPoly(x, y, w, h, tl, tr, br, bl)
+  local max = math.min(w, h) / 2
+  local pts = {}
+  local function arc(cx, cy, r, a0)
+    r = math.min(r, max)
+    for k = 0, SEG do
+      local a = math.rad(a0 + 90 * k / SEG)
+      table.insert(pts, { cx + r * math.cos(a), cy + r * math.sin(a) })
+    end
+  end
+  tl, tr, br, bl = math.min(tl, max), math.min(tr, max), math.min(br, max), math.min(bl, max)
+  arc(x + tl, y + tl, tl, 180)
+  arc(x + w - tr, y + tr, tr, 270)
+  arc(x + w - br, y + h - br, br, 0)
+  arc(x + bl, y + h - bl, bl, 90)
+  return pts
+end
+
+-- Sutherland-Hodgman: clip polygon subj by the convex polygon clip (same winding)
+local function ClipPoly(subj, clip)
+  local out = subj
+  for e = 1, #clip do
+    local a, b = clip[e], clip[e % #clip + 1]
+    local function inside(p) return (b[1] - a[1]) * (p[2] - a[2]) - (b[2] - a[2]) * (p[1] - a[1]) >= -1e-6 end
+    local function cross(p, q)
+      local dx, dy = q[1] - p[1], q[2] - p[2]
+      local ex, ey = b[1] - a[1], b[2] - a[2]
+      local den = dx * ey - dy * ex
+      if den == 0 then return p end
+      local t = ((a[1] - p[1]) * ey - (a[2] - p[2]) * ex) / den
+      return { p[1] + t * dx, p[2] + t * dy }
+    end
+    local input = out
+    out = {}
+    if #input == 0 then return out end
+    local prev = input[#input]
+    for _, cur in ipairs(input) do
+      if inside(cur) then
+        if not inside(prev) then table.insert(out, cross(prev, cur)) end
+        table.insert(out, cur)
+      elseif inside(prev) then
+        table.insert(out, cross(prev, cur))
+      end
+      prev = cur
+    end
+  end
+  return out
+end
+
+local function PolyPath(pts, attrs)
+  if #pts < 3 then return "" end
+  local d = {}
+  for k, p in ipairs(pts) do d[k] = string.format("%s%.1f,%.1f", k == 1 and "M" or "L", p[1], p[2]) end
+  return '<path d="' .. table.concat(d, " ") .. ' Z" ' .. attrs .. '/>'
+end
+
+-- Item shape (after the gap inset)
+local function ItemBox(i)
+  local gx, gy = VERTICAL and 0 or GAP, VERTICAL and GAP or 0
+  return gx, gy, IW - 2 * gx, IH - 2 * gy
+end
+
 -- Indicator shape for an item, d = indicator start relative to this item (px along the bar).
 -- MX / MY keep it away from the left/right and top/bottom edges of the item.
 local function Indicator(i, d)
   if IND_STYLE == "None" then return "" end
   local col = Fill(Color("Indicator"))
-  -- the item gap shrinks the item along the bar axis
-  local gx, gy = VERTICAL and 0 or GAP, VERTICAL and GAP or 0
-  local x0 = (VERTICAL and 0 or d) + gx + MX
-  local y0 = (VERTICAL and d or 0) + gy + MY
-  local w, h = IW - 2 * (gx + MX), IH - 2 * (gy + MY)
+  local bx, by, bw, bh = ItemBox(i)
+  local x0 = (VERTICAL and 0 or d) + bx + MX
+  local y0 = (VERTICAL and d or 0) + by + MY
+  local w, h = bw - 2 * MX, bh - 2 * MY
   if w <= 0 or h <= 0 then return "" end
 
+  local shape
   if IND_STYLE == "Line" then
     local r = IND_SIZE / 2
     if VERTICAL then
       local lx = LINE_END and (x0 + w - IND_SIZE) or x0
-      return RoundRect(lx, y0, IND_SIZE, h, r, r, r, r, col)
+      shape = RoundRectPoly(lx, y0, IND_SIZE, h, r, r, r, r)
+    else
+      local ly = LINE_END and (y0 + h - IND_SIZE) or y0
+      shape = RoundRectPoly(x0, ly, w, IND_SIZE, r, r, r, r)
     end
-    local ly = LINE_END and (y0 + h - IND_SIZE) or y0
-    return RoundRect(x0, ly, w, IND_SIZE, r, r, r, r, col)
-  end
-
-  if IND_STYLE == "Pill" then
+  elseif IND_STYLE == "Pill" then
     local r = math.min(w, h) / 2
-    return RoundRect(x0, y0, w, h, r, r, r, r, col)
+    shape = RoundRectPoly(x0, y0, w, h, r, r, r, r)
+  else
+    -- Block takes the shape of the item it rests on (square unless that item is rounded)
+    local k = math.max(1, math.min(N, math.floor(pos / PITCH + 0.5) + 1))
+    local tl, tr, br, bl = Corners(k)
+    local m = math.min(MX, MY)
+    local function R(c) return math.max(0, c - m) end
+    shape = RoundRectPoly(x0, y0, w, h, R(tl), R(tr), R(br), R(bl))
   end
-
-  -- Block takes the shape of the item it rests on (square unless that item is rounded)
-  local k = math.max(1, math.min(N, math.floor(pos / PITCH + 0.5) + 1))
-  local tl, tr, br, bl = Corners(k)
-  local m = math.min(MX, MY)
-  local function R(c) return math.max(0, c - m) end
-  return RoundRect(x0, y0, w, h, R(tl), R(tr), R(br), R(bl), col)
+  local tl, tr, br, bl = Corners(i)
+  return PolyPath(ClipPoly(shape, RoundRectPoly(bx, by, bw, bh, tl, tr, br, bl)), col)
 end
 
 local function Divider(i)
@@ -251,8 +326,8 @@ end
 
 -- Drawing ------------------------------------------------------------------------
 local function Background(tl, tr, br, bl)
-  local gx, gy = VERTICAL and 0 or GAP, VERTICAL and GAP or 0
-  return RoundRect(gx, gy, IW - 2 * gx, IH - 2 * gy, tl, tr, br, bl, Fill(Color("Background")))
+  local bx, by, bw, bh = ItemBox()
+  return RoundRect(bx, by, bw, bh, tl, tr, br, bl, Fill(Color("Background")))
 end
 
 local function Render(i)
