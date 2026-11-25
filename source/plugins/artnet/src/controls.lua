@@ -26,3 +26,4 @@ Add({ Name = "Broadcast Address", ControlType = "Text" })
 Add({ Name = "Blackout", ControlType = "Button", ButtonType = "Toggle" })
 Add({ Name = "Send in Emulation", ControlType = "Button", ButtonType = "Toggle", UserPin = false })
 Add({ Name = "Status", ControlType = "Indicator", IndicatorType = "Status", PinStyle = "Output" })
+LevoHealth.AddControls(Add)   -- Lua Memory, Plugin Uptime, Internal Errors

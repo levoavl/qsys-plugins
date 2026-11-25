@@ -2,8 +2,8 @@
 
 PluginInfo = {
   Name         = "levo AVL~Art-Net",  -- "Folder~Name" in the Q-SYS schematic library
-  Version      = "0.1",
-  BuildVersion = "0.1",  -- major.minor, see source/README.md
+  Version      = "0.2",
+  BuildVersion = "0.2",  -- major.minor, see source/README.md
   Id           = "4965b05e-530e-45f0-9908-51c59575b455",
   Author       = "levo AVL | Elias Jenny",
   Description  = "Art-Net (ArtDmx) sender: up to 4 universes of DMX channels from Q-SYS.",

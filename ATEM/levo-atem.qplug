@@ -215,7 +215,7 @@ function LevoHealth.StatusWriter(control)
 end
 
 local function FormatUptime(s)
-  s = math.floor(s)
+  s = math.floor(s + 0.5)   -- the last main tick can be a fraction before the health tick
   return ("%d:%02d:%02d"):format(s // 3600, s % 3600 // 60, s % 60)
 end
 LevoHealth.FormatUptime = FormatUptime

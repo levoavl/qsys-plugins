@@ -10,10 +10,8 @@ local function Log(level, msg)
   if level <= DebugLevel then print("[Art-Net] " .. msg) end
 end
 
-local function SetStatus(value, text)
-  Controls.Status.Value = value
-  Controls.Status.String = text or ""
-end
+-- compares with what it wrote last: the Core reads Status back as "State - text"
+local SetStatus = LevoHealth.StatusWriter(Controls.Status)
 
 -- Emulation detection. System.IsEmulating is guarded with pcall in case the API
 -- is missing on some firmware; then we assume a real Core.
@@ -60,7 +58,8 @@ local function UpdateInfo(u)
     text = string.format("%s %s  ·  %s  ·  %d ch",
       Controls.Broadcast.Boolean and "Broadcast" or "Unicast", TargetIp(u), addr, u.channels)
   end
-  Ctl(u.index, "Info").String = text
+  local c = Ctl(u.index, "Info")
+  if c.String ~= text then c.String = text end
 end
 
 local function UpdateStatus()
@@ -157,7 +156,7 @@ end
 -- --------------------------------------------------------------- send loop
 local RetryAt = 0
 local Tick = Timer.New()
-Tick.EventHandler = function()
+local function SendTick()
   local now = Timer.Now()
   if not Socket then
     if now >= RetryAt then
@@ -174,6 +173,18 @@ Tick.EventHandler = function()
   end
 end
 
+-- Health (levo_health.lua): errors printed, counted and in the Core event log;
+-- watchdog for the send timer, memory guard, readouts
+local Health = LevoHealth.New({
+  name = "Art-Net", tag = "[Art-Net]", timer = Tick, tick = 1 / RefreshHz, clock = Timer.Now,
+  controls = Controls,
+  onReset = function() MarkAllDirty() end,   -- send everything again
+})
+Tick.EventHandler = Health.MainHandler(SendTick)
+-- Keep long-lived objects reachable from a global: a timer only held by a local
+-- can be garbage collected on the Core and silently stop sending.
+ArtNetRuntime = { Timer = Tick, Health = Health.Timer, Universes = Universes }
+
 -- --------------------------------------------------------------- start
 SetStatus(STATUS.Initializing, "Starting")
 if Controls["Broadcast Address"].String == "" then
@@ -184,3 +195,4 @@ Log(1, string.format("Started: %d universe(s), %d Hz, emulation %s, build %s",
 OpenSocket()
 RetryAt = Timer.Now() + SOCKET_RETRY_S
 Tick:Start(1 / RefreshHz)
+Health.Start()

@@ -66,7 +66,7 @@ if universe then
 elseif CurrentPage == "Setup" then
   local count = props["Universe Count"].Value
   local W = 560
-  local H = LevoBrand.HeaderHeight + 2 + 120 + count * 54 + 150
+  local H = LevoBrand.HeaderHeight + 2 + 120 + count * 54 + 150 + 30 + #LevoHealth.CONTROLS * 26
   LevoBrand.Background(graphics, W, H)
   local y = LevoBrand.Header(graphics, W, LevoBrand.PluginName(PluginInfo), CurrentPage) + 12
 
@@ -107,6 +107,14 @@ elseif CurrentPage == "Setup" then
   y = y + 32
   Label("Status", M, y + 2, 80, 18, { color = C.Mid, size = 10 })
   Place("Status", "Status", M + 84, y, W - 2 * M - 84, 24)
+  y = y + 34
+
+  y = Section("Plugin Health", M, y, W - 2 * M)
+  for _, name in ipairs(LevoHealth.CONTROLS) do
+    Label(name, M, y + 2, 80, 18, { color = C.Mid, size = 10 })
+    Place(name, "Debug~" .. name, M + 84, y, 100, 22, INFO)
+    y = y + 26
+  end
 
 -- ------------------------------------------------------------ about
 elseif CurrentPage == "About" then

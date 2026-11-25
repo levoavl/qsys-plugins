@@ -4,6 +4,7 @@
 
 --[[ #include "info.lua" ]]
 --[[ #include "levo_brand.lua" ]]
+--[[ #include "levo_health.lua" ]]
 --[[ #include "artnet_protocol.lua" ]]
 
 -- One page per universe, then Setup and About

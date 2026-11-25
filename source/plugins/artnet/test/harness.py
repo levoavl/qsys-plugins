@@ -252,8 +252,29 @@ def test_emulation():
     check(len(h.sent()) >= 1, "sends after Emulation TX is enabled")
 
 
+def test_health():
+    print("health")
+    h = Harness({"Channels U1": 8})
+    h.set("U1 Target IP", "String", "10.0.0.50")
+    h.set("U1 Enable", "Boolean", True)
+    h.advance(65.0)
+    up = h.ctl("Plugin Uptime").String
+    up = up.decode() if isinstance(up, bytes) else up
+    mem = h.ctl("Lua Memory").String
+    mem = mem.decode() if isinstance(mem, bytes) else mem
+    check(up == "0:01:05", f"Plugin Uptime follows the send timer: {up}")
+    check(mem.endswith(" MB"), f"Lua Memory readout: {mem}")
+    # send timer stopped from outside -> watchdog restarts it
+    rt = h.g.ArtNetRuntime
+    rt.Timer.Stop(rt.Timer)
+    h.clear()
+    h.advance(5.0)
+    check(rt.Timer.running and len(h.sent()) > 0, "watchdog restarted the send timer")
+
+
 test_basic()
 test_multi()
 test_emulation()
+test_health()
 print("\nall passed" if failures == 0 else f"\n{failures} FAILED")
 sys.exit(1 if failures else 0)

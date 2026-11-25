@@ -82,6 +82,12 @@ in the plugin's `src/` folder first, then in `source/shared/lua/`.
 - `shared/lua/levo_brand.lua` – colours, company info, header bar, background and About page.
   Header: `LevoBrand.Header(graphics, width, LevoBrand.PluginName(PluginInfo), CurrentPage)`
   shows the levo wordmark, the plugin name and the current page.
+- `shared/lua/levo_health.lua` – plugin health, for every plugin with a runtime timer:
+  `LevoHealth.StatusWriter` (use it for every Status control – the Core reads Status back
+  as "State - text", so a read-back compare never matches and rewrites the status on
+  every call), `LevoHealth.New` (protected timer/handlers, main timer watchdog, memory
+  guard, Core event log entries) and `LevoHealth.AddControls` for the readouts Lua Memory,
+  Plugin Uptime and Internal Errors. See `_template` for the minimal setup.
 - `shared/lua/levo_websocket.lua` – WebSocket client (RFC 6455, text frames) on top of TcpSocket.
 - `shared/lua/levo_assets.lua` – levo AVL logos as base64 PNG. Generated from the logo
   originals, which are not part of this repository; do not edit by hand. The logos are
