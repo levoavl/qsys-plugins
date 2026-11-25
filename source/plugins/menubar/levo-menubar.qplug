@@ -703,53 +703,56 @@ local function Corners(i)
 end
 
 -- Polygons: the indicator is clipped to the item's own shape, so a line or pill never
--- sticks out over rounded corners or into the gap.
-local SEG = 8   -- segments per corner arc
+-- sticks out over rounded corners or into the gap. Kept cheap: Q-SYS limits the number of
+-- instructions per event.
+local SEG = 6   -- segments per corner arc
+local COS, SIN = {}, {}
+for k = 0, 4 * SEG do
+  local a = math.rad(180 + 90 * k / SEG)
+  COS[k], SIN[k] = math.cos(a), math.sin(a)
+end
 
 local function RoundRectPoly(x, y, w, h, tl, tr, br, bl)
   local max = math.min(w, h) / 2
   local pts = {}
-  local function arc(cx, cy, r, a0)
+  local function arc(cx, cy, r, q)          -- q = quadrant 0..3, starting at 180 deg
+    if r <= 0 then pts[#pts + 1] = { cx, cy }; return end
     r = math.min(r, max)
-    for k = 0, SEG do
-      local a = math.rad(a0 + 90 * k / SEG)
-      table.insert(pts, { cx + r * math.cos(a), cy + r * math.sin(a) })
-    end
+    for k = q * SEG, q * SEG + SEG do pts[#pts + 1] = { cx + r * COS[k], cy + r * SIN[k] } end
   end
   tl, tr, br, bl = math.min(tl, max), math.min(tr, max), math.min(br, max), math.min(bl, max)
-  arc(x + tl, y + tl, tl, 180)
-  arc(x + w - tr, y + tr, tr, 270)
-  arc(x + w - br, y + h - br, br, 0)
-  arc(x + bl, y + h - bl, bl, 90)
+  arc(x + tl, y + tl, tl, 0)
+  arc(x + w - tr, y + tr, tr, 1)
+  arc(x + w - br, y + h - br, br, 2)
+  arc(x + bl, y + h - bl, bl, 3)
   return pts
 end
 
 -- Sutherland-Hodgman: clip polygon subj by the convex polygon clip (same winding)
 local function ClipPoly(subj, clip)
   local out = subj
-  for e = 1, #clip do
-    local a, b = clip[e], clip[e % #clip + 1]
-    local function inside(p) return (b[1] - a[1]) * (p[2] - a[2]) - (b[2] - a[2]) * (p[1] - a[1]) >= -1e-6 end
-    local function cross(p, q)
-      local dx, dy = q[1] - p[1], q[2] - p[2]
-      local ex, ey = b[1] - a[1], b[2] - a[2]
-      local den = dx * ey - dy * ex
-      if den == 0 then return p end
-      local t = ((a[1] - p[1]) * ey - (a[2] - p[2]) * ex) / den
-      return { p[1] + t * dx, p[2] + t * dy }
-    end
-    local input = out
-    out = {}
-    if #input == 0 then return out end
-    local prev = input[#input]
-    for _, cur in ipairs(input) do
-      if inside(cur) then
-        if not inside(prev) then table.insert(out, cross(prev, cur)) end
-        table.insert(out, cur)
-      elseif inside(prev) then
-        table.insert(out, cross(prev, cur))
+  local nc = #clip
+  for e = 1, nc do
+    if #out == 0 then return out end
+    local a, b = clip[e], clip[e % nc + 1]
+    local ax, ay = a[1], a[2]
+    local ex, ey = b[1] - ax, b[2] - ay
+    if ex ~= 0 or ey ~= 0 then
+      local input = out
+      out = {}
+      local prev = input[#input]
+      local pin = ex * (prev[2] - ay) - ey * (prev[1] - ax) >= -1e-6
+      for _, cur in ipairs(input) do
+        local cin = ex * (cur[2] - ay) - ey * (cur[1] - ax) >= -1e-6
+        if cin ~= pin then
+          local dx, dy = cur[1] - prev[1], cur[2] - prev[2]
+          local den = dx * ey - dy * ex
+          local t = den ~= 0 and ((ax - prev[1]) * ey - (ay - prev[2]) * ex) / den or 0
+          out[#out + 1] = { prev[1] + t * dx, prev[2] + t * dy }
+        end
+        if cin then out[#out + 1] = cur end
+        prev, pin = cur, cin
       end
-      prev = cur
     end
   end
   return out
@@ -768,11 +771,22 @@ local function ItemBox(i)
   return gx, gy, IW - 2 * gx, IH - 2 * gy
 end
 
+-- Clip polygon per item, rebuilt when the look changes
+local clipCache = {}
+local function ClipShape(i)
+  if not clipCache[i] then
+    local bx, by, bw, bh = ItemBox(i)
+    clipCache[i] = RoundRectPoly(bx, by, bw, bh, Corners(i))
+  end
+  return clipCache[i]
+end
+
 -- Indicator shape for an item, d = indicator start relative to this item (px along the bar).
 -- MX / MY keep it away from the left/right and top/bottom edges of the item.
 local function Indicator(i, d)
   if IND_STYLE == "None" then return "" end
   local col = Fill(Color("Indicator"))
+  if d >= SPAN or d <= -SPAN then return "" end   -- indicator not on this item
   local bx, by, bw, bh = ItemBox(i)
   local x0 = (VERTICAL and 0 or d) + bx + MX
   local y0 = (VERTICAL and d or 0) + by + MY
@@ -800,8 +814,10 @@ local function Indicator(i, d)
     local function R(c) return math.max(0, c - m) end
     shape = RoundRectPoly(x0, y0, w, h, R(tl), R(tr), R(br), R(bl))
   end
+  -- square item without gap: the SVG viewport already clips, no polygon work needed
   local tl, tr, br, bl = Corners(i)
-  return PolyPath(ClipPoly(shape, RoundRectPoly(bx, by, bw, bh, tl, tr, br, bl)), col)
+  if GAP == 0 and tl + tr + br + bl == 0 then return PolyPath(shape, col) end
+  return PolyPath(ClipPoly(shape, ClipShape(i)), col)
 end
 
 -- Divider on boundary k (between item k and k+1), drawn in item i's coordinates.
@@ -1079,6 +1095,7 @@ end
 -- Every look setting is live: reload and redraw
 local function Live()
   LoadConfig()
+  clipCache = {}
   animTimer:Stop()
   pos = (current - 1) * PITCH
   RenderAll()
