@@ -65,7 +65,7 @@ elseif CurrentPage == "Setup" then
   local lw = 120                       -- label width
   local cx1, cx2 = x1 + lw + 8, x2 + lw + 8
 
-  local rowsLook = 23
+  local rowsLook = 24
   local rowsItems = n + 11
   local H = LevoBrand.HeaderHeight + 2 + 16 + 24 + barH + 24 + math.max(rowsLook, rowsItems) * ROW + 3 * 24 + 40
   LevoBrand.Background(graphics, W, H)
@@ -106,7 +106,8 @@ elseif CurrentPage == "Setup" then
   y = Field("Indicator Style", "Style", "ComboBox", 1, y)
   y = Field("Line Position", "Line Position", "ComboBox", 1, y)
   y = Field("Indicator Size", "Line Size", "Text", 1, y, 60)
-  y = Field("Indicator Margin", "Margin", "Text", 1, y, 60)
+  y = Field("Indicator Margin X", "Margin Left/Right", "Text", 1, y, 60)
+  y = Field("Indicator Margin Y", "Margin Top/Bottom", "Text", 1, y, 60)
   y = Field("Animation Time", "Animation ms", "Text", 1, y, 60)
   y = y + 6
   y = Section("Colours (hex or none)", x1, y, colW)

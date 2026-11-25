@@ -42,7 +42,7 @@ local DEFAULTS = {
   ["Icon Size"] = 36, ["Fill Active Icon"] = true,
   ["Item Gap"] = 0, ["Corner Radius"] = 0, ["Rounded Corners"] = "Bar Ends",
   ["Indicator Style"] = "Line", ["Line Position"] = "Bottom / Right",
-  ["Indicator Size"] = 6, ["Indicator Margin"] = 0, ["Animation Time"] = 300,
+  ["Indicator Size"] = 6, ["Indicator Margin X"] = 0, ["Indicator Margin Y"] = 0, ["Animation Time"] = 300,
   ["Dividers"] = false, ["Divider Length"] = 60, ["Divider Width"] = 2,
   ["Color Background"]  = Hex(LevoBrand.Colors.Porcelain),
   ["Color Text"]        = Hex(LevoBrand.Colors.Onyx),
@@ -74,7 +74,7 @@ local function V(name) return math.floor(Controls[name].Value + 0.5) end
 local function B(name) return Controls[name].Boolean end
 
 local GAP, RADIUS, EACH_ITEM, CONTENT, FONT, FONT_SIZE, BOLD, ICON_SIZE, FILL_ICON
-local IND_STYLE, LINE_END, IND_SIZE, IND_MARGIN, DIVIDERS, DIV_LEN, DIV_W, ANIM_MS, TRANSITION
+local IND_STYLE, LINE_END, IND_SIZE, MX, MY, DIVIDERS, DIV_LEN, DIV_W, ANIM_MS, TRANSITION
 local COLORS, ITEMS = {}, {}
 
 local function LoadConfig()
@@ -90,7 +90,8 @@ local function LoadConfig()
   IND_STYLE  = S("Indicator Style")
   LINE_END   = S("Line Position") ~= "Top / Left"
   IND_SIZE   = V("Indicator Size")
-  IND_MARGIN = V("Indicator Margin")
+  MX         = V("Indicator Margin X")
+  MY         = V("Indicator Margin Y")
   DIVIDERS   = B("Dividers")
   DIV_LEN    = V("Divider Length") / 100
   DIV_W      = V("Divider Width")
@@ -162,34 +163,39 @@ local function Corners(i)
   return first and RADIUS or 0, last and RADIUS or 0, last and RADIUS or 0, first and RADIUS or 0
 end
 
--- Indicator shape for an item, d = indicator start relative to this item (px along the bar)
+-- Indicator shape for an item, d = indicator start relative to this item (px along the bar).
+-- MX / MY keep it away from the left/right and top/bottom edges of the item.
 local function Indicator(i, d)
   if IND_STYLE == "None" then return "" end
   local col = Fill(Color("Indicator"))
-  local m = IND_MARGIN
-  -- the gap shrinks the item along the bar axis
+  -- the item gap shrinks the item along the bar axis
   local gx, gy = VERTICAL and 0 or GAP, VERTICAL and GAP or 0
-  local x, y = (VERTICAL and 0 or d) + gx, (VERTICAL and d or 0) + gy
-  local IW, IH = IW - 2 * gx, IH - 2 * gy
+  local x0 = (VERTICAL and 0 or d) + gx + MX
+  local y0 = (VERTICAL and d or 0) + gy + MY
+  local w, h = IW - 2 * (gx + MX), IH - 2 * (gy + MY)
+  if w <= 0 or h <= 0 then return "" end
+
   if IND_STYLE == "Line" then
-    -- the margin keeps the line away from the item edges (sides and outer edge)
     local r = IND_SIZE / 2
     if VERTICAL then
-      local lx = LINE_END and (IW - IND_SIZE - m) or m
-      return RoundRect(lx, y + m, IND_SIZE, IH - 2 * m, r, r, r, r, col)
+      local lx = LINE_END and (x0 + w - IND_SIZE) or x0
+      return RoundRect(lx, y0, IND_SIZE, h, r, r, r, r, col)
     end
-    local ly = LINE_END and (IH - IND_SIZE - m) or m
-    return RoundRect(x + m, ly, IW - 2 * m, IND_SIZE, r, r, r, r, col)
+    local ly = LINE_END and (y0 + h - IND_SIZE) or y0
+    return RoundRect(x0, ly, w, IND_SIZE, r, r, r, r, col)
   end
-  local w, h = IW - 2 * m, IH - 2 * m
-  if w <= 0 or h <= 0 then return "" end
-  local r
+
   if IND_STYLE == "Pill" then
-    r = math.min(w, h) / 2
-  else -- Block follows the item's corner radius
-    r = math.max(0, RADIUS - m)
+    local r = math.min(w, h) / 2
+    return RoundRect(x0, y0, w, h, r, r, r, r, col)
   end
-  return RoundRect(x + m, y + m, w, h, r, r, r, r, col)
+
+  -- Block takes the shape of the item it rests on (square unless that item is rounded)
+  local k = math.max(1, math.min(N, math.floor(pos / PITCH + 0.5) + 1))
+  local tl, tr, br, bl = Corners(k)
+  local m = math.min(MX, MY)
+  local function R(c) return math.max(0, c - m) end
+  return RoundRect(x0, y0, w, h, R(tl), R(tr), R(br), R(bl), col)
 end
 
 local function Divider(i)
@@ -249,8 +255,9 @@ local function Render(i)
   local tl, tr, br, bl = Corners(i)
   local opacity = Controls.Lock.Boolean and ' opacity="0.45"' or ""
   local svg = string.format(
-    '<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d"><g%s>%s%s%s%s</g></svg>',
-    IW, IH, opacity,
+    '<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" viewBox="0 0 %d %d" ' ..
+    'preserveAspectRatio="none"><g%s>%s%s%s%s</g></svg>',
+    IW, IH, IW, IH, opacity,
     Background(tl, tr, br, bl),
     Indicator(i, pos - (i - 1) * PITCH),
     Divider(i),
