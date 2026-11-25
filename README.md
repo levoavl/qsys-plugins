@@ -54,6 +54,17 @@ streaming and recording. The plugin adapts to the model chosen in the properties
 
 Tested on ATEM Mini Extreme 10.3 · Q-SYS Designer 10.1
 
+### 💡 Art-Net
+
+Send and receive DMX over Art-Net – up to four universes, each sending or receiving, with
+a free channel range. Always full, clean 512-slot packets (no flicker on unused channels),
+unicast or broadcast, node name for consoles and tools, no stray output in Emulation.
+
+<a href="https://github.com/levoavl/qsys-plugins/releases/download/artnet-v1.0/levo-artnet.qplug"><img src="https://img.shields.io/badge/-%E2%AC%87_Download_v1.0-FFB830?style=for-the-badge" alt="Download Art-Net plugin v1.0"></a>
+<a href="ArtNet"><img src="https://img.shields.io/badge/-Manual-00468C?style=for-the-badge" alt="Art-Net manual"></a>
+
+Tested on Core 24f · Q-SYS Designer 10.1 · with Resolume Arena and ArtNetominator
+
 > [!NOTE]
 > **Coming soon:** Resolume Arena · Pharos
 
@@ -87,7 +98,7 @@ Issues and pull requests are welcome. Please label issues with the plugin they c
 ## Disclaimer
 
 This project is not affiliated with, endorsed by, or sponsored by QSC, LLC (Q-SYS),
-Blackmagic Design, MA Lighting, or any other manufacturer. All product names and
+Blackmagic Design, MA Lighting, Artistic Licence, or any other manufacturer. All product names and
 trademarks are the property of their respective owners.
 
 The plugins are provided "as is", without warranty of any kind. See [LICENSE](LICENSE).

@@ -27,7 +27,7 @@ table.insert(props, {
 })
 table.insert(props, {
   Name = "Send Mode",
-  Type = "enum", Choices = { "On Change", "Continuous" }, Value = "On Change",
+  Type = "enum", Choices = { "Continuous", "On Change" }, Value = "Continuous",
 })
 table.insert(props, {
   Name = "Debug Print",

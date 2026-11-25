@@ -166,7 +166,9 @@ class Harness:
         pt = self.lua.table()
         for _, p in plist.items():
             pt[p.Name] = p
-        for k, v in (props or {}).items():
+        self.default_send_mode = pt["Send Mode"].Value
+        # most tests check the on-change timing; continuous has its own test
+        for k, v in {"Send Mode": "On Change", **(props or {})}.items():
             pt[k].Value = v
         pt["plugin_show_debug"] = self.lua.table_from({"Value": True})
         pt = self.lua.globals().RectifyProperties(pt)
@@ -356,6 +358,8 @@ def test_discovery():
 
 def test_continuous():
     print("send mode continuous")
+    check(Harness().default_send_mode == "Continuous", "Continuous is the default send mode")
+    check(Harness().ctl("U1 Enable").Boolean is False, "Enable off by default")
     h = Harness({"Channels U1": 8, "Send Mode": "Continuous", "Refresh Rate (Hz)": 30})
     h.set("U1 Target IP", "String", "10.0.0.50")
     h.set("U1 Enable", "Boolean", True)
