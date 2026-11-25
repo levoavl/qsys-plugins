@@ -53,5 +53,6 @@ function GetControlLayout(props)
 end
 
 if Controls then
+  --[[ #include "icons.lua" ]]
   --[[ #include "runtime.lua" ]]
 end
