@@ -66,7 +66,7 @@ function UserSet(name, field, value)
 end
 
 Now = 0
-Timers = {}
+Timers = setmetatable({}, { __mode = "v" })   -- weak like on the Core
 Timer = { New = function()
   local t = { running = false }
   function t:Start(iv) self.interval = iv; self.nextAt = Now + iv; self.running = true end
@@ -79,8 +79,9 @@ function Advance(seconds, step)
   step = step or 1 / 30
   local target = Now + seconds
   while Now < target - 1e-9 do
+    collectgarbage("collect")   -- unreferenced timers die, like on the Core
     Now = Now + step
-    for _, t in ipairs(Timers) do
+    for _, t in pairs(Timers) do
       -- fire like the Core: only when the timer's own interval has elapsed
       if t.running and t.EventHandler and Now >= t.nextAt - 1e-9 then
         t.nextAt = t.nextAt + t.interval

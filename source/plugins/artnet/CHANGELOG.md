@@ -1,5 +1,10 @@
 # Changelog – Art-Net
 
+## 0.3 – unreleased
+
+- Fix: output stopped right after start-up on the Core – the send timer was only held
+  by a local variable and got garbage collected. Kept reachable from a global now.
+
 ## 0.2 – unreleased
 
 - Fix: no output on a Core without `Timer.Now()` – the start-up stopped before the

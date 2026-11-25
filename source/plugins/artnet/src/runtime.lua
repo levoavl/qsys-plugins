@@ -109,6 +109,7 @@ local function OpenSocket()
   local ok, err = pcall(function() s:Open() end)
   if ok then
     Socket, SocketError = s, nil
+    if ArtNetRuntime then ArtNetRuntime.Socket = s end
     Log(1, "UDP socket open" .. (Emulating and " (Emulation)" or ""))
   else
     Socket, SocketError = nil, tostring(err)
@@ -206,6 +207,9 @@ if Controls["Broadcast Address"].String == "" then
 end
 Log(1, string.format("Started: %d universe(s), %d Hz, emulation %s, clock %s, build %s",
   UniverseCount, RefreshHz, tostring(Emulating), ClockSource, PluginInfo.BuildVersion))
+-- Keep long-lived objects reachable from a global. A timer or socket that is only
+-- held by a local variable gets garbage collected on the Core and silently stops.
+ArtNetRuntime = { Tick = Tick, Universes = Universes }
 -- start the send timer first, so a problem further down can never stop output
 Tick:Start(TickInterval)
 OpenSocket()
