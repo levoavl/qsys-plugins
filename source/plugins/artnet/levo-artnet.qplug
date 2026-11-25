@@ -7,8 +7,8 @@
 
 PluginInfo = {
   Name         = "levo AVL~Art-Net",  -- "Folder~Name" in the Q-SYS schematic library
-  Version      = "0.4",
-  BuildVersion = "0.4",  -- major.minor, see source/README.md
+  Version      = "0.5",
+  BuildVersion = "0.5",  -- major.minor, see source/README.md
   Id           = "4965b05e-530e-45f0-9908-51c59575b455",
   Author       = "levo AVL | Elias Jenny",
   Description  = "Art-Net (ArtDmx) sender: up to 4 universes of DMX channels from Q-SYS.",
@@ -242,7 +242,14 @@ local function IpBytes(ip)
   return string.char(tonumber(a) & 0xFF, tonumber(b) & 0xFF, tonumber(c) & 0xFF, tonumber(d) & 0xFF)
 end
 
--- ArtPollReply for one universe (one port). opts: ip, shortName, longName,
+local function MacBytes(mac)
+  local h = {}
+  for x in tostring(mac or ""):gmatch("%x%x") do h[#h + 1] = tonumber(x, 16) end
+  if #h ~= 6 then return string.rep("\0", 6) end
+  return string.char(table.unpack(h))
+end
+
+-- ArtPollReply for one universe (one port). opts: ip, mac, shortName, longName,
 -- report, portAddress, bindIndex, version (major, minor), active
 function ArtNet.PollReply(o)
   local pa = o.portAddress or 0
@@ -264,7 +271,7 @@ function ArtNet.PollReply(o)
     string.char(0, 0, 0, 0),                                  -- SwOut
     "\0\0\0", "\0\0\0",                                       -- AcnPriority, SwMacro, SwRemote, Spare x3
     string.char(0x01),                                        -- Style: StController
-    string.rep("\0", 6),                                      -- MAC (unknown)
+    MacBytes(o.mac),                                          -- MAC
     IpBytes(o.ip), string.char(o.bindIndex or 1),             -- BindIp, BindIndex
     string.char(0x08),                                        -- Status2: 15-bit Port-Address
   }
@@ -720,47 +727,74 @@ local function DesignName()
   return ok and type(st) == "table" and st.DesignName or nil
 end
 
--- Local interface address in the poller's subnet (first interface otherwise)
-local function LocalIpFor(remote)
+-- Local interface in the poller's subnet (first interface otherwise):
+-- address, directed broadcast address, MAC
+local function IpNum(ip)
+  local a, b, c, d = tostring(ip or ""):match("^(%d+)%.(%d+)%.(%d+)%.(%d+)$")
+  return a and ((tonumber(a) << 24) | (tonumber(b) << 16) | (tonumber(c) << 8) | tonumber(d)) or nil
+end
+local function IpStr(n)
+  return string.format("%d.%d.%d.%d", (n >> 24) & 0xFF, (n >> 16) & 0xFF, (n >> 8) & 0xFF, n & 0xFF)
+end
+
+local function LocalInterfaceFor(remote)
   local ok, ifs = pcall(function() return Network.Interfaces() end)
-  if not ok or type(ifs) ~= "table" then
-    ok, ifs = pcall(function() return System.LocalInterfaces end)
-  end
-  if not ok or type(ifs) ~= "table" then return "0.0.0.0" end
-  local function n(ip)
-    local a, b, c, d = tostring(ip or ""):match("^(%d+)%.(%d+)%.(%d+)%.(%d+)$")
-    return a and ((tonumber(a) << 24) | (tonumber(b) << 16) | (tonumber(c) << 8) | tonumber(d)) or nil
-  end
+  if not ok or type(ifs) ~= "table" then return { ip = "0.0.0.0" } end
   local first = nil
   for _, i in pairs(ifs) do
     local addr, mask = i.Address or i.IP, i.Netmask or i.NetMask
-    if n(addr) then
-      first = first or addr
-      if n(mask) and n(remote) and (n(addr) & n(mask)) == (n(remote) & n(mask)) then return addr end
+    local a, m = IpNum(addr), IpNum(mask)
+    if a then
+      local info = { ip = addr, mac = i.MACAddress or i.MacAddress or i.MAC,
+                     broadcast = m and IpStr((a & m) | (~m & 0xFFFFFFFF)) or nil }
+      first = first or info
+      if m and IpNum(remote) and (a & m) == (IpNum(remote) & m) then return info end
     end
   end
-  return first or "0.0.0.0"
+  return first or { ip = "0.0.0.0" }
 end
 
 local PollReplies = 0
 
-local function ReplyToPoll(sender)
-  local ip = LocalIpFor(sender)
+-- Sends one ArtPollReply per universe to `targets` (list of IPs)
+local function SendPollReplies(iface, targets)
   local design = DesignName()
   local long = NodeName() .. " - levo AVL Art-Net " .. PluginInfo.BuildVersion .. (design and (" - " .. design) or "")
   local major, minor = PluginInfo.Version:match("^(%d+)%.(%d+)")
   for _, u in ipairs(Universes) do
     local active = Ctl(u.index, "Enable").Boolean and OutputAllowed()
     local pkt = ArtNet.PollReply({
-      ip = ip, shortName = NodeName(), longName = long,
+      ip = iface.ip, mac = iface.mac, shortName = NodeName(), longName = long,
       report = string.format("#0001 [%04d] %s", PollReplies % 10000, active and "Sending" or "Idle"),
       portAddress = PortAddressOf(u), bindIndex = u.index, active = active,
       versionMajor = tonumber(major) or 0, versionMinor = tonumber(minor) or 0,
     })
-    pcall(function() Discovery:Send(sender, ArtNet.PORT, pkt) end)
+    for _, t in ipairs(targets) do
+      pcall(function() Discovery:Send(t, ArtNet.PORT, pkt) end)
+    end
   end
   PollReplies = PollReplies + 1
-  Log(2, string.format("ArtPoll from %s, replied as %s (%s)", sender, NodeName(), ip))
+end
+
+-- Reply unicast to the poller (Art-Net 4) and to the subnet broadcast (Art-Net 3
+-- tools expect that)
+local function ReplyToPoll(sender)
+  local iface = LocalInterfaceFor(sender)
+  local targets = { sender }
+  if iface.broadcast then table.insert(targets, iface.broadcast) end
+  SendPollReplies(iface, targets)
+  Log(2, string.format("ArtPoll from %s, replied as %s (%s, mac %s) to %s", sender, NodeName(), iface.ip,
+    tostring(iface.mac), table.concat(targets, " + ")))
+end
+
+-- Unsolicited reply at start-up and when the name changes, so receivers learn the
+-- name without waiting for their next poll
+local function AnnounceNode(reason)
+  if not Discovery or not OutputAllowed() then return end
+  local iface = LocalInterfaceFor(nil)
+  if not iface.broadcast then return end
+  SendPollReplies(iface, { iface.broadcast })
+  Log(1, string.format("Announced as %s to %s (%s)", NodeName(), iface.broadcast, reason))
 end
 
 local function OpenDiscovery()
@@ -794,6 +828,7 @@ end
 
 Controls["Node Name"].EventHandler = function(ctl)
   Log(1, "Node name: " .. NodeName())
+  AnnounceNode("name changed")
 end
 
 -- --------------------------------------------------------------- send loop
@@ -836,5 +871,6 @@ Tick:Start(TickInterval)
 OpenSocket()
 RetryAt = Clock() + SOCKET_RETRY_S
 OpenDiscovery()
+AnnounceNode("start-up")
 -- <<< runtime.lua
 end

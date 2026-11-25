@@ -1,5 +1,11 @@
 # Changelog – Art-Net
 
+## 0.5 – unreleased
+
+- ArtPollReply now also goes to the subnet broadcast address (Art-Net 3 behaviour,
+  some tools only listen for that) and carries the Core's MAC address.
+- Unsolicited ArtPollReply at start-up and when the node name changes.
+
 ## 0.4 – unreleased
 
 - Node name: answers ArtPoll with ArtPollReply (one per universe), so ArtNetominator,

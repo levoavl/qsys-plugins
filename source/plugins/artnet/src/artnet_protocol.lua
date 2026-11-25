@@ -82,7 +82,14 @@ local function IpBytes(ip)
   return string.char(tonumber(a) & 0xFF, tonumber(b) & 0xFF, tonumber(c) & 0xFF, tonumber(d) & 0xFF)
 end
 
--- ArtPollReply for one universe (one port). opts: ip, shortName, longName,
+local function MacBytes(mac)
+  local h = {}
+  for x in tostring(mac or ""):gmatch("%x%x") do h[#h + 1] = tonumber(x, 16) end
+  if #h ~= 6 then return string.rep("\0", 6) end
+  return string.char(table.unpack(h))
+end
+
+-- ArtPollReply for one universe (one port). opts: ip, mac, shortName, longName,
 -- report, portAddress, bindIndex, version (major, minor), active
 function ArtNet.PollReply(o)
   local pa = o.portAddress or 0
@@ -104,7 +111,7 @@ function ArtNet.PollReply(o)
     string.char(0, 0, 0, 0),                                  -- SwOut
     "\0\0\0", "\0\0\0",                                       -- AcnPriority, SwMacro, SwRemote, Spare x3
     string.char(0x01),                                        -- Style: StController
-    string.rep("\0", 6),                                      -- MAC (unknown)
+    MacBytes(o.mac),                                          -- MAC
     IpBytes(o.ip), string.char(o.bindIndex or 1),             -- BindIp, BindIndex
     string.char(0x08),                                        -- Status2: 15-bit Port-Address
   }

@@ -111,7 +111,7 @@ end }
 
 Network = { Interfaces = function()
   return { { Interface = "LAN A", Address = "192.168.1.10", Netmask = "255.255.255.0" },
-           { Interface = "LAN B", Address = "10.0.0.10", Netmask = "255.255.255.0" } }
+           { Interface = "LAN B", Address = "10.0.0.10", Netmask = "255.255.255.0", MACAddress = "00:60:74:aa:bb:cc" } }
 end }
 Design = { GetStatus = function() return { DesignName = "Test Design" } end }
 
@@ -295,6 +295,8 @@ def test_discovery():
     print("discovery (ArtPoll / ArtPollReply)")
     h = Harness({"Universe Count": 2, "Channels U1": 8, "Channels U2": 8})
     check("Answering" in h.ctl("Discovery").String, "discovery socket bound to 6454")
+    ann = [ip for ip, _, d in h.sent() if d[8:10] == bytes([0x00, 0x21])]
+    check(len(ann) == 2 and set(ann) == {"192.168.1.255"}, "announcement at start-up to first subnet broadcast")
     h.set("Node Name", "String", "Kesselhaus Licht")
     h.set("U1 Target IP", "String", "10.0.0.50")
     h.set("U1 Enable", "Boolean", True)
@@ -303,9 +305,12 @@ def test_discovery():
     h.clear()
     h.g.FeedPoll("10.0.0.99")
     replies = [(ip, port, d) for ip, port, d in h.sent() if d[8:10] == bytes([0x00, 0x21])]
-    check(len(replies) == 2, "one ArtPollReply per universe")
+    check(len(replies) == 4, "one ArtPollReply per universe, unicast + subnet broadcast")
+    check({r[0] for r in replies} == {"10.0.0.99", "10.0.0.255"}, "targets: poller and 10.0.0.255")
+    replies = [r for r in replies if r[0] == "10.0.0.99"]
     ip, port, d = replies[0]
-    check(ip == "10.0.0.99" and port == 6454, "reply goes to the poller on 6454")
+    check(port == 6454, "reply goes to port 6454")
+    check(d[201:207] == bytes([0x00, 0x60, 0x74, 0xAA, 0xBB, 0xCC]), "MAC of the interface")
     check(len(d) == 239, "reply length 239")
     check(d[10:14] == bytes([10, 0, 0, 10]), "own IP from the interface in the poller's subnet")
     check(d[26:44].rstrip(b"\0") == b"Kesselhaus Licht", "short name = Node Name")
