@@ -71,7 +71,7 @@ Animated menu bar for UCIs – drawn as SVG, so **UCI styles (CSS) cannot change
 indicator (pill, block or line) slides to the pressed item; each item switches the UCI
 page and/or several layers. Icons, colours, shape and animation are set live with a preview.
 
-<a href="https://github.com/levoavl/qsys-plugins/releases/download/menubar-v1.0/levo-menubar.qplug"><img src="https://img.shields.io/badge/-%E2%AC%87_Download_v1.0-FFB830?style=for-the-badge" alt="Download Menu Bar plugin v1.0"></a>
+<a href="https://github.com/levoavl/qsys-plugins/releases/download/menubar-v1.1/levo-menubar.qplug"><img src="https://img.shields.io/badge/-%E2%AC%87_Download_v1.1-FFB830?style=for-the-badge" alt="Download Menu Bar plugin v1.1"></a>
 <a href="MenuBar"><img src="https://img.shields.io/badge/-Manual-00468C?style=for-the-badge" alt="Menu Bar manual"></a>
 
 Tested on Q-SYS Designer 10.1 (Emulation) · UCI Viewer app on iPad

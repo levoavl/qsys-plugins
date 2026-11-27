@@ -7,7 +7,7 @@ page, show and hide layers, or both.
 
 Part of [levo AVL Q-SYS Plugins](../README.md).
 
-<a href="https://github.com/levoavl/qsys-plugins/releases/download/menubar-v1.0/levo-menubar.qplug"><img src="https://img.shields.io/badge/-%E2%AC%87_Download_v1.0-FFB830?style=for-the-badge" alt="Download Menu Bar plugin v1.0"></a>
+<a href="https://github.com/levoavl/qsys-plugins/releases/download/menubar-v1.1/levo-menubar.qplug"><img src="https://img.shields.io/badge/-%E2%AC%87_Download_v1.1-FFB830?style=for-the-badge" alt="Download Menu Bar plugin v1.1"></a>
 <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/-Changelog-00468C?style=for-the-badge" alt="Changelog"></a>
 
 ![Menu Bar with default settings](menubar-default.png)
@@ -75,8 +75,8 @@ Everything else is on the Setup page.
 |---|---|---|---|
 | Menu Count | 2–12 | 4 | Number of menu items |
 | Orientation | Horizontal / Vertical | Horizontal | |
-| Item Width | 30–1000 | 200 | Button width in px |
-| Item Height | 30–600 | 60 | Button height in px |
+| Item Width | 30–4000 | 200 | Button width in px |
+| Item Height | 30–2000 | 60 | Button height in px |
 | Debug Print | None / Basic / Verbose | None | Basic: start-up, panels, errors. Verbose: every page / layer call. |
 
 ## Pages

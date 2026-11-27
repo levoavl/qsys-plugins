@@ -5,6 +5,11 @@ Format: [Keep a Changelog](https://keepachangelog.com), versioning: `major.minor
 
 ## [Unreleased]
 
+## [1.1] – 2026-11-27
+
+### Changed
+- Item Width up to 4000 px and Item Height up to 2000 px (was 1000 / 600), for wide panels like iPads.
+
 ## [1.0] – 2026-11-25
 
 First release (test versions 0.1–0.9).
