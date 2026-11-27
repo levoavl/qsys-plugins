@@ -8,7 +8,7 @@ Format: [Keep a Changelog](https://keepachangelog.com), versioning: `major.minor
 ## [1.1] – 2026-11-27
 
 ### Added
-- 15 more icons for sources and inputs: settings_input_component, settings_input_svideo, instant_mix,
+- 14 more icons for sources and inputs: settings_input_component, settings_input_svideo, instant_mix,
   input_circle, media_output, cable, bluetooth, airplay, queue_music, library_music, album,
   playlist_play, podcasts, speaker_group.
 
