@@ -15,7 +15,9 @@ theaters slideshow present_to_all screen_share cast input settings_input_hdmi pl
 info help warning lock lock_open menu apps dashboard grid_view thermostat wifi lan router blinds
 curtains roller_shades meeting_room groups person event schedule call photo_camera tablet_mac
 admin_panel_settings build celebration restaurant local_bar campaign palette bolt arrow_back
-arrow_forward close add remove check_circle language web""".split()
+arrow_forward close add remove check_circle language web
+settings_input_component settings_input_svideo instant_mix input_circle media_output cable bluetooth
+airplay queue_music library_music album playlist_play podcasts speaker_group""".split()
 
 def paths(svg: str) -> str:
     return "".join(re.findall(r'<path d="([^"]+)"', svg))
